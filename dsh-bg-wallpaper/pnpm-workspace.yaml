@@ -1,0 +1,12 @@
+# The shell's module table provides every @deepseek-ai platform module at
+# runtime (cordis, the settings scope, locale, slots, ...); never auto-install
+# them from npm — several rc builds of internal packages (e.g. dsh-compact) are
+# not yet published there. pnpm 11 reads its settings from this file.
+autoInstallPeers: false
+strictPeerDependencies: false
+
+minimumReleaseAgeExclude:
+  - '@deepseek-ai/cordis@4.0.1'
+  - '@deepseek-ai/cosmokit@1.8.2'
+  - '@deepseek-ai/schemastery@3.18.1'
+  - '@deepseek-ai/dsh-host-webserver@0.1.0-rc.6'

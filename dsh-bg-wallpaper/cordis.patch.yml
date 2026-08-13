@@ -1,0 +1,7 @@
+# dsh-bg-wallpaper bundle patch: inserts its dshClient row into the web
+# plugin roster. The bundle is the official dsh plugin shape — install it
+# with `dsh plugin --profile <name> add <path-or-git-url>` (or `pnpm dsh ...`
+# from a fresh source checkout).
+- insert:
+    - id: ui-bg-wallpaper
+      name: 'dsh-bg-wallpaper'
