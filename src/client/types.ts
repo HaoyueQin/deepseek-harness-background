@@ -1,7 +1,7 @@
 /**
  * Slot/locale type declarations for this plugin. The runtime sides come from
- * the shell's module table (`ui-layout`/`ui-settings`/`locale` plugins); this
- * package only merges the types so its card can be typed against the real
+ * the shell's module table (`ui-settings-general`/`locale` plugins); this
+ * package only merges the types so its row can be typed against the real
  * slot machinery. `SlotMap`/`LocaleNamespaceMap`/`Context` merges are the
  * same declaration-merge pattern the framework packages use.
  */
@@ -12,35 +12,23 @@ import type { SlotMap, LocaleNamespaceMap } from '@deepseek-ai/dsh-client-ui-slo
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /**
-     * One plugin's card inside the plugin configuration section. Declared by
-     * `ui-settings-plugins` at runtime; re-declared here (interface merge) so
+     * One row inside the General settings section. Declared by
+     * `ui-settings-general` at runtime; re-declared here (interface merge) so
      * this package can type its registration without importing that package.
      */
-    'settings.plugin.item': { kind: 'list'; scope: 'root'; owner: BackgroundCardOwnerProps }
-    /**
-     * The additive surface slot declared by `ui-layout` (AppFrame renders it
-     * over every column, click-through until an entry opts into pointer
-     * events). The settings overlay registers here.
-     */
-    'shell.overlay': { kind: 'list'; scope: 'root'; owner: BackgroundOverlayOwnerProps }
+    'settings.general.item': { kind: 'list'; scope: 'root'; owner: BackgroundRowOwnerProps }
   }
 }
 
-/** Owner share of a plugin card: the section supplies nothing. */
-export interface BackgroundCardOwnerProps {
-  /** Marker field: card owner props are intentionally empty. */
-  children?: never
-}
-
-/** Owner share of an overlay entry: the frame supplies nothing. */
-export interface BackgroundOverlayOwnerProps {
-  /** Marker field: overlay owner props are intentionally empty. */
+/** Owner share of a General settings row: the section supplies nothing. */
+export interface BackgroundRowOwnerProps {
+  /** Marker field: row owner props are intentionally empty. */
   children?: never
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** Dictionary keys this card's locale registration carries. */
+    /** Dictionary keys this row's locale registration carries. */
     'ui-background': BackgroundCardLocaleKey
   }
 }
@@ -49,24 +37,23 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export type BackgroundCardLocaleKey =
   | 'background.title'
   | 'background.description'
-  | 'background.entryHint'
+  | 'background.upload'
+  | 'background.uploading'
+  | 'background.uploadMinetypes'
+  | 'background.urlPlaceholder'
+  | 'background.applyUrl'
   | 'background.enabled'
-  | 'background.lightUrl'
-  | 'background.darkUrl'
   | 'background.opacity'
   | 'background.scrim'
+  | 'background.panelOpacity'
+  | 'background.blur'
+  | 'background.wallpaperBlur'
   | 'background.fit'
   | 'background.cover'
   | 'background.contain'
-  | 'background.preview'
-  | 'background.unsaved'
-  | 'background.save'
-  | 'background.saving'
-  | 'background.close'
-  | 'background.discard'
-  | 'background.readOnly'
+  | 'background.clear'
+  | 'background.uploadFailed'
   | 'background.saveFailed'
-  | 'background.resetAll'
 
 /** Cordis Context merges: the services this plugin injects. */
 declare module '@deepseek-ai/cordis' {

@@ -1,14 +1,14 @@
 /**
  * Background settings transport — reads and writes the `ui-background`
- * section through the plugin's own same-origin HTTP route (see
- * src/routes.ts). A custom route family keeps the section usable even though
- * the api-proxy settings allowlist does not expose third-party namespaces
- * over the settings RPC. One module-level client serves the painter and the
- * settings overlay.
+ * section, and uploads local images, through the plugin's own same-origin
+ * HTTP routes (see src/routes.ts). A custom route family keeps the section
+ * usable even though the api-proxy settings allowlist does not expose
+ * third-party namespaces over the settings RPC. One module-level client
+ * serves the painter and the settings row.
  */
 
 import type { BackgroundSettings } from '../settings.ts'
-import { BACKGROUND_API_PREFIX } from '../routes.ts'
+import { BACKGROUND_API_PREFIX } from '../settings.ts'
 
 /** One snapshot of the section as last seen by the transport. */
 export interface SettingsSnapshot {
@@ -75,7 +75,40 @@ export class SettingsClient {
       return false
     }
   }
+
+  /**
+   * Upload a local image file; on success stores its id into the snapshot and
+   * returns the resolved background url (or null on failure).
+   * @param file - the chosen image file.
+   * @param apply - adopt the upload as the active background source.
+   * @returns the resolved image url, or null.
+   */
+  async upload(file: File, apply: boolean): Promise<string | null> {
+    try {
+      const response = await fetch(`${BACKGROUND_API_PREFIX}/upload`, {
+        method: 'POST',
+        headers: { 'content-type': file.type },
+        body: file,
+      })
+      const body = await response.json() as { ok: boolean; id?: string; url?: string }
+      if (!response.ok || !body.ok || body.id === undefined || body.url === undefined) return null
+      if (apply && this.snapshot.value) {
+        const next: BackgroundSettings = { ...this.snapshot.value, uploadId: body.id, url: '' }
+        this.snapshot = { status: 'ready', value: next }
+        this.notify()
+      }
+      return body.url ?? null
+    } catch {
+      return null
+    }
+  }
+
+  /** Resolve the effective background image url for the current snapshot. */
+  resolveUrl(settings: BackgroundSettings): string {
+    if (settings.uploadId) return `${BACKGROUND_API_PREFIX}/image/${settings.uploadId}`
+    return settings.url
+  }
 }
 
-/** Shared client for the painter and the settings overlay. */
+/** Shared client for the painter and the settings row. */
 export const settingsClient = new SettingsClient()

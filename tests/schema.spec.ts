@@ -1,5 +1,5 @@
 /** Schema contract for the `ui-background` section: defaults and bounds drive
- * the plugin-configuration form and the resolved value the browser paints.
+ * the settings row and the resolved value the browser paints.
  * A schemastery schema is callable — `schema(section)` resolves defaults and
  * validates (throwing on invalid input). Inputs are cast because defaults
  * make every partial section valid at runtime though the schema's input type
@@ -17,36 +17,53 @@ describe('ui-background schema', () => {
   it('resolves defaults for an empty section', () => {
     expect(resolve({})).toEqual({
       enabled: false,
-      lightUrl: '',
-      darkUrl: '',
+      uploadId: '',
+      url: '',
       opacity: 1,
       scrim: 0.25,
+      panelOpacity: 0.15,
+      blur: 16,
+      wallpaperBlur: 0,
       fit: 'cover',
     })
   })
 
-  it('accepts a full valid section', () => {
+  it('accepts a full valid section (upload source)', () => {
     expect(resolve({
       enabled: true,
-      lightUrl: 'https://example.com/l.jpg',
-      darkUrl: 'https://example.com/d.jpg',
+      uploadId: 'up-abc123',
+      url: '',
       opacity: 0.6,
       scrim: 0.6,
+      panelOpacity: 0.4,
+      blur: 20,
+      wallpaperBlur: 5,
       fit: 'contain',
     })).toEqual({
       enabled: true,
-      lightUrl: 'https://example.com/l.jpg',
-      darkUrl: 'https://example.com/d.jpg',
+      uploadId: 'up-abc123',
+      url: '',
       opacity: 0.6,
       scrim: 0.6,
+      panelOpacity: 0.4,
+      blur: 20,
+      wallpaperBlur: 5,
       fit: 'contain',
     })
   })
 
-  it('accepts an empty url string and rejects out-of-range scrim, opacity, or fit', () => {
-    expect(resolve({ lightUrl: '' }).lightUrl).toBe('')
+  it('accepts a URL source with empty uploadId', () => {
+    const resolved = resolve({ enabled: true, url: 'https://example.com/a.jpg', uploadId: '' })
+    expect(resolved.url).toBe('https://example.com/a.jpg')
+    expect(resolved.uploadId).toBe('')
+  })
+
+  it('accepts empty urls and rejects out-of-range scrim, opacity, panelOpacity, blur, or fit', () => {
+    expect(resolve({ url: '' }).url).toBe('')
     expect(() => resolve({ scrim: 1.2 })).toThrow()
     expect(() => resolve({ opacity: 1.5 })).toThrow()
+    expect(() => resolve({ panelOpacity: 1.2 })).toThrow()
+    expect(() => resolve({ blur: 100 })).toThrow()
     expect(() => resolve({ fit: 'stretch' as BackgroundSettings['fit'] })).toThrow()
   })
 })

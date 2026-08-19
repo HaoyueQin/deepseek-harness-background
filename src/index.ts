@@ -1,10 +1,10 @@
 /**
- * Host registration for the background-image plugin: registers the
- * `ui-background` settings namespace (the section lives in the official
- * settings document) and mounts the same-origin HTTP routes the browser
- * half reads and writes through — a custom route family keeps the section
- * usable even though the api-proxy's settings allowlist does not expose
- * third-party namespaces over the settings RPC.
+ * Host registration for the background plugin: registers the `ui-background`
+ * settings namespace (the section lives in the official settings document)
+ * and mounts the same-origin HTTP routes the browser half reads, writes and
+ * uploads through — a custom route family keeps the section usable even
+ * though the api-proxy's settings allowlist does not expose third-party
+ * namespaces over the settings RPC.
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -14,11 +14,12 @@ import { makeBackgroundRoutes } from './routes.ts'
 
 export {
   BACKGROUND_SETTINGS_NAMESPACE, BackgroundSettingsSchema, FIT_MODES,
-  DEFAULT_FIT, DEFAULT_OPACITY, DEFAULT_SCRIM, OPACITY_MAX, OPACITY_MIN,
-  SCRIM_MAX, SCRIM_MIN,
+  DEFAULT_FIT, DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM,
+  OPACITY_MAX, OPACITY_MIN, SCRIM_MAX, SCRIM_MIN,
   type BackgroundFit, type BackgroundSettings,
 } from './schema.ts'
 export { BACKGROUND_API_PREFIX, makeBackgroundRoutes } from './routes.ts'
+export { resolveHarnessHome, PLUGIN_HOME_REL } from './harness-home.ts'
 
 const BACKGROUND_NAMESPACE = settingsNamespace(BACKGROUND_SETTINGS_NAMESPACE)
 
@@ -37,10 +38,10 @@ export function apply(ctx: Context): void {
     // web server down when the route family cannot mount.
     try {
       for (const route of makeBackgroundRoutes(hostCtx.settings)) {
-        hostCtx.effect(() => hostCtx.webServer.register(route), 'dsh-bg-wallpaper: settings route')
+        hostCtx.effect(() => hostCtx.webServer.register(route), 'deepseek-harness-background: settings route')
       }
     } catch (error) {
-      console.error('[dsh-bg-wallpaper] route registration failed:', error)
+      console.error('[deepseek-harness-background] route registration failed:', error)
     }
   })
 }

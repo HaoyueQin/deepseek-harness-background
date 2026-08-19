@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 /**
- * apply() paints the body background from the plugin's own settings transport
- * (fetch against /api/bg-wallpaper/settings) and registers the entry card +
- * overlay. Assert the surface contract: paint from a loaded section, live
- * dark/light flip, disable restore, teardown restore, and the injection
- * declaration. The transport fetch is mocked; the render logic runs on the
- * real DOM.
+ * apply() paints the background from the plugin's own settings transport
+ * (fetch against /api/bg-wallpaper/settings) and registers the settings row
+ * into the General section. Assert the surface contract: paint a loaded
+ * section (wallpaper layer + scrim + data-dsh-bg + glass tokens), retract on
+ * disable and on teardown, and the injection declaration. The transport fetch
+ * is mocked; the painter runs on the real DOM.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
@@ -15,10 +15,13 @@ import type { BackgroundSettings } from '../src/settings.ts'
 
 const SECTION: BackgroundSettings = {
   enabled: true,
-  lightUrl: 'https://example.com/light.png',
-  darkUrl: 'https://example.com/dark.png',
+  uploadId: 'up-abc',
+  url: '',
   opacity: 1,
   scrim: 0.25,
+  panelOpacity: 0.15,
+  blur: 16,
+  wallpaperBlur: 0,
   fit: 'cover',
 }
 
@@ -38,7 +41,7 @@ function mockFetch(): void {
         json: async () => ({ ok: true, value: { ...section } }),
       } as Response
     }
-    return { ok: false, json: async () => ({}) } as Response
+    return { ok: false, json: async () => ({ ok: false }) } as Response
   }))
 }
 
@@ -55,10 +58,23 @@ async function mount() {
   })
 }
 
+/** The wallpaper layer currently attached to body (null when absent). */
+function layer(): HTMLDivElement | null {
+  return document.querySelector('.dsh-bg-layer') as HTMLDivElement | null
+}
+
+function scrim(): HTMLDivElement | null {
+  return document.querySelector('.dsh-bg-scrim') as HTMLDivElement | null
+}
+
+function img(): HTMLImageElement | null {
+  return document.querySelector('.dsh-bg-layer img') as HTMLImageElement | null
+}
+
 afterEach(async () => {
   await fiber?.dispose()
   fiber = undefined
-  document.body.removeAttribute('data-ds-dark-theme')
+  document.body.removeAttribute('data-dsh-bg')
   document.body.style.cssText = ''
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -66,61 +82,60 @@ afterEach(async () => {
   ;(settingsClient as unknown as { snapshot: unknown }).snapshot = { status: 'loading' }
 })
 
-describe('dsh-bg-wallpaper apply', () => {
+describe('deepseek-harness-background apply', () => {
   it('declares the framework service injections (slots, locale)', () => {
     expect(inject).toEqual(['slots', 'locale'])
   })
 
-  it('paints the background from the loaded section when enabled', async () => {
+  it('paints a background layer + scrim with the resolved image and active attribute', async () => {
     mockFetch()
     await mount()
-    expect(document.body.style.backgroundImage).toContain('https://example.com/light.png')
-    expect(document.body.style.backgroundSize).toBe('cover')
-    expect(document.body.style.backgroundAttachment).toBe('fixed')
+    expect(layer()).not.toBeNull()
+    expect(scrim()).not.toBeNull()
+    expect(img()?.src).toContain('/api/bg-wallpaper/image/up-abc')
+    expect(document.body.getAttribute('data-dsh-bg')).toBe('on')
+    // Glass surface token applied (panel not fully opaque).
+    expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toContain('rgba(')
+    // Owned CSS variables present.
+    expect(document.body.style.getPropertyValue('--bg-scrim')).toBe('0.25')
+    expect(document.body.style.getPropertyValue('--bg-glass-blur')).toBe('16px')
   })
 
-  it('swaps to the dark image with a black veil when the theme flips dark', async () => {
+  it('renders a URL source directly when no upload is selected', async () => {
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/a.jpg' }
     mockFetch()
     await mount()
-    expect(document.body.style.backgroundImage).toContain('https://example.com/light.png')
-
-    document.body.dataset.dsDarkTheme = ''
-    await vi.waitFor(() => {
-      expect(document.body.style.backgroundImage).toContain('https://example.com/dark.png')
-    })
-
-    delete document.body.dataset.dsDarkTheme
-    await vi.waitFor(() => {
-      expect(document.body.style.backgroundImage).toContain('https://example.com/light.png')
-    })
+    expect(img()?.src).toBe('https://example.com/a.jpg')
   })
 
-  it('restores the plain surface when the section disables the background', async () => {
+  it('retracts the layers when the section disables the background', async () => {
     mockFetch()
     await mount()
-    expect(document.body.style.backgroundImage).toContain('example.com/light.png')
+    expect(layer()).not.toBeNull()
 
     section = { ...SECTION, enabled: false }
     await settingsClient.load()
     await vi.waitFor(() => {
-      expect(document.body.style.backgroundImage).toBe('')
+      expect(layer()).toBeNull()
+      expect(scrim()).toBeNull()
     })
-    // The theme observer is gone: flipping dark paints nothing.
-    document.body.dataset.dsDarkTheme = ''
-    await Promise.resolve()
-    expect(document.body.style.backgroundImage).toBe('')
+    expect(document.body.getAttribute('data-dsh-bg')).toBeNull()
   })
 
-  it('retracts every owned property on fiber dispose', async () => {
+  it('retracts every owned property and node on fiber dispose', async () => {
     document.body.style.backgroundImage = 'url(previous.png)'
     mockFetch()
     await mount()
-    expect(document.body.style.backgroundImage).toContain('example.com/light.png')
+    expect(layer()).not.toBeNull()
 
     await fiber?.dispose()
     fiber = undefined
+    expect(layer()).toBeNull()
+    expect(scrim()).toBeNull()
+    expect(document.body.getAttribute('data-dsh-bg')).toBeNull()
+    expect(document.body.style.getPropertyValue('--bg-scrim')).toBe('')
+    // The original background-image was restored.
     expect(document.body.style.backgroundImage).toBe('url("previous.png")')
-    expect(document.body.style.backgroundAttachment).toBe('')
   })
 
   it('is a no-op while the transport has not loaded', async () => {
@@ -137,6 +152,6 @@ describe('dsh-bg-wallpaper apply', () => {
     await vi.waitFor(() => {
       expect(settingsClient.getSnapshot().status).toBe('error')
     })
-    expect(document.body.style.backgroundImage).toBe('')
+    expect(layer()).toBeNull()
   })
 })

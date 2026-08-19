@@ -1,6 +1,12 @@
 # Dependencies
 node_modules/
 
+# Build output (rebuilt on install via `prepare`/`build`)
+lib/
+
+# Reasonix session/task state (not part of the plugin)
+.reasonix/
+
 # Logs
 *.log
 npm-debug.log*

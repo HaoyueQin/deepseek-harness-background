@@ -1,0 +1,103 @@
+# deepseek-harness-background
+
+[English](README.md) | 中文
+
+一个 **DeepSeek Harness Web GUI**（`dsh web`）的**自定义背景图片插件**：上传一张本地图片，或粘贴一个图片链接，把它绘制在整个应用界面背后，并可调节**不透明度**、**可读性遮罩**、**面板透明**与**毛玻璃模糊** —— 全部实时预览、自动持久化。
+
+外观（固定壁纸层 + 遮罩 + 由 `--dsw-*` 设计 token 驱动的半透明玻璃面板）借鉴了社区 `dsh-wallpaper-engine` 与 `DeepSeek-Reasonix` 的壁纸主题实现。
+
+## 功能
+
+- **本地上传** —— 从电脑选择 JPG / PNG / WebP / GIF 图片；插件存入 harness home 目录，经同源路由提供（仅当声明的 MIME、探测到的文件签名与扩展名三者一致才被接受）。
+- **粘贴 URL** —— 输入 `http(s)` 图片链接后回车即可。
+- **实时预览** —— 拖动任意滑块立即重绘，所见即所存。
+- **五个调节项** —— 壁纸不透明度、可读性遮罩、面板不透明度、毛玻璃模糊、壁纸模糊。
+- **填充方式** —— `cover`（铺满、裁剪）或 `contain`（完整、留白）。
+- **毛玻璃** —— 启用背景后，输入框卡片与消息气泡变成覆盖在壁纸上的半透明玻璃（顶部白色高光渐变 + `backdrop-filter`），模糊半径由「毛玻璃模糊」滑块驱动；「面板不透明度」调至 100% 即恢复官方不透明表面。
+- **持久化到官方设置文档** —— 存于 `$DSH_HOME/settings.yaml`，跨重启保留。
+- **干净卸载** —— 关闭、清除或卸载后完整恢复原背景；插件只移除自己写过的内容。
+
+## 安装
+
+这是一个标准的 out-of-tree dsh bundle：
+
+```sh
+dsh plugin --profile web add /path/to/deepseek-harness-background
+```
+
+从源代码检出安装：
+
+```sh
+pnpm dsh plugin --profile web add /path/to/deepseek-harness-background
+```
+
+或从 git 安装：
+
+```sh
+dsh plugin --profile web add github:<you>/deepseek-harness-background#<commit>
+```
+
+安装后重启：
+
+```sh
+dsh --profile web
+```
+
+## 使用
+
+1. 启动 Web UI（`dsh --profile web`）并在浏览器打开。
+2. 打开 **设置**（左下角）→ **通用** → 找到 **自定义背景** 一行（与「外观」行同一区域）。
+3. **上传**图片或**粘贴 URL** —— 背景立即生效。
+4. 调整控件，滑块均为实时生效：
+
+| 控件 | 说明 |
+| --- | --- |
+| 不透明度 | `0..1` 图片不透明度；调低让壁纸向表面色淡出。 |
+| 遮罩 | `0..0.95` 图片上方的可读性纱帘，保证文字易读。 |
+| 面板不透明度 | `0..1` 表面透明程度；为 `1` 时官方面板保持不透明（无玻璃）。 |
+| 毛玻璃模糊 | `0..40px` 半透明表面上的 `backdrop-filter` 模糊。 |
+| 壁纸模糊 | `0..60px` 壁纸图片本身的模糊。 |
+| 填充方式 | `cover`（铺满）或 `contain`（完整）。 |
+
+5. 点 **清除背景** 移除背景，恢复默认外观。
+
+## 原理
+
+- **设置行**位于官方「通用」设置分区的 `settings.general.item` 槽中，紧挨「外观」行。
+- 插件自有的 host 路由（`/api/bg-wallpaper/*`：`settings`、`upload`、`image/<id>`）负责读写设置与提供上传图片，带同源校验、大小上限、MIME/签名校验与路径穿越防护。使用自定义路由族，是因为 api-proxy 的 settings 白名单不向第三方命名空间开放 settings RPC。
+- 背景以 `body` 上一张固定的 `z-index:-2` 壁纸层 + `z-index:-1` 遮罩绘制，由 `data-dsh-bg` 属性开关；毛玻璃效果通过覆盖外壳的 surface 设计 token 实现。
+- 上传文件存放在 `$DSH_HOME/deepseek-harness-background/`（内容寻址 id）。关闭/卸载后不留残留。
+
+## 开发
+
+```sh
+pnpm install          # 首次；会运行 prepare（构建）
+pnpm run typecheck    # tsc
+pnpm test             # vitest 契约测试
+pnpm run build        # tsdown：lib/index.js（host）+ lib/client.js（浏览器 bundle）
+```
+
+```
+deepseek-harness-background/
+├── package.json          # dsh.bundle.patch + dsh.client.inject 声明
+├── cordis.patch.yml      # 向 web 插件名册插入 deepseek-harness-background 一行
+├── tsdown.config.ts      # 官方 clientBundle 预设
+├── src/
+│   ├── index.ts          # host 半部：ui-background 命名空间 + API 路由
+│   ├── routes.ts         # /api/bg-wallpaper/{settings,upload,image/<id>}
+│   ├── schema.ts         # host 侧 schemastery schema
+│   ├── settings.ts       # 两端共享的常量/类型
+│   ├── harness-home.ts   # $DSH_HOME / ~/.dsh 解析
+│   └── client/
+│       ├── index.ts          # painter 生命周期 + 设置行注册
+│       ├── backdrop.ts       # 固定壁纸层 + 遮罩 + 玻璃表面
+│       ├── background-css.ts # 注入的样式表（层、玻璃、变量）
+│       ├── SettingsRow.tsx   # 通用设置中的实时设置行
+│       ├── settings-client.ts# fetch 传输层（读/写/上传）
+│       └── locales.ts        # 中/英文案
+└── tests/                  # 契约测试（schema、routes、apply/painter）
+```
+
+## License
+
+MIT

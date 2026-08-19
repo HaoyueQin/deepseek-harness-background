@@ -1,6 +1,6 @@
 {
-  "name": "dsh-bg-wallpaper",
-  "description": "User-customizable background image plugin for the DeepSeek Harness web GUI: pick a background image (light/dark variants) in the settings, and the app surface renders it behind the columns with a readability scrim.",
+  "name": "deepseek-harness-background",
+  "description": "Custom background image plugin for the DeepSeek Harness web GUI: upload a local picture or paste an image URL, and render it behind the whole app surface with adjustable opacity, scrim, panel transparency and frosted-glass blur.",
   "version": "0.1.0",
   "type": "module",
   "main": "lib/index.js",
