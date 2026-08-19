@@ -269,11 +269,10 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Native range inputs cannot be styled from JS (no fill pseudo-element), so
-   the "filled" look is approximated with a hard two-stop gradient on the
-   track: a branded fill up to the knob and a muted remainder after it. The
-   gradient stops are derived from the same geometry as the slider, so the
-   fill always tracks the knob exactly. */
+/* Vendor pseudo-element selectors MUST stay in separate rules: WebKit drops a
+   rule wholesale when it contains a pseudo-element it does not recognize
+   (e.g. ::-moz-range-thumb), which previously killed the thumb style. */
+
 .slider {
   flex: 1;
   min-width: 0;
@@ -285,8 +284,47 @@
   cursor: pointer;
 }
 
-/* Shared thumb style (webkit + moz cannot share declarations). */
-.slider::-webkit-slider-thumb,
+/* Track — WebKit. The filled fraction comes from --bg-fill, which the
+   component syncs on mount and on every drag (WebKit has no native
+   range-progress). */
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    var(--dsw-alias-brand-primary) var(--bg-fill, 0%),
+    var(--dsw-alias-border-l3) var(--bg-fill, 0%));
+}
+
+/* Track — Firefox. */
+.slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dsw-alias-border-l3);
+}
+
+/* Firefox draws the filled portion natively. */
+.slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dsw-alias-brand-primary);
+}
+
+/* Thumb — WebKit. */
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--dsw-alias-brand-primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.28);
+}
+
+/* Thumb — Firefox. */
 .slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
@@ -294,47 +332,50 @@
   background: #fff;
   border: 2px solid var(--dsw-alias-brand-primary);
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent),
     0 1px 3px rgba(0, 0, 0, 0.28);
 }
 
-.slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(90deg,
-    var(--dsw-alias-brand-primary) var(--bg-fill, 0%),
-    color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, var(--dsw-alias-border-l3)) var(--bg-fill, 0%));
+/* Hover: the halo widens so the knob reads as grabbable. */
+.slider:hover::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent),
+    0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
-.slider::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--dsw-alias-border-l3);
+.slider:hover::-moz-range-thumb {
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent),
+    0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
-.slider::-moz-range-progress {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--dsw-alias-brand-primary);
+/* Active drag: a slightly larger knob plus a stronger halo. */
+.slider:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 7px color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent),
+    0 1px 5px rgba(0, 0, 0, 0.32);
 }
 
-.slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  margin-top: -5px;
+.slider:active::-moz-range-thumb {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 7px color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent),
+    0 1px 5px rgba(0, 0, 0, 0.32);
 }
 
 .slider:focus-visible {
   outline: none;
 }
 
-.slider:focus-visible::-webkit-slider-thumb,
+.slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
 .slider:focus-visible::-moz-range-thumb {
-  border-color: var(--dsw-alias-brand-primary);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent),
-    0 0 0 6px color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent),
-    0 1px 3px rgba(0, 0, 0, 0.28);
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
 }
 
 .sliderValue {

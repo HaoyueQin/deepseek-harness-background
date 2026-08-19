@@ -138,8 +138,8 @@ function ControlSlider(props: {
         className={css.slider}
         ref={(el) => {
           // Sync the "filled" track fraction on mount and on every external
-          // value adoption (the webkit track reads --bg-fill; the moz engine
-          // draws its own ::-moz-range-progress).
+          // value adoption (the webkit track reads --bg-fill; moz draws its
+          // own ::-moz-range-progress).
           if (el) syncTrackFill(el)
         }}
         min={spec.min} max={spec.max} step={spec.step}
