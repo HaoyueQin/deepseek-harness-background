@@ -1,4 +1,4 @@
-# deepseek-harness-background
+# DeepSeek Harness Background
 
 [![GitHub stars](https://img.shields.io/github/stars/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/releases)
@@ -26,7 +26,7 @@ The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels d
 - **Local upload** — pick a JPG / PNG / WebP / GIF from your computer; the plugin stores it under the harness home and serves it over a same-origin route (admitted only when the declared MIME, detected signature and extension all agree).
 - **Paste a URL** — drop an `http(s)` image link and press Enter.
 - **In-panel live preview** — a preview surface at the top of the row renders the image + scrim + a frosted glass bubble; dragging any slider repaints it instantly.
-- **Stepped sliders** — ratio controls snap in **5% steps**, blur radii in 2/5px steps; dragging only repaints, **release commits** (one write per gesture, no jank).
+- **Stepped sliders** — ratio controls snap in **5% steps**, blur radii in 1/2px steps; dragging only repaints, **release commits** (one write per gesture, no jank).
 - **Five controls** — wallpaper opacity, readability scrim, panel opacity, frosted-glass blur, and wallpaper blur.
 - **Fit modes** — `cover` (fill, crop) or `contain` (whole image).
 - **Theme-aware scrim** — the light theme uses a white veil (lifts the art so dark text keeps contrast); the dark theme automatically switches to a black veil (dims the art so light text keeps contrast).
@@ -72,18 +72,18 @@ dsh --profile web
 | 不透明度 / Opacity | `0..100%` image opacity (5% steps); lowering it fades the wallpaper toward the surface. |
 | 遮罩 / Scrim | `0..95%` readability veil over the image (5% steps); white in light mode, black in dark mode. |
 | 面板不透明度 / Panel opacity | `0..100%` surface transparency (5% steps); at `100%` the official panels stay opaque (no glass). |
-| 毛玻璃模糊 / Glass blur | `0..40px` `backdrop-filter` blur on the translucent surfaces (2px steps). |
-| 壁纸模糊 / Wallpaper blur | `0..60px` blur of the wallpaper image itself (5px steps). |
+| 毛玻璃模糊 / Glass blur | `0..40px` `backdrop-filter` blur on the translucent surfaces (1px steps). |
+| 壁纸模糊 / Wallpaper blur | `0..60px` blur of the wallpaper image itself (2px steps). |
 | 填充方式 / Fit | `cover` or `contain`. |
 
 5. **清除背景** removes the background and restores the stock look.
 
 ## How it works
 
-- The **settings row** lives in the official General settings section (`settings.general.item` slot), next to the Appearance row. Its chrome uses only `--dsw-alias-*` design tokens (buttons / pills / segmented control / slider track match the official shell); sliders are native `input[type=range]` with 5% / 2px steps and release-commit.
+- The **settings row** lives in the official General settings section (`settings.general.item` slot), next to the Appearance row. Its chrome uses only `--dsw-alias-*` design tokens (buttons / pills / segmented control / slider track match the official shell); sliders are native `input[type=range]` with 5% / 1–2px steps and release-commit.
 - The plugin's own host routes (`/api/bg-wallpaper/*`: `settings`, `upload`, `image/<id>`) read/write the section and serve uploads with same-origin + size caps + MIME/signature checks + a path-escape fence. A custom route family is used because the api-proxy settings allowlist does not expose third-party namespaces over the settings RPC.
 - The background is drawn as a fixed `z-index:-2` wallpaper layer plus a `z-index:-1` scrim on `body`, toggled by the `data-dsh-bg` attribute; the scrim switches white/black by `data-ds-dark-theme` in the injected stylesheet; the frosted-glass effect overrides the shell's surface design tokens.
-- Uploads live under `$DSH_HOME/deepseek-harness-background/` (content-addressed ids). Disable / uninstall leaves nothing behind.
+- Uploads live under `$DSH_HOME/deepseek-harness-background/` (content-addressed ids). Switching to a new image or clearing the background deletes the superseded upload file, so the directory never accumulates dead images. Disable / uninstall leaves nothing behind.
 
 ## Development
 
@@ -95,7 +95,7 @@ pnpm run build        # tsdown: lib/index.js (host) + lib/client.js (browser bun
 ```
 
 ```
-deepseek-harness-background/
+deepseek-harness-background/          # the plugin repo (package name stays the npm-style id)
 ├── package.json          # dsh.bundle.patch + dsh.client.inject declarations
 ├── cordis.patch.yml      # inserts the deepseek-harness-background row into the web roster
 ├── tsdown.config.ts      # official clientBundle preset

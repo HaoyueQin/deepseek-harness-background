@@ -1,4 +1,4 @@
-# deepseek-harness-background
+# DeepSeek Harness Background
 
 [![GitHub stars](https://img.shields.io/github/stars/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/releases)
@@ -26,7 +26,7 @@
 - **本地上传** —— 从电脑选择 JPG / PNG / WebP / GIF 图片；插件存入 harness home 目录，经同源路由提供（仅当声明的 MIME、探测到的文件签名与扩展名三者一致才被接受）。
 - **粘贴 URL** —— 输入 `http(s)` 图片链接后回车即可。
 - **面板内实时预览** —— 设置行顶部有预览卡：图片 + 遮罩 + 毛玻璃气泡；拖动任意滑块即时重绘，所见即所存。
-- **阻尼滑块** —— 比例类滑块按 **5% 步进**、模糊类按 2/5px 步进吸附；拖动过程只改画面，**松手才保存**（每次手势一次写入，不再抖动）。
+- **阻尼滑块** —— 比例类滑块按 **5% 步进**、模糊类按 1/2px 步进吸附；拖动过程只改画面，**松手才保存**（每次手势一次写入，不再抖动）。
 - **五个调节项** —— 壁纸不透明度、可读性遮罩、面板不透明度、毛玻璃模糊、壁纸模糊。
 - **填充方式** —— `cover`（铺满、裁剪）或 `contain`（完整、留白）。
 - **主题自适应遮罩** —— 浅色主题用白色纱帘（把图片提亮保持深色文字对比度），深色主题自动换成黑色纱帘（压暗图片保持浅色文字对比度）。
@@ -72,18 +72,18 @@ dsh --profile web
 | 不透明度 | `0..100%` 图片不透明度（5% 步进）；调低让壁纸向表面色淡出。 |
 | 遮罩 | `0..95%` 图片上方的可读性纱帘（5% 步进），浅色主题白色、深色主题黑色。 |
 | 面板不透明度 | `0..100%` 表面透明程度（5% 步进）；为 `100%` 时官方面板保持不透明（无玻璃）。 |
-| 毛玻璃模糊 | `0..40px` 半透明表面上的 `backdrop-filter` 模糊（2px 步进）。 |
-| 壁纸模糊 | `0..60px` 壁纸图片本身的模糊（5px 步进）。 |
+| 毛玻璃模糊 | `0..40px` 半透明表面上的 `backdrop-filter` 模糊（1px 步进）。 |
+| 壁纸模糊 | `0..60px` 壁纸图片本身的模糊（2px 步进）。 |
 | 填充方式 | `cover`（铺满）或 `contain`（完整）。 |
 
 5. 点 **清除背景** 移除背景，恢复默认外观。
 
 ## 原理
 
-- **设置行**位于官方「通用」设置分区的 `settings.general.item` 槽中，紧挨「外观」行。控件样式全部使用 `--dsw-alias-*` 设计 token（按钮 / 胶囊 / 分段控件 / 滑块轨道与官方 chrome 一致），滑块为原生 `input[type=range]` 的 5% / 2px 步进 + 松手提交。
+- **设置行**位于官方「通用」设置分区的 `settings.general.item` 槽中，紧挨「外观」行。控件样式全部使用 `--dsw-alias-*` 设计 token（按钮 / 胶囊 / 分段控件 / 滑块轨道与官方 chrome 一致），滑块为原生 `input[type=range]` 的 5% / 1–2px 步进 + 松手提交。
 - 插件自有的 host 路由（`/api/bg-wallpaper/*`：`settings`、`upload`、`image/<id>`）负责读写设置与提供上传图片，带同源校验、大小上限、MIME/签名校验与路径穿越防护。使用自定义路由族，是因为 api-proxy 的 settings 白名单不向第三方命名空间开放 settings RPC。
 - 背景以 `body` 上一张固定的 `z-index:-2` 壁纸层 + `z-index:-1` 遮罩绘制，由 `data-dsh-bg` 属性开关；遮罩在注入样式表里按 `data-ds-dark-theme` 切换白/黑纱帘；毛玻璃效果通过覆盖外壳的 surface 设计 token 实现。
-- 上传文件存放在 `$DSH_HOME/deepseek-harness-background/`（内容寻址 id）。关闭 / 卸载后不留残留。
+- 上传文件存放在 `$DSH_HOME/deepseek-harness-background/`（内容寻址 id）。切换新图片或清除背景时，被替换的旧上传文件会被自动回收，目录不会堆积死图片。关闭 / 卸载后不留残留。
 
 ## 开发
 
@@ -95,7 +95,7 @@ pnpm run build        # tsdown：lib/index.js（host）+ lib/client.js（浏览�
 ```
 
 ```
-deepseek-harness-background/
+deepseek-harness-background/          # 插件仓库（包名保留 npm 风格 id）
 ├── package.json          # dsh.bundle.patch + dsh.client.inject 声明
 ├── cordis.patch.yml      # 向 web 插件名册插入 deepseek-harness-background 一行
 ├── tsdown.config.ts      # 官方 clientBundle 预设
