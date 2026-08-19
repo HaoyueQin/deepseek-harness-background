@@ -2,6 +2,7 @@
   "name": "deepseek-harness-background",
   "description": "Custom background image plugin for the DeepSeek Harness web GUI: upload a local picture or paste an image URL, and render it behind the whole app surface with adjustable opacity, scrim, panel transparency and frosted-glass blur.",
   "version": "0.1.0",
+  "packageManager": "pnpm@11.9.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

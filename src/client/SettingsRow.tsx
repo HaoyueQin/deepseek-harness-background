@@ -22,9 +22,11 @@ import { useSyncExternalStore } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import clsx from 'clsx'
 import {
-  BACKGROUND_API_PREFIX, DEFAULT_BLUR, DEFAULT_FIT, DEFAULT_OPACITY,
-  DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR, FIT_MODES,
-  type BackgroundFit, type BackgroundSettings,
+  BACKGROUND_API_PREFIX, BLUR_MAX, BLUR_MIN, DEFAULT_BLUR, DEFAULT_FIT,
+  DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR,
+  FIT_MODES, OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
+  SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX, type BackgroundFit,
+  type BackgroundSettings,
 } from '../settings.ts'
 import { clearPreviewSurface, paintBackground, paintBackgroundKnob, paintPreviewSurface } from './backdrop.ts'
 import { settingsClient, type SettingsSnapshot } from './settings-client.ts'
@@ -50,13 +52,15 @@ const DEFAULTS: BackgroundSettings = {
 /** The numeric field keys a slider edits. */
 type NumField = 'opacity' | 'scrim' | 'panelOpacity' | 'blur' | 'wallpaperBlur'
 
-/** Per-field slider geometry: 5% steps for ratios, coarse px steps for radii. */
+/** Per-field slider geometry: 5% steps for ratios, coarse px steps for radii.
+ * Bounds come from the shared settings constants so the schema boundary and
+ * the UI cannot drift apart. */
 const SLIDER_SPEC: Record<NumField, { min: number; max: number; step: number; unit: 'percent' | 'px' }> = {
-  opacity: { min: 0, max: 1, step: 0.05, unit: 'percent' },
-  scrim: { min: 0, max: 0.95, step: 0.05, unit: 'percent' },
-  panelOpacity: { min: 0, max: 1, step: 0.05, unit: 'percent' },
-  blur: { min: 0, max: 40, step: 2, unit: 'px' },
-  wallpaperBlur: { min: 0, max: 60, step: 5, unit: 'px' },
+  opacity: { min: OPACITY_MIN, max: OPACITY_MAX, step: 0.05, unit: 'percent' },
+  scrim: { min: SCRIM_MIN, max: SCRIM_MAX, step: 0.05, unit: 'percent' },
+  panelOpacity: { min: PANEL_OPACITY_MIN, max: PANEL_OPACITY_MAX, step: 0.05, unit: 'percent' },
+  blur: { min: BLUR_MIN, max: BLUR_MAX, step: 2, unit: 'px' },
+  wallpaperBlur: { min: BLUR_MIN, max: WALLPAPER_BLUR_MAX, step: 5, unit: 'px' },
 }
 
 /** Derive the bare upload id from a resolve url like /api/bg-wallpaper/image/<id>. */
