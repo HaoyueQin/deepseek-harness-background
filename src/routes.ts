@@ -17,14 +17,16 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { extname, join as joinPath } from 'node:path'
 import type { Settings } from '@deepseek-ai/dsh-settings'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
-  BACKGROUND_API_PREFIX, BACKGROUND_SETTINGS_NAMESPACE, DEFAULT_BLUR, DEFAULT_FIT,
+  BACKGROUND_API_PREFIX, BACKGROUND_SETTINGS_NAMESPACE, BLUR_MAX, BLUR_MIN, DEFAULT_BLUR, DEFAULT_FIT,
   DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR,
+  OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
+  SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX,
   type BackgroundSettings,
 } from './settings.ts'
 import { PLUGIN_HOME_REL, resolveHarnessHome } from './harness-home.ts'
@@ -51,6 +53,18 @@ const ACCEPTED_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
+}
+
+/** Numeric knob bounds — same ranges as the schema, duplicated here so the
+ * POST route can reject out-of-range numbers before they reach the schema's
+ * JSON layer (that layer runs `Number(...)` on string inputs, which silently
+ * coerces e.g. `"2"` into `2` instead of rejecting the body). */
+const NUM_BOUNDS: Record<string, { min: number; max: number }> = {
+  opacity: { min: OPACITY_MIN, max: OPACITY_MAX },
+  scrim: { min: SCRIM_MIN, max: SCRIM_MAX },
+  panelOpacity: { min: PANEL_OPACITY_MIN, max: PANEL_OPACITY_MAX },
+  blur: { min: BLUR_MIN, max: BLUR_MAX },
+  wallpaperBlur: { min: BLUR_MIN, max: WALLPAPER_BLUR_MAX },
 }
 
 /** Magic-byte signatures for the accepted formats (first bytes). */
@@ -195,6 +209,16 @@ export function validateSectionBody(body: Record<string, unknown>, home?: string
       return 'upload-not-found'
     }
   }
+  // Numeric knobs must be finite numbers inside their schema bounds (see
+  // NUM_BOUNDS). Rejecting here keeps string coercion — `"2"` becoming `2` —
+  // from silently bypassing the schema's range check.
+  for (const [key, { min, max }] of Object.entries(NUM_BOUNDS)) {
+    const raw = body[key]
+    if (raw === undefined) continue
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < min || raw > max) {
+      return 'invalid-range'
+    }
+  }
   return null
 }
 
@@ -245,6 +269,22 @@ function uploadPath(id: string, homeOverride?: string): string {
   return ''
 }
 
+/**
+ * Delete one stored upload file. Missing files are ignored; only well-formed
+ * upload ids reach the disk (the same path-escape fence as uploadPath).
+ */
+export function deleteUploadFile(id: string, homeOverride?: string): void {
+  if (!isUploadId(id)) return
+  const abs = uploadPath(id, homeOverride)
+  if (abs === '') return
+  try {
+    unlinkSync(abs)
+  } catch {
+    // A file that vanished between the existence check and the unlink is
+    // already gone — treat as success.
+  }
+}
+
 /** MIME for a stored file path. */
 function mimeForPath(path: string): string | undefined {
   const ext = extname(path).slice(1)
@@ -277,6 +317,10 @@ export function makeBackgroundRoutes(settings: Settings, opts: { home?: string }
         }
         if (req.method === 'POST') {
           try {
+            // Snapshot the section before the write: when the posted section
+            // replaces its upload source, the superseded file is pruned after
+            // the update commits (never on validation failure).
+            const before = readSection()
             const body = await readJsonBody(req)
             // Server-authoritative shape checks (never trust the client to
             // clamp): the url must be a bounded http(s) string, any uploadId
@@ -289,7 +333,15 @@ export function makeBackgroundRoutes(settings: Settings, opts: { home?: string }
             }
             // The client posts the whole section; update merges the user layer.
             await settings.update(BACKGROUND_SETTINGS_NAMESPACE, body)
-            json(res, 200, { ok: true, value: readSection() })
+            const after = readSection()
+            // Prune the replaced upload: switching images (or clearing) must
+            // not leave the old file on disk forever. Only the *previous*
+            // upload id is ever removed — new ids are content-addressed and
+            // unique, so a concurrent upload can never be a prune victim.
+            if (before.uploadId !== '' && before.uploadId !== after.uploadId) {
+              deleteUploadFile(before.uploadId, opts.home)
+            }
+            json(res, 200, { ok: true, value: after })
           } catch (error) {
             json(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
           }
@@ -310,6 +362,13 @@ export function makeBackgroundRoutes(settings: Settings, opts: { home?: string }
         const mime = req.headers['content-type']?.split(';')[0]?.trim() ?? ''
         if (!ACCEPTED_TYPES[mime]) {
           json(res, 400, { ok: false, error: 'unsupported-media-type' })
+          return
+        }
+        // Reject before buffering: an unreadable body must not be consumed
+        // (otherwise the 400 below would race the request stream and the
+        // socket could drop before the response flushes).
+        if (req.readableAborted || req.destroyed) {
+          json(res, 400, { ok: false, error: 'request-aborted' })
           return
         }
         try {

@@ -66,4 +66,13 @@ describe('ui-background schema', () => {
     expect(() => resolve({ blur: 100 })).toThrow()
     expect(() => resolve({ fit: 'stretch' as BackgroundSettings['fit'] })).toThrow()
   })
+
+  it('accepts every numeric bound exactly at its edge', () => {
+    const resolved = resolve({ scrim: 0.95, opacity: 1, panelOpacity: 1, blur: 40, wallpaperBlur: 60 })
+    expect(resolved.scrim).toBe(0.95)
+    expect(resolved.opacity).toBe(1)
+    expect(resolved.panelOpacity).toBe(1)
+    expect(resolved.blur).toBe(40)
+    expect(resolved.wallpaperBlur).toBe(60)
+  })
 })
