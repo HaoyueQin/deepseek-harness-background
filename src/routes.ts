@@ -24,7 +24,8 @@ import type { Settings } from '@deepseek-ai/dsh-settings'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
   BACKGROUND_API_PREFIX, BACKGROUND_SETTINGS_NAMESPACE, DEFAULT_BLUR, DEFAULT_FIT,
-  DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, type BackgroundSettings,
+  DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR,
+  type BackgroundSettings,
 } from './settings.ts'
 import { PLUGIN_HOME_REL, resolveHarnessHome } from './harness-home.ts'
 
@@ -40,7 +41,7 @@ const DEFAULTS: BackgroundSettings = {
   scrim: DEFAULT_SCRIM,
   panelOpacity: DEFAULT_PANEL_OPACITY,
   blur: DEFAULT_BLUR,
-  wallpaperBlur: 0,
+  wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
   fit: DEFAULT_FIT,
 }
 

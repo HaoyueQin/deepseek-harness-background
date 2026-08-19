@@ -22,8 +22,9 @@ import { useSyncExternalStore } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import clsx from 'clsx'
 import {
-  BACKGROUND_API_PREFIX, DEFAULT_FIT, FIT_MODES, type BackgroundFit,
-  type BackgroundSettings,
+  BACKGROUND_API_PREFIX, DEFAULT_BLUR, DEFAULT_FIT, DEFAULT_OPACITY,
+  DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR, FIT_MODES,
+  type BackgroundFit, type BackgroundSettings,
 } from '../settings.ts'
 import { clearPreviewSurface, paintBackground, paintPreviewSurface } from './backdrop.ts'
 import { settingsClient, type SettingsSnapshot } from './settings-client.ts'
@@ -38,11 +39,11 @@ const DEFAULTS: BackgroundSettings = {
   enabled: false,
   uploadId: '',
   url: '',
-  opacity: 1,
-  scrim: 0.25,
-  panelOpacity: 0.15,
-  blur: 16,
-  wallpaperBlur: 0,
+  opacity: DEFAULT_OPACITY,
+  scrim: DEFAULT_SCRIM,
+  panelOpacity: DEFAULT_PANEL_OPACITY,
+  blur: DEFAULT_BLUR,
+  wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
   fit: DEFAULT_FIT,
 }
 
@@ -234,7 +235,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     setUploading(true)
     setError('')
     try {
-      const url = await settingsClient.upload(file, false)
+      const url = await settingsClient.upload(file)
       if (url === null) {
         setError(t('background.uploadFailed'))
         return

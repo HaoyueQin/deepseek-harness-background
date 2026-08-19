@@ -80,10 +80,9 @@ export class SettingsClient {
    * Upload a local image file; on success stores its id into the snapshot and
    * returns the resolved background url (or null on failure).
    * @param file - the chosen image file.
-   * @param apply - adopt the upload as the active background source.
    * @returns the resolved image url, or null.
    */
-  async upload(file: File, apply: boolean): Promise<string | null> {
+  async upload(file: File): Promise<string | null> {
     try {
       const response = await fetch(`${BACKGROUND_API_PREFIX}/upload`, {
         method: 'POST',
@@ -92,21 +91,10 @@ export class SettingsClient {
       })
       const body = await response.json() as { ok: boolean; id?: string; url?: string }
       if (!response.ok || !body.ok || body.id === undefined || body.url === undefined) return null
-      if (apply && this.snapshot.value) {
-        const next: BackgroundSettings = { ...this.snapshot.value, uploadId: body.id, url: '' }
-        this.snapshot = { status: 'ready', value: next }
-        this.notify()
-      }
       return body.url ?? null
     } catch {
       return null
     }
-  }
-
-  /** Resolve the effective background image url for the current snapshot. */
-  resolveUrl(settings: BackgroundSettings): string {
-    if (settings.uploadId) return `${BACKGROUND_API_PREFIX}/image/${settings.uploadId}`
-    return settings.url
   }
 }
 
