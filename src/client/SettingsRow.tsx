@@ -166,6 +166,8 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   const editingRef = useRef(false)
   // The last section this row saved; external changes are snapshots that differ.
   const lastSavedRef = useRef<BackgroundSettings | null>(null)
+  // True while an edit has not yet reached the host (drives flush-on-unmount).
+  const dirtyRef = useRef(false)
   const commitTimer = useRef<number | undefined>(undefined)
   const editingTimer = useRef<number | undefined>(undefined)
 
@@ -200,7 +202,9 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
 
   /** Persist one section through the host route and adopt it on success. */
   const saveNow = useCallback(async (next: BackgroundSettings): Promise<void> => {
+    dirtyRef.current = true
     const ok = await settingsClient.save(next)
+    if (ok) dirtyRef.current = false
     setError(ok ? '' : t('background.saveFailed'))
     if (ok) {
       lastSavedRef.current = next
@@ -231,10 +235,12 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     }
   }, [snapshot])
 
-  // Teardown: clear the debounce timers when the row unmounts.
+  // Teardown: flush any pending debounced save before the row unmounts so a
+  // quick panel close after a release cannot drop the edit.
   useEffect(() => () => {
     clearTimeout(commitTimer.current)
     clearTimeout(editingTimer.current)
+    if (dirtyRef.current) void settingsClient.flush()
   }, [])
 
   const handleFile = async (file?: File): Promise<void> => {

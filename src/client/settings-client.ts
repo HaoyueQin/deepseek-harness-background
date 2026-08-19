@@ -26,6 +26,10 @@ type Listener = () => void
 export class SettingsClient {
   private snapshot: SettingsSnapshot = { status: 'loading' }
   private readonly listeners = new Set<Listener>()
+  /** Monotonic request id; the latest save wins even when POSTs interleave. */
+  private saveSeq = 0
+  /** Pending save promise (used by the row's flush-on-unmount). */
+  private pending: Promise<boolean> | undefined
 
   /** @returns the current sync snapshot (stable reference until the next change). */
   getSnapshot = (): SettingsSnapshot => this.snapshot
@@ -38,6 +42,11 @@ export class SettingsClient {
 
   private notify(): void {
     for (const listener of this.listeners) listener()
+  }
+
+  /** Await any in-flight save (used before teardown so edits are not dropped). */
+  async flush(): Promise<void> {
+    await this.pending
   }
 
   /** Fetch the section from the host. */
@@ -55,25 +64,36 @@ export class SettingsClient {
   }
 
   /**
-   * Persist the section through the host route.
+   * Persist the section through the host route. Concurrent calls are
+   * serialized by a request sequence: an older save that resolves after a
+   * newer one must not clobber the newer snapshot with its stale value.
    * @param section - the complete next section.
    * @returns whether the host accepted the write.
    */
   async save(section: BackgroundSettings): Promise<boolean> {
-    try {
-      const response = await fetch(`${BACKGROUND_API_PREFIX}/settings`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(section),
-      })
-      const body = await response.json() as { ok: boolean; value?: BackgroundSettings }
-      if (!response.ok || !body.ok || body.value === undefined) return false
-      this.snapshot = { status: 'ready', value: body.value }
-      this.notify()
-      return true
-    } catch {
-      return false
+    const seq = ++this.saveSeq
+    const run = async (): Promise<boolean> => {
+      try {
+        const response = await fetch(`${BACKGROUND_API_PREFIX}/settings`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(section),
+        })
+        const body = await response.json() as { ok: boolean; value?: BackgroundSettings }
+        if (!response.ok || !body.ok || body.value === undefined) return false
+        // Discard the response of a superseded save — it reflects an older
+        // document that must not overwrite the latest one.
+        if (seq !== this.saveSeq) return true
+        this.snapshot = { status: 'ready', value: body.value }
+        this.notify()
+        return true
+      } catch {
+        return false
+      }
     }
+    const promise = run()
+    this.pending = promise
+    return promise
   }
 
   /**
