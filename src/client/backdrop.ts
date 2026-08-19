@@ -266,7 +266,7 @@ export function paintBackgroundKnob(key: BackgroundKnob, value: number | Backgro
 const PREVIEW_VARS = [
   '--bg-opacity', '--bg-scrim', '--bg-object-fit',
   '--bg-wallpaper-blur', '--bg-wallpaper-scale',
-  '--bg-glass-blur', '--bg-glass-saturate',
+  '--bg-glass-blur', '--bg-glass-saturate', '--bg-preview-glass',
 ] as const
 
 /**
@@ -283,8 +283,23 @@ export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSetting
   s.setProperty('--bg-scrim', String(settings.scrim))
   s.setProperty('--bg-wallpaper-blur', `${settings.wallpaperBlur}px`)
   s.setProperty('--bg-wallpaper-scale', (1 + settings.wallpaperBlur * 0.006).toFixed(4))
+  // The glass bubble mirrors the live panel surface: below panelOpacity 1 its
+  // alpha follows the same theme-aware curve as --dsw-specific-bubble (so the
+  // panel-opacity slider is visible in the preview); at 1 the official opaque
+  // surface returns — the bubble turns opaque and the blur switches off, just
+  // like applySurfaceGlass does on the real backdrop.
+  const inDark = document.body.dataset.dsDarkTheme !== undefined
+  if (settings.panelOpacity >= 1) {
+    s.setProperty('--bg-glass-blur', '0px')
+    s.setProperty('--bg-preview-glass', 'var(--dsw-alias-bg-layer-1)')
+    return
+  }
   s.setProperty('--bg-glass-blur', `${settings.blur}px`)
   s.setProperty('--bg-glass-saturate', String(1.15 + settings.blur * 0.03))
+  const alpha = GLASS_MIN_ALPHA + settings.panelOpacity * (0.9 - GLASS_MIN_ALPHA)
+  const clamped = Math.max(0, Math.min(0.9, alpha))
+  const factor = inDark ? 0.4 : 0.8
+  s.setProperty('--bg-preview-glass', `rgba(255, 255, 255, ${(clamped * factor * 0.8).toFixed(3)})`)
 }
 
 /** Remove every preview variable from an element (restores CSS defaults). */

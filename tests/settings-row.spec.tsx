@@ -126,6 +126,22 @@ describe('BackgroundSettingsRow', () => {
     })
   })
 
+  it('previews the panel-opacity effect on the glass bubble', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    renderRow()
+    await screen.findByText('background.opacity')
+    const preview = byLocalAny('preview')
+    // Default panelOpacity (0.15) renders a translucent white veil.
+    expect(preview?.style.getPropertyValue('--bg-preview-glass')).toMatch(/^rgba\(255, 255, 255, 0\.\d+\)$/)
+    // Dragging the panel-opacity slider to its max turns the bubble opaque
+    // and switches the blur off, mirroring the live surface at 100%.
+    const panel = [...document.querySelectorAll('input[type="range"]')]
+      .find((r) => r.getAttribute('aria-label') === 'background.panelOpacity') as HTMLInputElement
+    fireEvent.input(panel, { target: { value: '1' } })
+    expect(preview?.style.getPropertyValue('--bg-preview-glass')).toBe('var(--dsw-alias-bg-layer-1)')
+    expect(preview?.style.getPropertyValue('--bg-glass-blur')).toBe('0px')
+  })
+
   it('rejects a non-http(s) url with an error and saves nothing', async () => {
     renderRow()
     await screen.findByText('background.opacity')
