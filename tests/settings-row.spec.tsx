@@ -77,7 +77,7 @@ describe('BackgroundSettingsRow', () => {
     expect(byLocalAny('urlInput')).not.toBeNull()
   })
 
-  it('snaps ratio sliders to 5% steps and px sliders to coarse steps', async () => {
+  it('snaps ratio sliders to 5% steps and px sliders to fine steps', async () => {
     renderRow()
     await screen.findByText('background.opacity')
     const ranges = document.querySelectorAll('input[type="range"]') as NodeListOf<HTMLInputElement>
@@ -87,8 +87,8 @@ describe('BackgroundSettingsRow', () => {
     expect(spec['background.opacity']).toBe('0.05')
     expect(spec['background.scrim']).toBe('0.05')
     expect(spec['background.panelOpacity']).toBe('0.05')
-    expect(spec['background.blur']).toBe('2')
-    expect(spec['background.wallpaperBlur']).toBe('5')
+    expect(spec['background.blur']).toBe('1')
+    expect(spec['background.wallpaperBlur']).toBe('2')
   })
 
   it('writes the live preview variables while dragging and persists on release', async () => {

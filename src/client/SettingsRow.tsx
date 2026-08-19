@@ -52,15 +52,15 @@ const DEFAULTS: BackgroundSettings = {
 /** The numeric field keys a slider edits. */
 type NumField = 'opacity' | 'scrim' | 'panelOpacity' | 'blur' | 'wallpaperBlur'
 
-/** Per-field slider geometry: 5% steps for ratios, coarse px steps for radii.
- * Bounds come from the shared settings constants so the schema boundary and
- * the UI cannot drift apart. */
+/** Per-field slider geometry: 5% steps for ratios, fine px steps for radii so
+ * the two blur sliders feel smooth near small values. Bounds come from the
+ * shared settings constants so the schema boundary and the UI cannot drift. */
 const SLIDER_SPEC: Record<NumField, { min: number; max: number; step: number; unit: 'percent' | 'px' }> = {
   opacity: { min: OPACITY_MIN, max: OPACITY_MAX, step: 0.05, unit: 'percent' },
   scrim: { min: SCRIM_MIN, max: SCRIM_MAX, step: 0.05, unit: 'percent' },
   panelOpacity: { min: PANEL_OPACITY_MIN, max: PANEL_OPACITY_MAX, step: 0.05, unit: 'percent' },
-  blur: { min: BLUR_MIN, max: BLUR_MAX, step: 2, unit: 'px' },
-  wallpaperBlur: { min: BLUR_MIN, max: WALLPAPER_BLUR_MAX, step: 5, unit: 'px' },
+  blur: { min: BLUR_MIN, max: BLUR_MAX, step: 1, unit: 'px' },
+  wallpaperBlur: { min: BLUR_MIN, max: WALLPAPER_BLUR_MAX, step: 2, unit: 'px' },
 }
 
 /** Derive the bare upload id from a resolve url like /api/bg-wallpaper/image/<id>. */
@@ -116,6 +116,7 @@ function ControlSlider(props: {
     const v = Number(e.currentTarget.value)
     localRef.current = v
     setLocal(v)
+    syncTrackFill(e.currentTarget)
     onLiveRef.current(name, v)
   }
 
@@ -135,6 +136,12 @@ function ControlSlider(props: {
       <input
         type="range"
         className={css.slider}
+        ref={(el) => {
+          // Sync the "filled" track fraction on mount and on every external
+          // value adoption (the webkit track reads --bg-fill; the moz engine
+          // draws its own ::-moz-range-progress).
+          if (el) syncTrackFill(el)
+        }}
         min={spec.min} max={spec.max} step={spec.step}
         value={String(local)}
         aria-label={label}
@@ -149,6 +156,16 @@ function ControlSlider(props: {
       <span className={css.sliderValue}>{text}</span>
     </div>
   )
+}
+
+/** Write the filled-track fraction (%) of a range input into its --bg-fill
+ * variable (webkit has no range-progress pseudo-element; moz draws its own). */
+function syncTrackFill(el: HTMLInputElement): void {
+  const min = Number(el.min)
+  const max = Number(el.max)
+  const value = Number(el.value)
+  const pct = max === min ? 0 : ((value - min) / (max - min)) * 100
+  el.style.setProperty('--bg-fill', `${pct}%`)
 }
 
 /**
@@ -308,7 +325,14 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   return (
     <div className={css.row}>
       <div className={css.header}>
-        <div className={css.title}>{t('background.title')}</div>
+        <div className={css.titleRow}>
+          <div className={css.title}>{t('background.title')}</div>
+          {hasImage && (
+            <button type="button" className={clsx(css.btn, css.btnDanger, css.clearBtn)} onClick={handleClear}>
+              {t('background.clear')}
+            </button>
+          )}
+        </div>
         <div className={css.desc}>{t('background.description')}</div>
       </div>
 

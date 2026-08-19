@@ -18,6 +18,25 @@
   gap: 4px;
 }
 
+/* Title row: the "Custom Background" title sits left, the clear button sits
+   right-aligned on the same baseline (vertical center of the title line). */
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 22px; /* matches .title line-height so the row stays stable */
+}
+
+.clearBtn {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 24px;
+}
+
 .title {
   font-size: 14px;
   font-weight: 400;
@@ -247,6 +266,11 @@
   color: var(--dsw-alias-label-primary);
 }
 
+/* Native range inputs cannot be styled from JS (no fill pseudo-element), so
+   the "filled" look is approximated with a hard two-stop gradient on the
+   track: a branded fill up to the knob and a muted remainder after it. The
+   gradient stops are derived from the same geometry as the slider, so the
+   fill always tracks the knob exactly. */
 .slider {
   flex: 1;
   min-width: 0;
@@ -258,22 +282,25 @@
   cursor: pointer;
 }
 
+/* Shared thumb style (webkit + moz cannot share declarations). */
+.slider::-webkit-slider-thumb,
+.slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--dsw-alias-brand-primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.28);
+}
+
 .slider::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
-  background: var(--dsw-alias-border-l3);
-}
-
-.slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  margin-top: -5px;
-  border-radius: 50%;
-  background: var(--dsw-alias-bg-layer-1);
-  border: 2px solid var(--dsw-alias-brand-primary);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(90deg,
+    var(--dsw-alias-brand-primary) var(--bg-fill, 0%),
+    color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, var(--dsw-alias-border-l3)) var(--bg-fill, 0%));
 }
 
 .slider::-moz-range-track {
@@ -282,27 +309,29 @@
   background: var(--dsw-alias-border-l3);
 }
 
-.slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--dsw-alias-bg-layer-1);
-  border: 2px solid var(--dsw-alias-brand-primary);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+.slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dsw-alias-brand-primary);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -5px;
 }
 
 .slider:focus-visible {
   outline: none;
 }
 
-.slider:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 2px;
-}
-
+.slider:focus-visible::-webkit-slider-thumb,
 .slider:focus-visible::-moz-range-thumb {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 2px;
+  border-color: var(--dsw-alias-brand-primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.28);
 }
 
 .sliderValue {
@@ -331,6 +360,8 @@
 
 .segGroup {
   display: inline-flex;
+  flex: 1;
+  min-width: 0;
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--dsw-alias-border-l2);
@@ -339,6 +370,7 @@
 }
 
 .segBtn {
+  flex: 1;
   height: 24px;
   padding: 0 16px;
   border: none;
