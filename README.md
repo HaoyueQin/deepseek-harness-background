@@ -15,6 +15,12 @@ A custom **background image plugin** for the DeepSeek Harness Web GUI (`dsh web`
 
 The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels driven by `--dsw-*` design tokens) is modeled on the community `dsh-wallpaper-engine` implementation.
 
+## Screenshots
+
+| Home | Conversation | Settings |
+| --- | --- | --- |
+| <img src="docs/images/home.jpg" alt="Custom background on the home screen" width="320"> | <img src="docs/images/conversation.jpg" alt="Custom background behind the conversation" width="320"> | <img src="docs/images/settings.jpg" alt="Background settings row with live preview" width="320"> |
+
 ## Features
 
 - **Local upload** — pick a JPG / PNG / WebP / GIF from your computer; the plugin stores it under the harness home and serves it over a same-origin route (admitted only when the declared MIME, detected signature and extension all agree).

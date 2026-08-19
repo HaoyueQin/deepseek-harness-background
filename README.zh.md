@@ -15,6 +15,12 @@
 
 外观（固定壁纸层 + 主题自适应遮罩 + 由 `--dsw-*` 设计 token 驱动的半透明玻璃面板）借鉴了社区 `dsh-wallpaper-engine` 的实现。
 
+## 截图
+
+| 首页 | 会话界面 | 设置界面 |
+| --- | --- | --- |
+| <img src="docs/images/home.jpg" alt="首页上的自定义背景" width="320"> | <img src="docs/images/conversation.jpg" alt="会话背后的自定义背景" width="320"> | <img src="docs/images/settings.jpg" alt="带实时预览的背景设置行" width="320"> |
+
 ## 功能
 
 - **本地上传** —— 从电脑选择 JPG / PNG / WebP / GIF 图片；插件存入 harness home 目录，经同源路由提供（仅当声明的 MIME、探测到的文件签名与扩展名三者一致才被接受）。
