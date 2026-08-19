@@ -17,9 +17,11 @@ The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels d
 
 ## Screenshots
 
-| Home | Conversation | Settings |
-| --- | --- | --- |
-| <img src="docs/images/home.jpg" alt="Custom background on the home screen" width="320"> | <img src="docs/images/conversation.jpg" alt="Custom background behind the conversation" width="320"> | <img src="docs/images/settings.jpg" alt="Background settings row with live preview" width="320"> |
+|  |  |
+| --- | --- |
+| **Home** | <img src="docs/images/home.jpg" alt="Custom background on the home screen" width="640"> |
+| **Conversation** | <img src="docs/images/conversation.jpg" alt="Custom background behind the conversation" width="640"> |
+| **Settings** | <img src="docs/images/settings.jpg" alt="Background settings row with live preview" width="640"> |
 
 ## Features
 

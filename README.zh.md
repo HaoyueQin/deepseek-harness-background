@@ -17,9 +17,11 @@
 
 ## 截图
 
-| 首页 | 会话界面 | 设置界面 |
-| --- | --- | --- |
-| <img src="docs/images/home.jpg" alt="首页上的自定义背景" width="320"> | <img src="docs/images/conversation.jpg" alt="会话背后的自定义背景" width="320"> | <img src="docs/images/settings.jpg" alt="带实时预览的背景设置行" width="320"> |
+|  |  |
+| --- | --- |
+| **首页** | <img src="docs/images/home.jpg" alt="首页上的自定义背景" width="640"> |
+| **会话界面** | <img src="docs/images/conversation.jpg" alt="会话背后的自定义背景" width="640"> |
+| **设置界面** | <img src="docs/images/settings.jpg" alt="带实时预览的背景设置行" width="640"> |
 
 ## 功能
 
