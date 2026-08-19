@@ -166,6 +166,38 @@ function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 }
 
 /**
+ * Validate a client-posted section body. Returns an error code when the body
+ * must be rejected, or null when it may be written. Beyond shape checks this
+ * enforces the section's exclusivity contract (`uploadId` and `url` are
+ * alternative sources — at most one may be set) and that a referenced upload
+ * actually exists on disk, so a stale id cannot render a blank backdrop.
+ * @param body - the parsed JSON body.
+ * @param home - the plugin home used to resolve upload ids (tests inject a surrogate).
+ * @returns an error code, or null when the body is acceptable.
+ */
+export function validateSectionBody(body: Record<string, unknown>, home?: string): string | null {
+  const url = body.url
+  const uploadId = body.uploadId
+  if (url !== undefined) {
+    if (typeof url !== 'string' || url.length > 4096 || (url !== '' && !/^https?:\/\//i.test(url))) {
+      return 'invalid-url'
+    }
+  }
+  if (uploadId !== undefined) {
+    if (typeof uploadId !== 'string' || (uploadId !== '' && !isUploadId(uploadId))) {
+      return 'invalid-upload-id'
+    }
+    if (uploadId !== '' && typeof url === 'string' && url !== '') {
+      return 'mutually-exclusive-source'
+    }
+    if (uploadId !== '' && uploadPath(uploadId, home) === '') {
+      return 'upload-not-found'
+    }
+  }
+  return null
+}
+
+/**
  * The directory this plugin owns under the harness home. `homeOverride`
  * injects a surrogate for tests; default resolves via process.env.
  */
@@ -246,19 +278,13 @@ export function makeBackgroundRoutes(settings: Settings, opts: { home?: string }
           try {
             const body = await readJsonBody(req)
             // Server-authoritative shape checks (never trust the client to
-            // clamp): the url must be a bounded http(s) string, and any
-            // uploadId must be a well-formed upload id.
-            if (body.url !== undefined) {
-              if (typeof body.url !== 'string' || body.url.length > 4096 || (body.url !== '' && !/^https?:\/\//i.test(body.url))) {
-                json(res, 400, { ok: false, error: 'invalid-url' })
-                return
-              }
-            }
-            if (body.uploadId !== undefined) {
-              if (typeof body.uploadId !== 'string' || (body.uploadId !== '' && !isUploadId(body.uploadId))) {
-                json(res, 400, { ok: false, error: 'invalid-upload-id' })
-                return
-              }
+            // clamp): the url must be a bounded http(s) string, any uploadId
+            // must be a well-formed id that exists on disk, and the two
+            // sources are mutually exclusive.
+            const validationError = validateSectionBody(body, opts.home)
+            if (validationError !== null) {
+              json(res, 400, { ok: false, error: validationError })
+              return
             }
             // The client posts the whole section; update merges the user layer.
             await settings.update(BACKGROUND_SETTINGS_NAMESPACE, body)
@@ -302,6 +328,12 @@ export function makeBackgroundRoutes(settings: Settings, opts: { home?: string }
       kind: 'prefix',
       path: `${BACKGROUND_API_PREFIX}/image`,
       handler: (req, res) => {
+        // Same-origin fence like the write routes: a cross-site page must not
+        // be able to load (probe) locally stored uploads through <img> tags.
+        if (!isSameOriginRequest(req)) {
+          json(res, 403, { ok: false, error: 'cross-site-request-rejected' })
+          return
+        }
         if (!requireMethod(req, res, 'GET')) return
         const rawPath = new URL(req.url ?? '/', 'http://x').pathname
         const id = rawPath.startsWith(`${BACKGROUND_API_PREFIX}/image/`)
