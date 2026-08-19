@@ -124,6 +124,39 @@ describe('deepseek-harness-background apply', () => {
     expect(cssText).toContain('rgba(0, 0, 0, var(--bg-scrim')
   })
 
+  it('repaints the glass tokens when the theme flips (observer)', async () => {
+    mockFetch()
+    await mount()
+    const lightValue = document.body.style.getPropertyValue('--dsw-specific-input-major')
+    expect(lightValue).not.toBe('')
+    // Flip to dark: the observer should rewrite the surface token with the
+    // dark-scheme alpha.
+    document.body.dataset.dsDarkTheme = ''
+    await vi.waitFor(() => {
+      const darkValue = document.body.style.getPropertyValue('--dsw-specific-input-major')
+      expect(darkValue).not.toBe('')
+      expect(darkValue).not.toBe(lightValue)
+    })
+    // Flip back to light: the token returns to the light-scheme value.
+    delete document.body.dataset.dsDarkTheme
+    await vi.waitFor(() => {
+      expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toBe(lightValue)
+    })
+  })
+
+  it('restores the official opaque surfaces when panelOpacity is at maximum', async () => {
+    mockFetch()
+    await mount()
+    expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toContain('rgba(')
+    section = { ...SECTION, panelOpacity: 1 }
+    await settingsClient.load()
+    await vi.waitFor(() => {
+      expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toBe('')
+    })
+    // Blur is disabled with the glass.
+    expect(document.body.style.getPropertyValue('--bg-glass-blur')).toBe('0px')
+  })
+
   it('renders a URL source directly when no upload is selected', async () => {
     section = { ...SECTION, uploadId: '', url: 'https://example.com/a.jpg' }
     mockFetch()

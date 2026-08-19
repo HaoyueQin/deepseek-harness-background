@@ -112,4 +112,31 @@ describe('BackgroundSettingsRow', () => {
       expect(persisted.opacity).toBe(0.5)
     })
   })
+
+  it('commits a keyboard slider change on the key-up release', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    renderRow()
+    await screen.findByText('background.opacity')
+    const slider = document.querySelector('input[type="range"]') as HTMLInputElement
+    fireEvent.input(slider, { target: { value: '0.4' } })
+    expect(persisted.opacity).toBe(1)
+    fireEvent.keyUp(slider, { key: 'ArrowRight' })
+    await waitFor(() => {
+      expect(persisted.opacity).toBe(0.4)
+    })
+  })
+
+  it('rejects a non-http(s) url with an error and saves nothing', async () => {
+    renderRow()
+    await screen.findByText('background.opacity')
+    const input = byLocalAny('urlInput') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'file:///C:/x.png' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // The draft source stays empty and nothing persisted.
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toBe('background.saveFailed')
+    })
+    expect(persisted.url).toBe('')
+    expect(persisted.uploadId).toBe('up-abc')
+  })
 })

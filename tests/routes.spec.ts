@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
 import { resolveHarnessHome } from '../src/harness-home.ts'
-import { pluginHome, storeUpload } from '../src/routes.ts'
+import { pluginHome, storeUpload, validateSectionBody } from '../src/routes.ts'
 
 /** Minimal valid PNG: 8-byte signature + IHDR chunk header (content trivial). */
 const PNG_BYTES = Buffer.from([
@@ -93,5 +93,37 @@ describe('storeUpload', () => {
   it('rejects a non-image body', () => {
     const home = freshHome()
     expect(() => storeUpload(Buffer.from('not-an-image'), 'image/png', home)).toThrow()
+  })
+})
+
+describe('validateSectionBody', () => {
+  it('accepts a url-only section', () => {
+    expect(validateSectionBody({ url: 'https://example.com/a.jpg' }, freshHome())).toBeNull()
+  })
+
+  it('rejects an invalid url shape', () => {
+    expect(validateSectionBody({ url: 'javascript:alert(1)' }, freshHome())).toBe('invalid-url')
+    expect(validateSectionBody({ url: 42 }, freshHome())).toBe('invalid-url')
+  })
+
+  it('rejects a malformed upload id', () => {
+    expect(validateSectionBody({ uploadId: '../../etc/passwd' }, freshHome())).toBe('invalid-upload-id')
+  })
+
+  it('rejects a well-formed upload id that does not exist on disk', () => {
+    expect(validateSectionBody({ uploadId: 'up-' + 'a'.repeat(24) }, freshHome())).toBe('upload-not-found')
+  })
+
+  it('accepts a stored upload id', () => {
+    const home = freshHome()
+    const { id } = storeUpload(PNG_BYTES, 'image/png', home)
+    expect(validateSectionBody({ uploadId: id }, home)).toBeNull()
+  })
+
+  it('rejects setting both url and uploadId (exclusive sources)', () => {
+    const home = freshHome()
+    const { id } = storeUpload(PNG_BYTES, 'image/png', home)
+    expect(validateSectionBody({ url: 'https://example.com/a.jpg', uploadId: id }, home))
+      .toBe('mutually-exclusive-source')
   })
 })
