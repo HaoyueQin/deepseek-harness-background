@@ -1,18 +1,29 @@
 # deepseek-harness-background
 
+[![GitHub stars](https://img.shields.io/github/stars/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/stargazers)
+[![GitHub release](https://img.shields.io/github/v/release/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/HaoyueQin/deepseek-harness-background/ci.yml?style=flat-square&logo=githubactions&logoColor=white)](https://github.com/HaoyueQin/deepseek-harness-background/actions)
+[![GitHub issues](https://img.shields.io/github/issues/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/commits)
+[![Top language](https://img.shields.io/github/languages/top/HaoyueQin/deepseek-harness-background?style=flat-square&logo=typescript)](https://github.com/HaoyueQin/deepseek-harness-background)
+[![Repo size](https://img.shields.io/github/repo-size/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background)
+[![License](https://img.shields.io/github/license/HaoyueQin/deepseek-harness-background?style=flat-square)](LICENSE)
+
 [English](README.md) | 中文
 
-一个 **DeepSeek Harness Web GUI**（`dsh web`）的**自定义背景图片插件**：上传一张本地图片，或粘贴一个图片链接，把它绘制在整个应用界面背后，并可调节**不透明度**、**可读性遮罩**、**面板透明**与**毛玻璃模糊** —— 全部实时预览、自动持久化。
+一个 **DeepSeek Harness Web GUI**（`dsh web`）的**自定义背景图片插件**：上传一张本地图片，或粘贴一个图片链接，把它绘制在整个应用界面背后，并可调节**不透明度**、**可读性遮罩**、**面板透明**与**毛玻璃模糊** —— 全部在设置面板内实时预览、松手自动保存。
 
-外观（固定壁纸层 + 遮罩 + 由 `--dsw-*` 设计 token 驱动的半透明玻璃面板）借鉴了社区 `dsh-wallpaper-engine` 与 `DeepSeek-Reasonix` 的壁纸主题实现。
+外观（固定壁纸层 + 主题自适应遮罩 + 由 `--dsw-*` 设计 token 驱动的半透明玻璃面板）借鉴了社区 `dsh-wallpaper-engine` 的实现。
 
 ## 功能
 
 - **本地上传** —— 从电脑选择 JPG / PNG / WebP / GIF 图片；插件存入 harness home 目录，经同源路由提供（仅当声明的 MIME、探测到的文件签名与扩展名三者一致才被接受）。
 - **粘贴 URL** —— 输入 `http(s)` 图片链接后回车即可。
-- **实时预览** —— 拖动任意滑块立即重绘，所见即所存。
+- **面板内实时预览** —— 设置行顶部有预览卡：图片 + 遮罩 + 毛玻璃气泡；拖动任意滑块即时重绘，所见即所存。
+- **阻尼滑块** —— 比例类滑块按 **5% 步进**、模糊类按 2/5px 步进吸附；拖动过程只改画面，**松手才保存**（每次手势一次写入，不再抖动）。
 - **五个调节项** —— 壁纸不透明度、可读性遮罩、面板不透明度、毛玻璃模糊、壁纸模糊。
 - **填充方式** —— `cover`（铺满、裁剪）或 `contain`（完整、留白）。
+- **主题自适应遮罩** —— 浅色主题用白色纱帘（把图片提亮保持深色文字对比度），深色主题自动换成黑色纱帘（压暗图片保持浅色文字对比度）。
 - **毛玻璃** —— 启用背景后，输入框卡片与消息气泡变成覆盖在壁纸上的半透明玻璃（顶部白色高光渐变 + `backdrop-filter`），模糊半径由「毛玻璃模糊」滑块驱动；「面板不透明度」调至 100% 即恢复官方不透明表面。
 - **持久化到官方设置文档** —— 存于 `$DSH_HOME/settings.yaml`，跨重启保留。
 - **干净卸载** —— 关闭、清除或卸载后完整恢复原背景；插件只移除自己写过的内容。
@@ -47,26 +58,26 @@ dsh --profile web
 
 1. 启动 Web UI（`dsh --profile web`）并在浏览器打开。
 2. 打开 **设置**（左下角）→ **通用** → 找到 **自定义背景** 一行（与「外观」行同一区域）。
-3. **上传**图片或**粘贴 URL** —— 背景立即生效。
-4. 调整控件，滑块均为实时生效：
+3. **上传**图片或**粘贴 URL** —— 背景立即生效，面板顶部的预览卡同步显示。
+4. 调整控件，滑块均为阻尼步进、**松手才保存**：
 
 | 控件 | 说明 |
 | --- | --- |
-| 不透明度 | `0..1` 图片不透明度；调低让壁纸向表面色淡出。 |
-| 遮罩 | `0..0.95` 图片上方的可读性纱帘，保证文字易读。 |
-| 面板不透明度 | `0..1` 表面透明程度；为 `1` 时官方面板保持不透明（无玻璃）。 |
-| 毛玻璃模糊 | `0..40px` 半透明表面上的 `backdrop-filter` 模糊。 |
-| 壁纸模糊 | `0..60px` 壁纸图片本身的模糊。 |
+| 不透明度 | `0..100%` 图片不透明度（5% 步进）；调低让壁纸向表面色淡出。 |
+| 遮罩 | `0..95%` 图片上方的可读性纱帘（5% 步进），浅色主题白色、深色主题黑色。 |
+| 面板不透明度 | `0..100%` 表面透明程度（5% 步进）；为 `100%` 时官方面板保持不透明（无玻璃）。 |
+| 毛玻璃模糊 | `0..40px` 半透明表面上的 `backdrop-filter` 模糊（2px 步进）。 |
+| 壁纸模糊 | `0..60px` 壁纸图片本身的模糊（5px 步进）。 |
 | 填充方式 | `cover`（铺满）或 `contain`（完整）。 |
 
 5. 点 **清除背景** 移除背景，恢复默认外观。
 
 ## 原理
 
-- **设置行**位于官方「通用」设置分区的 `settings.general.item` 槽中，紧挨「外观」行。
+- **设置行**位于官方「通用」设置分区的 `settings.general.item` 槽中，紧挨「外观」行。控件样式全部使用 `--dsw-alias-*` 设计 token（按钮 / 胶囊 / 分段控件 / 滑块轨道与官方 chrome 一致），滑块为原生 `input[type=range]` 的 5% / 2px 步进 + 松手提交。
 - 插件自有的 host 路由（`/api/bg-wallpaper/*`：`settings`、`upload`、`image/<id>`）负责读写设置与提供上传图片，带同源校验、大小上限、MIME/签名校验与路径穿越防护。使用自定义路由族，是因为 api-proxy 的 settings 白名单不向第三方命名空间开放 settings RPC。
-- 背景以 `body` 上一张固定的 `z-index:-2` 壁纸层 + `z-index:-1` 遮罩绘制，由 `data-dsh-bg` 属性开关；毛玻璃效果通过覆盖外壳的 surface 设计 token 实现。
-- 上传文件存放在 `$DSH_HOME/deepseek-harness-background/`（内容寻址 id）。关闭/卸载后不留残留。
+- 背景以 `body` 上一张固定的 `z-index:-2` 壁纸层 + `z-index:-1` 遮罩绘制，由 `data-dsh-bg` 属性开关；遮罩在注入样式表里按 `data-ds-dark-theme` 切换白/黑纱帘；毛玻璃效果通过覆盖外壳的 surface 设计 token 实现。
+- 上传文件存放在 `$DSH_HOME/deepseek-harness-background/`（内容寻址 id）。关闭 / 卸载后不留残留。
 
 ## 开发
 
@@ -90,12 +101,13 @@ deepseek-harness-background/
 │   ├── harness-home.ts   # $DSH_HOME / ~/.dsh 解析
 │   └── client/
 │       ├── index.ts          # painter 生命周期 + 设置行注册
-│       ├── backdrop.ts       # 固定壁纸层 + 遮罩 + 玻璃表面
-│       ├── background-css.ts # 注入的样式表（层、玻璃、变量）
-│       ├── SettingsRow.tsx   # 通用设置中的实时设置行
+│       ├── backdrop.ts       # 固定壁纸层 + 遮罩 + 玻璃表面 + 预览变量
+│       ├── background-css.ts # 注入的样式表（层、玻璃、明暗遮罩、变量）
+│       ├── SettingsRow.tsx   # 通用设置中的设置行（预览卡 + 阻尼滑块）
+│       ├── SettingsRow.module.css # 设置行样式（官方 token）
 │       ├── settings-client.ts# fetch 传输层（读/写/上传）
 │       └── locales.ts        # 中/英文案
-└── tests/                  # 契约测试（schema、routes、apply/painter）
+└── tests/                  # 契约测试（schema、routes、apply/painter、设置行）
 ```
 
 ## License

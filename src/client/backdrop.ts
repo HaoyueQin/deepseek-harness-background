@@ -112,6 +112,7 @@ export class BackgroundPainter {
     // Push the knobs into CSS variables.
     const s = document.body.style
     this.setVar('--bg-object-fit', settings.fit)
+    this.setVar('--bg-opacity', String(settings.opacity))
     this.setVar('--bg-wallpaper-blur', `${settings.wallpaperBlur}px`)
     this.setVar('--bg-wallpaper-scale', (1 + settings.wallpaperBlur * 0.006).toFixed(4))
     this.setVar('--bg-scrim', String(settings.scrim))
@@ -214,4 +215,34 @@ export const backgroundPainter = new BackgroundPainter()
  */
 export function paintBackground(settings: BackgroundSettings): void {
   backgroundPainter.apply(settings, BACKGROUND_API_PREFIX)
+}
+
+/** Preview variables the settings-surface preview card consumes. */
+const PREVIEW_VARS = [
+  '--bg-opacity', '--bg-scrim', '--bg-object-fit',
+  '--bg-wallpaper-blur', '--bg-wallpaper-scale',
+  '--bg-glass-blur', '--bg-glass-saturate',
+] as const
+
+/**
+ * Push the effect knobs onto one element (the settings-surface preview card)
+ * so dragging a slider updates the card without touching the live backdrop.
+ * The card's CSS reads the same variable names as the painter writes on body.
+ * @param el - the preview element.
+ * @param settings - the draft settings to render (may be unsaved).
+ */
+export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSettings): void {
+  const s = el.style
+  s.setProperty('--bg-object-fit', settings.fit)
+  s.setProperty('--bg-opacity', String(settings.opacity))
+  s.setProperty('--bg-scrim', String(settings.scrim))
+  s.setProperty('--bg-wallpaper-blur', `${settings.wallpaperBlur}px`)
+  s.setProperty('--bg-wallpaper-scale', (1 + settings.wallpaperBlur * 0.006).toFixed(4))
+  s.setProperty('--bg-glass-blur', `${settings.blur}px`)
+  s.setProperty('--bg-glass-saturate', String(1.15 + settings.blur * 0.03))
+}
+
+/** Remove every preview variable from an element (restores CSS defaults). */
+export function clearPreviewSurface(el: HTMLElement): void {
+  for (const name of PREVIEW_VARS) el.style.removeProperty(name)
 }

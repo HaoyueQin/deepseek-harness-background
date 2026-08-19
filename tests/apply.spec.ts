@@ -99,6 +99,29 @@ describe('deepseek-harness-background apply', () => {
     // Owned CSS variables present.
     expect(document.body.style.getPropertyValue('--bg-scrim')).toBe('0.25')
     expect(document.body.style.getPropertyValue('--bg-glass-blur')).toBe('16px')
+    // The image opacity knob is written so the wallpaper fades with the slider.
+    expect(document.body.style.getPropertyValue('--bg-opacity')).toBe('1')
+  })
+
+  it('writes the image opacity knob onto body', async () => {
+    section = { ...SECTION, opacity: 0.4 }
+    mockFetch()
+    await mount()
+    expect(document.body.style.getPropertyValue('--bg-opacity')).toBe('0.4')
+  })
+
+  it('uses a white scrim in the light theme and a black one in the dark theme', async () => {
+    mockFetch()
+    await mount()
+    const scrimStyle = document.querySelector('.dsh-bg-scrim') as HTMLElement | null
+    expect(scrimStyle).not.toBeNull()
+    // The scrim element itself carries no inline background; the theme split
+    // lives in the injected stylesheet (white veil in light, black in dark).
+    const cssTag = document.querySelector('style[data-plugin-css="deepseek-harness-background/styles"]')
+    const cssText = cssTag?.textContent ?? ''
+    expect(cssText).toContain('rgba(255, 255, 255, var(--bg-scrim')
+    expect(cssText).toContain('body[data-ds-dark-theme] .dsh-bg-scrim')
+    expect(cssText).toContain('rgba(0, 0, 0, var(--bg-scrim')
   })
 
   it('renders a URL source directly when no upload is selected', async () => {

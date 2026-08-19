@@ -28,13 +28,20 @@ export const BACKGROUND_CSS = `
   .dsh-bg-layer .dsh-bg-image {
     width: 100%; height: 100%; display: block; border: 0; background: transparent;
     object-fit: var(--bg-object-fit, cover);
+    opacity: var(--bg-opacity, 1);
     filter: blur(var(--bg-wallpaper-blur, 0px));
     /* Blur thins the edges; scale the image up to hide the fringe. */
     transform: scale(var(--bg-wallpaper-scale, 1));
     transform-origin: center;
   }
+  /* Scrim is theme-aware: a WHITE veil in the light scheme (it lifts the art
+     toward the near-white surface so dark text keeps contrast) and a BLACK veil
+     in the dark scheme (it dims the art so light text keeps contrast). */
   .dsh-bg-scrim {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: rgba(255, 255, 255, var(--bg-scrim, 0.25));
+  }
+  body[data-ds-dark-theme] .dsh-bg-scrim {
     background: rgba(0, 0, 0, var(--bg-scrim, 0.25));
   }
 
