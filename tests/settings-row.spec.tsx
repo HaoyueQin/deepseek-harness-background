@@ -7,6 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { paintBackground } from '../src/client/backdrop.ts'
 import { BackgroundSettingsRow } from '../src/client/SettingsRow.tsx'
 import { settingsClient } from '../src/client/settings-client.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
@@ -91,6 +92,9 @@ describe('BackgroundSettingsRow', () => {
   })
 
   it('writes the live preview variables while dragging and persists on release', async () => {
+    // Activate a real background first so the slider drag exercises the
+    // painter's single-knob hot path against an applied section.
+    paintBackground({ ...persisted, enabled: true })
     renderRow()
     await screen.findByText('background.opacity')
     const slider = document.querySelector('input[type="range"]') as HTMLInputElement

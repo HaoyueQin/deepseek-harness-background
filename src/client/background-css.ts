@@ -75,12 +75,11 @@ export const BACKGROUND_CSS = `
  * Inject the backdrop stylesheet once. Safe to call repeatedly; a second call
  * is a no-op (dedup key on the style tag).
  */
-export function injectBackgroundCss(doc: Document = document): void {
-  if (doc === undefined) return
-  if (doc.querySelector(`style[data-plugin-css="${BACKGROUND_CSS_TAG}"]`)) return
-  const tag = doc.createElement('style')
+export function injectBackgroundCss(): void {
+  if (document.querySelector(`style[data-plugin-css="${BACKGROUND_CSS_TAG}"]`)) return
+  const tag = document.createElement('style')
   tag.dataset.plugin = 'deepseek-harness-background'
   tag.dataset.pluginCss = BACKGROUND_CSS_TAG
   tag.textContent = BACKGROUND_CSS
-  doc.head.appendChild(tag)
+  document.head.appendChild(tag)
 }

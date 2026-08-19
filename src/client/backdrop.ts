@@ -132,11 +132,43 @@ export class BackgroundPainter {
     }
   }
 
-  /** Write one owned CSS variable onto body. */
-  private setVar(name: string, value: string): void {
-    this.rememberOnce(name)
-    document.body.style.setProperty(name, value)
+/** Write one owned CSS variable onto body. */
+private setVar(name: string, value: string): void {
+  this.rememberOnce(name)
+  document.body.style.setProperty(name, value)
+}
+
+/**
+ * Update one effect knob without re-running the full apply. This is the hot
+ * path for slider drags (many events per second): only the single CSS
+ * variable changes, the DOM layers are untouched.
+ * @param key - the knob to update.
+ * @param value - its new value in its canonical unit.
+ */
+setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: number | BackgroundSettings['fit']): void {
+  if (this.settings === undefined || !this.settings.enabled) return
+  switch (key) {
+    case 'opacity':
+      this.setVar('--bg-opacity', String(value))
+      break
+    case 'scrim':
+      this.setVar('--bg-scrim', String(value))
+      break
+    case 'blur': {
+      this.setVar('--bg-glass-blur', `${value}px`)
+      this.setVar('--bg-glass-saturate', String(1.15 + Number(value) * 0.03))
+      break
+    }
+    case 'wallpaperBlur': {
+      this.setVar('--bg-wallpaper-blur', `${value}px`)
+      this.setVar('--bg-wallpaper-scale', (1 + Number(value) * 0.006).toFixed(4))
+      break
+    }
+    case 'fit':
+      this.setVar('--bg-object-fit', String(value))
+      break
   }
+}
 
   /**
    * Apply the translucent-glass surface tokens (or restore the official ones
@@ -215,6 +247,19 @@ export const backgroundPainter = new BackgroundPainter()
  */
 export function paintBackground(settings: BackgroundSettings): void {
   backgroundPainter.apply(settings, BACKGROUND_API_PREFIX)
+}
+
+/** Numeric effect knobs the slider drag path repaints. */
+export type BackgroundKnob = 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit'
+
+/**
+ * Update one effect knob on the live backdrop without re-running the full
+ * apply — the hot path for slider drags (see BackgroundPainter.setKnob).
+ * @param key - the knob to update.
+ * @param value - its new value.
+ */
+export function paintBackgroundKnob(key: BackgroundKnob, value: number | BackgroundSettings['fit']): void {
+  backgroundPainter.setKnob(key, value)
 }
 
 /** Preview variables the settings-surface preview card consumes. */

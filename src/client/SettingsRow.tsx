@@ -26,7 +26,7 @@ import {
   DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR, FIT_MODES,
   type BackgroundFit, type BackgroundSettings,
 } from '../settings.ts'
-import { clearPreviewSurface, paintBackground, paintPreviewSurface } from './backdrop.ts'
+import { clearPreviewSurface, paintBackground, paintBackgroundKnob, paintPreviewSurface } from './backdrop.ts'
 import { settingsClient, type SettingsSnapshot } from './settings-client.ts'
 import css from './SettingsRow.module.css'
 
@@ -187,8 +187,16 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     const next = { ...draftRef.current, [key]: value }
     draftRef.current = next
     markEditing()
-    paintLive(next)
-  }, [markEditing, paintLive])
+    // Hot path: most knobs repaint through the painter's single-variable
+    // writer (no DOM layer churn). panelOpacity drives the glass surface
+    // tokens, which need the full apply.
+    if (key === 'panelOpacity') {
+      paintBackground(next)
+    } else {
+      paintBackgroundKnob(key, value)
+    }
+    if (previewRef.current) paintPreviewSurface(previewRef.current, next)
+  }, [markEditing])
 
   /** Persist one section through the host route and adopt it on success. */
   const saveNow = useCallback(async (next: BackgroundSettings): Promise<void> => {
