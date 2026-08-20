@@ -20,10 +20,11 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { extname, join as joinPath } from 'node:path'
-import type { Settings } from '@deepseek-ai/dsh-settings'
+import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
-  BACKGROUND_API_PREFIX, BACKGROUND_SETTINGS_NAMESPACE, BLUR_MAX, BLUR_MIN, DEFAULT_BLUR, DEFAULT_FIT,
+  BACKGROUND_API_PREFIX, BACKGROUND_SETTINGS_FIELDS, BACKGROUND_SETTINGS_NAMESPACE,
+  BLUR_MAX, BLUR_MIN, DEFAULT_BLUR, DEFAULT_FIT,
   DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR,
   OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
   SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX,
@@ -45,6 +46,16 @@ const DEFAULTS: BackgroundSettings = {
   blur: DEFAULT_BLUR,
   wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
   fit: DEFAULT_FIT,
+}
+
+/** Keep only the schema's known fields (see BACKGROUND_SETTINGS_FIELDS). */
+function pickKnown(section: object): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const src = section as Record<string, unknown>
+  for (const key of BACKGROUND_SETTINGS_FIELDS) {
+    if (key in src) out[key] = src[key]
+  }
+  return out
 }
 
 /** Accepted upload MIME type → file extension. */
@@ -296,7 +307,7 @@ function mimeForPath(path: string): string | undefined {
 }
 
 /** One background API route family over the settings provider + home. */
-export function makeBackgroundRoutes(settings: Settings, opts: { home?: string } = {}): WebRoute[] {
+export function makeBackgroundRoutes(settings: SettingsProvider, opts: { home?: string } = {}): WebRoute[] {
   const readSection = (): BackgroundSettings => {
     const section = settings.get(BACKGROUND_SETTINGS_NAMESPACE) as BackgroundSettings | undefined
     return { ...DEFAULTS, ...section }
@@ -331,8 +342,13 @@ export function makeBackgroundRoutes(settings: Settings, opts: { home?: string }
               json(res, 400, { ok: false, error: validationError })
               return
             }
-            // The client posts the whole section; update merges the user layer.
-            await settings.update(BACKGROUND_SETTINGS_NAMESPACE, body)
+            // The client posts the whole section. The write replaces the user
+            // layer (merge of the current known fields + the posted ones)
+            // rather than merging blindly: the settings layer keeps unknown
+            // keys in the document, so a merge-only write would let legacy
+            // fields (e.g. the old lightUrl/darkUrl pair) linger forever.
+            const merged = { ...pickKnown(readSection()), ...pickKnown(body) }
+            await settings.replace(BACKGROUND_SETTINGS_NAMESPACE, merged)
             const after = readSection()
             // Prune the replaced upload: switching images (or clearing) must
             // not leave the old file on disk forever. Only the *previous*

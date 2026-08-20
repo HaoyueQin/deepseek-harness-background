@@ -13,7 +13,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join as joinPath } from 'node:path'
-import type { Settings } from '@deepseek-ai/dsh-settings'
+import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import { resolveHarnessHome } from '../src/harness-home.ts'
 import { makeBackgroundRoutes, pluginHome, storeUpload, validateSectionBody } from '../src/routes.ts'
 import { BACKGROUND_SETTINGS_NAMESPACE } from '../src/settings.ts'
@@ -149,23 +149,30 @@ describe('validateSectionBody', () => {
   })
 })
 
-/** In-memory settings provider exposing only what the route family uses. */
-function settingsMock(initial: Record<string, unknown>): Settings {
+/** In-memory settings provider exposing only what the route family uses.
+ * `initial` maps namespace → section, like the real provider's document. */
+function settingsMock(initial: Record<string, Record<string, unknown>> = {}): SettingsProvider {
   const store = new Map<string, Record<string, unknown>>()
-  if (Object.keys(initial).length > 0) store.set(BACKGROUND_SETTINGS_NAMESPACE, initial)
+  for (const [ns, section] of Object.entries(initial)) store.set(ns, { ...section })
   return {
     get(ns: string) { return store.get(ns) },
     async update(ns: string, patch: Record<string, unknown>) {
       const current = store.get(ns) ?? {}
       store.set(ns, { ...current, ...patch })
     },
-  } as unknown as Settings
+    async replace(ns: string, section: Record<string, unknown>) {
+      store.set(ns, { ...section })
+    },
+  } as unknown as SettingsProvider
 }
 
 /** Boot a real node:http server over the route family on an ephemeral port. */
-async function withServer(fn: (base: string, home: string) => Promise<void>): Promise<void> {
+async function withServer(
+  fn: (base: string, home: string) => Promise<void>,
+  initial?: Record<string, Record<string, unknown>>,
+): Promise<void> {
   const home = freshHome()
-  const routes = makeBackgroundRoutes(settingsMock({}), { home })
+  const routes = makeBackgroundRoutes(settingsMock(initial ?? {}), { home })
   const server = createServer((req, res) => {
     const url = req.url ?? '/'
     const route = routes.find((r) => (
@@ -209,6 +216,15 @@ async function postSection(base: string, section: object): Promise<number> {
 /** The on-disk path of a stored PNG upload (extension fixed by the sniffer). */
 function pngPath(home: string, id: string): string {
   return joinPath(home, 'deepseek-harness-background', `${id}.png`)
+}
+
+/** GET one section read; returns the parsed value. */
+async function getSection(base: string): Promise<Record<string, unknown>> {
+  const res = await fetch(`${base}/api/bg-wallpaper/settings`)
+  expect(res.status).toBe(200)
+  const body = await res.json() as { ok: boolean; value?: Record<string, unknown> }
+  expect(body.ok).toBe(true)
+  return body.value as Record<string, unknown>
 }
 
 describe('upload pruning (swap / clear deletes the superseded file)', () => {
@@ -257,5 +273,44 @@ describe('upload pruning (swap / clear deletes the superseded file)', () => {
       expect(await postSection(base, { enabled: true, uploadId: '', url: 'https://x/a.png', scrim: 2 })).toBe(400)
       expect(existsSync(pngPath(home, id))).toBe(true)
     })
+  })
+})
+
+describe('section write scrubs legacy unknown fields', () => {
+  /** A user document written by an older plugin version: carries lightUrl/darkUrl. */
+  const legacyInitial = {
+    [BACKGROUND_SETTINGS_NAMESPACE]: {
+      enabled: true, lightUrl: '', darkUrl: '', opacity: 0.6,
+      uploadId: '', url: '', scrim: 0.4, panelOpacity: 0.3,
+      blur: 3, wallpaperBlur: 0, fit: 'cover',
+    },
+  }
+
+  it('clears fields the current schema no longer knows', async () => {
+    // The settings layer keeps unknown keys in the user document, so only a
+    // scrubbed replace removes them.
+    await withServer(async (base) => {
+      const before = await getSection(base)
+      expect(before).toHaveProperty('lightUrl')
+      expect(before).toHaveProperty('darkUrl')
+
+      expect(await postSection(base, { enabled: true, uploadId: '', url: '', opacity: 0.5 })).toBe(200)
+
+      const after = await getSection(base)
+      expect(after).not.toHaveProperty('lightUrl')
+      expect(after).not.toHaveProperty('darkUrl')
+      expect(after.opacity).toBe(0.5)
+    }, legacyInitial)
+  })
+
+  it('keeps known fields the posted section does not mention', async () => {
+    await withServer(async (base) => {
+      expect(await postSection(base, { enabled: true, uploadId: '', url: '', opacity: 0.5 })).toBe(200)
+      // The untouched knobs keep their stored values (partial writes still merge).
+      const after = await getSection(base)
+      expect(after.opacity).toBe(0.5)
+      expect(after.scrim).toBe(0.4)
+      expect(after.blur).toBe(3)
+    }, legacyInitial)
   })
 })
