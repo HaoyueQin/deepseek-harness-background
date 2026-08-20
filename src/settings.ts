@@ -3,6 +3,17 @@
 /** Settings namespace owned by the background plugin. */
 export const BACKGROUND_SETTINGS_NAMESPACE = 'ui-background'
 
+/**
+ * The schema's field names, in schema order. Used as a whitelist when a
+ * section write commits: the settings layer keeps unknown keys in the user
+ * document (a legacy schema field would linger forever under a merge-only
+ * write), so the write path strips everything outside this list.
+ */
+export const BACKGROUND_SETTINGS_FIELDS = [
+  'enabled', 'uploadId', 'url', 'opacity', 'scrim',
+  'panelOpacity', 'blur', 'wallpaperBlur', 'fit',
+] as const
+
 /** Browser-facing base path of the background API (shared with the host routes). */
 export const BACKGROUND_API_PREFIX = '/api/bg-wallpaper'
 
