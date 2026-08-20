@@ -38,7 +38,13 @@
 
 ## 安装
 
-这是一个标准的 out-of-tree dsh bundle：
+这是一个标准的 out-of-tree dsh bundle，已发布到 npm：
+
+```sh
+dsh plugin --profile web add deepseek-harness-background
+```
+
+从本地 checkout 安装（开发用）：
 
 ```sh
 dsh plugin --profile web add /path/to/deepseek-harness-background

@@ -38,7 +38,13 @@ The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels d
 
 ## Install
 
-The plugin is a standard out-of-tree dsh bundle:
+The plugin is a standard out-of-tree dsh bundle, published on npm:
+
+```sh
+dsh plugin --profile web add deepseek-harness-background
+```
+
+From a local checkout (development):
 
 ```sh
 dsh plugin --profile web add /path/to/deepseek-harness-background
