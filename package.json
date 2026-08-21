@@ -25,7 +25,6 @@
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
-    "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -47,7 +46,6 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "license": "MIT",
   "files": [
     "lib",
     "cordis.patch.yml",
