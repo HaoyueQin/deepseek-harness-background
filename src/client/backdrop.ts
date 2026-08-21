@@ -18,14 +18,83 @@ const LAYER_CLASS = 'dsh-bg-layer'
 const IMAGE_CLASS = 'dsh-bg-image'
 const SCRIM_CLASS = 'dsh-bg-scrim'
 
-/** Surface tokens this painter overwrites (restored on dispose). */
-const SURFACE_TOKENS = [
-  '--dsw-specific-input-major',
-  '--dsw-specific-bubble',
-] as const
+/**
+ * White-glass tokens: every remaining opaque fill in the web UI flows through
+ * these theme tokens (menus, dialog/settings layers, code surfaces, dock
+ * cards, chrome buttons, hover-solid fills). `factor` scales the alpha
+ * relative to the input surface. Anchors/coverage audited against the host
+ * stylesheets — see docs/superpowers/specs/2026-08-22-universal-frosted-glass-design.md.
+ */
+const GLASS_SURFACE_TOKENS: readonly { token: string; factor: number }[] = [
+  { token: '--dsw-specific-input-major', factor: 1 },
+  { token: '--dsw-specific-bubble', factor: 0.8 },
+  { token: '--dsw-specific-menu', factor: 1 },
+  { token: '--dsw-alias-bg-layer-1', factor: 1 },
+  { token: '--dsw-alias-bg-layer-2', factor: 1 },
+  { token: '--dsw-alias-bg-layer-3', factor: 1 },
+  { token: '--dsw-alias-markdown-code-block', factor: 1 },
+  { token: '--dsw-alias-markdown-code-block-banner', factor: 1 },
+  { token: '--dsw-alias-markdown-inline-code', factor: 0.9 },
+  { token: '--dsw-alias-bg-module-platform', factor: 1 },
+  { token: '--dsw-alias-bg-overlay', factor: 1 },
+  { token: '--dsw-specific-tip', factor: 1 },
+  { token: '--dsw-specific-selector', factor: 0.9 },
+  { token: '--dsw-alias-button-elevated-fill', factor: 0.9 },
+  { token: '--dsw-alias-button-floating-fill', factor: 0.9 },
+  { token: '--dsw-alias-interactive-bg-hover-solid', factor: 0.9 },
+]
+
+/**
+ * Accent tokens: small controls whose official hue must survive (send button
+ * stays blue, tooltips stay ink). The rgb triplets mirror the light/dark
+ * `--dsw-static-*` values each alias resolves to in the host theme.
+ */
+const GLASS_ACCENT_TOKENS: readonly { token: string; light: string; dark: string }[] = [
+  { token: '--dsw-alias-button-info-fill', light: '65, 118, 230', dark: '103, 158, 254' },
+  { token: '--dsw-alias-button-primary-fill', light: '15, 17, 21', dark: '249, 250, 251' },
+  { token: '--dsw-alias-button-contrast-fill', light: '97, 102, 107', dark: '249, 250, 251' },
+  { token: '--dsw-alias-tooltip-bg', light: '44, 44, 46', dark: '67, 69, 74' },
+  { token: '--dsw-alias-state-warn-tertiary', light: '254, 245, 231', dark: '39, 36, 31' },
+]
+
+/** Every token the glass owns (save/restore key set). */
+const GLASS_TOKENS: readonly string[] = [...new Set([
+  ...GLASS_SURFACE_TOKENS.map(({ token }) => token),
+  ...GLASS_ACCENT_TOKENS.map(({ token }) => token),
+])]
 
 /** Fraction of the official white surface alpha kept at the most transparent panel setting. */
 const GLASS_MIN_ALPHA = 0.05
+
+/** Base white-glass alpha for one panelOpacity (the curve every surface shares). */
+function glassAlpha(panelOpacity: number): number {
+  const alpha = GLASS_MIN_ALPHA + panelOpacity * (0.9 - GLASS_MIN_ALPHA)
+  return Math.max(0, Math.min(0.9, alpha))
+}
+
+/**
+ * Saturation boost that rides the blur radius. Gentler than the reference
+ * engine (1.1 + blur * 0.02, capped at 1.6): stacking a hot saturate on top of
+ * the brightness/sheen layers pushed bright wallpapers into clipping.
+ */
+function glassSaturate(blur: number): number {
+  if (blur <= 0) return 1
+  // Round off float dust (1.1 + 16 * 0.02 is 1.4200000000000002 raw).
+  return Math.round(Math.min(1.6, 1.1 + blur * 0.02) * 1000) / 1000
+}
+
+/**
+ * Exposure calibration per scheme. Light glass neither boosts brightness nor
+ * stacks a heavy sheen (mainstream frosted recipes — macOS vibrancy, Windows
+ * acrylic, common web glass — blur + saturate + tint without a positive
+ * brightness gain); dark glass keeps the reference engine's slight lift, which
+ * stops the white-glass fills from turning muddy.
+ */
+function glassExposure(inDark: boolean): { brightness: string; sheen: string; sheenMid: string } {
+  return inDark
+    ? { brightness: '1.04', sheen: '0.16', sheenMid: '0.05' }
+    : { brightness: '0.98', sheen: '0.07', sheenMid: '0.02' }
+}
 
 /**
  * The theme-aware glass surface alphas for one panelOpacity: the input-surface
@@ -33,12 +102,10 @@ const GLASS_MIN_ALPHA = 0.05
  * live painter and the settings-row preview card so the two cannot drift.
  */
 function glassSurfaceAlphas(panelOpacity: number, inDark: boolean): { major: string; bubble: string } {
-  const alpha = GLASS_MIN_ALPHA + panelOpacity * (0.9 - GLASS_MIN_ALPHA)
-  const clamped = Math.max(0, Math.min(0.9, alpha))
-  const factor = inDark ? 0.4 : 0.8
+  const alpha = glassAlpha(panelOpacity) * (inDark ? 0.4 : 0.8)
   return {
-    major: `rgba(255, 255, 255, ${(clamped * factor).toFixed(3)})`,
-    bubble: `rgba(255, 255, 255, ${(clamped * factor * 0.8).toFixed(3)})`,
+    major: `rgba(255, 255, 255, ${alpha.toFixed(3)})`,
+    bubble: `rgba(255, 255, 255, ${(alpha * 0.8).toFixed(3)})`,
   }
 }
 
@@ -69,7 +136,7 @@ export class BackgroundPainter {
   private rememberOnce(prop: string): void {
     if (this.savedTokens.has(prop) || this.savedVars.has(prop)) return
     const value = document.body.style.getPropertyValue(prop)
-    if (SURFACE_TOKENS.includes(prop as (typeof SURFACE_TOKENS)[number])) {
+    if (GLASS_TOKENS.includes(prop)) {
       this.savedTokens.set(prop, value)
     } else {
       this.savedVars.set(prop, value)
@@ -143,7 +210,7 @@ export class BackgroundPainter {
     this.setVar('--bg-wallpaper-scale', (1 + settings.wallpaperBlur * 0.006).toFixed(4))
     this.setVar('--bg-scrim', String(settings.scrim))
     this.setVar('--bg-glass-blur', `${settings.blur}px`)
-    this.setVar('--bg-glass-saturate', String(1.15 + settings.blur * 0.03))
+    this.setVar('--bg-glass-saturate', String(glassSaturate(settings.blur)))
 
     // Glass surface: theme-aware translucent token (panelOpacity === 1 keeps
     // the official opaque surfaces and disables the blur).
@@ -182,7 +249,7 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
       break
     case 'blur': {
       this.setVar('--bg-glass-blur', `${value}px`)
-      this.setVar('--bg-glass-saturate', String(1.15 + Number(value) * 0.03))
+      this.setVar('--bg-glass-saturate', String(glassSaturate(Number(value))))
       break
     }
     case 'wallpaperBlur': {
@@ -208,10 +275,10 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
     const inDark = document.body.dataset.dsDarkTheme !== undefined
     // Always remember the original surface values so a restore / dispose
     // returns them cleanly.
-    for (const token of SURFACE_TOKENS) this.rememberOnce(token)
+    for (const token of GLASS_TOKENS) this.rememberOnce(token)
 
     const restore = () => {
-      for (const token of SURFACE_TOKENS) {
+      for (const token of GLASS_TOKENS) {
         const original = this.savedTokens.get(token)
         if (original !== undefined && original !== '') s.setProperty(token, original)
         else s.removeProperty(token)
@@ -220,16 +287,30 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
 
     if (forceRestore || settings === undefined || settings.panelOpacity >= 1) {
       restore()
-      // No blur when glass is off.
+      // No blur and a neutral exposure when glass is off.
       this.setVar('--bg-glass-blur', '0px')
+      this.setVar('--bg-glass-brightness', '1')
       return
     }
 
+    // Exposure calibration (theme-aware, mirrored by the preview surface).
+    const exposure = glassExposure(inDark)
+    this.setVar('--bg-glass-brightness', exposure.brightness)
+    this.setVar('--bg-glass-sheen', exposure.sheen)
+    this.setVar('--bg-glass-sheen-mid', exposure.sheenMid)
+
     // Dark scheme uses a lower white alpha (the wallpaper stays visible
     // without washing the surface), mirroring the reference engine.
-    const { major, bubble } = glassSurfaceAlphas(settings.panelOpacity, inDark)
-    s.setProperty('--dsw-specific-input-major', major)
-    s.setProperty('--dsw-specific-bubble', bubble)
+    const base = glassAlpha(settings.panelOpacity) * (inDark ? 0.4 : 0.8)
+    for (const { token, factor } of GLASS_SURFACE_TOKENS) {
+      s.setProperty(token, `rgba(255, 255, 255, ${(base * factor).toFixed(3)})`)
+    }
+    // Accents keep their official hue but ride the same curve, lifted by a
+    // floor so small controls (send button, tooltips) stay legible.
+    const accent = Math.min(0.92, 0.45 + glassAlpha(settings.panelOpacity))
+    for (const { token, light, dark } of GLASS_ACCENT_TOKENS) {
+      s.setProperty(token, `rgba(${inDark ? dark : light}, ${accent.toFixed(3)})`)
+    }
   }
 
   /** Remove the wallpaper + scrim layers and clear the active attribute. */
@@ -289,7 +370,8 @@ export function paintBackgroundKnob(key: BackgroundKnob, value: number | Backgro
 const PREVIEW_VARS = [
   '--bg-opacity', '--bg-scrim', '--bg-object-fit',
   '--bg-wallpaper-blur', '--bg-wallpaper-scale',
-  '--bg-glass-blur', '--bg-glass-saturate', '--bg-preview-glass',
+  '--bg-glass-blur', '--bg-glass-saturate', '--bg-glass-brightness',
+  '--bg-preview-glass',
 ] as const
 
 /**
@@ -314,11 +396,15 @@ export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSetting
   const inDark = document.body.dataset.dsDarkTheme !== undefined
   if (settings.panelOpacity >= 1) {
     s.setProperty('--bg-glass-blur', '0px')
+    s.setProperty('--bg-glass-brightness', '1')
     s.setProperty('--bg-preview-glass', 'var(--dsw-alias-bg-layer-1)')
     return
   }
   s.setProperty('--bg-glass-blur', `${settings.blur}px`)
-  s.setProperty('--bg-glass-saturate', String(1.15 + settings.blur * 0.03))
+  s.setProperty('--bg-glass-saturate', String(glassSaturate(settings.blur)))
+  // The preview filter mirrors the live exposure calibration (slightly dimmed
+  // in light, lifted in dark) so the card never reads brighter than the app.
+  s.setProperty('--bg-glass-brightness', glassExposure(inDark).brightness)
   // The preview bubble mirrors the live --dsw-specific-bubble token.
   s.setProperty('--bg-preview-glass', glassSurfaceAlphas(settings.panelOpacity, inDark).bubble)
 }

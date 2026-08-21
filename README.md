@@ -34,7 +34,7 @@ The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels d
 - **Five controls** — wallpaper opacity, readability scrim, panel opacity, frosted-glass blur, and wallpaper blur.
 - **Fit modes** — `cover` (fill, crop) or `contain` (whole image).
 - **Theme-aware scrim** — the light theme uses a white veil (lifts the art so dark text keeps contrast); the dark theme automatically switches to a black veil (dims the art so light text keeps contrast).
-- **Frosted glass** — while a background is active, the composer card and message bubbles turn into translucent glass over the wallpaper (specular sheen + `backdrop-filter`), with the blur radius driven by the glass-blur slider. `panelOpacity` at 100% restores the official opaque surfaces.
+- **Frosted glass** — while a background is active, *every* opaque surface turns into translucent glass over the wallpaper (specular sheen + `backdrop-filter`): the composer card and message bubbles, code blocks / terminal / diff / tool cards and inline code, menus and popovers, dialogs and the settings panel, dock cards, and the chrome buttons (new session, plus, send, toasts…). The blur radius is driven by the glass-blur slider; `panelOpacity` at 100% restores the official opaque surfaces everywhere. Semantic alerts, masks and the boot screen keep their official look.
 - **Persisted in the official settings document** (`$DSH_HOME/settings.yaml`), waits out restarts.
 - **Clean teardown** — disabling, clearing or uninstalling restores the original background exactly; the plugin only ever removes what it wrote.
 

@@ -10,6 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { apply, inject } from '../src/client/index.ts'
+import { paintPreviewSurface } from '../src/client/backdrop.ts'
 import { settingsClient } from '../src/client/settings-client.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
 
@@ -75,6 +76,7 @@ afterEach(async () => {
   await fiber?.dispose()
   fiber = undefined
   document.body.removeAttribute('data-dsh-bg')
+  delete document.body.dataset.dsDarkTheme
   document.body.style.cssText = ''
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -192,6 +194,144 @@ describe('deepseek-harness-background apply', () => {
     expect(document.body.style.getPropertyValue('--bg-scrim')).toBe('')
     // The original background-image was restored.
     expect(document.body.style.backgroundImage).toBe('url("previous.png")')
+  })
+
+  it('paints the universal glass tokens for menus, code, panels and buttons', async () => {
+    mockFetch()
+    await mount()
+    const style = document.body.style
+    // Surface family: white-glass rgba on every token that feeds an opaque
+    // surface (menus, dialogs/layers, code blocks, inline code, dock cards,
+    // the plus button, the new-session button, hover-solid fills).
+    for (const token of [
+      '--dsw-specific-menu',
+      '--dsw-alias-bg-layer-1', '--dsw-alias-bg-layer-2', '--dsw-alias-bg-layer-3',
+      '--dsw-alias-markdown-code-block', '--dsw-alias-markdown-code-block-banner',
+      '--dsw-alias-markdown-inline-code',
+      '--dsw-alias-bg-module-platform', '--dsw-alias-bg-overlay',
+      '--dsw-specific-tip', '--dsw-specific-selector',
+      '--dsw-alias-button-elevated-fill', '--dsw-alias-button-floating-fill',
+      '--dsw-alias-interactive-bg-hover-solid',
+    ]) {
+      expect(style.getPropertyValue(token), token).toContain('rgba(')
+    }
+    // Accent family: official hue kept (send button stays blue in light).
+    expect(style.getPropertyValue('--dsw-alias-button-info-fill'))
+      .toMatch(/^rgba\(65, 118, 230, 0\.\d{3}\)$/)
+    expect(style.getPropertyValue('--dsw-alias-tooltip-bg')).toContain('rgba(')
+    expect(style.getPropertyValue('--dsw-alias-state-warn-tertiary')).toContain('rgba(')
+  })
+
+  it('clears every universal token when panelOpacity is at maximum', async () => {
+    mockFetch()
+    await mount()
+    section = { ...SECTION, panelOpacity: 1 }
+    await settingsClient.load()
+    await vi.waitFor(() => {
+      expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toBe('')
+    })
+    for (const token of [
+      '--dsw-specific-menu', '--dsw-alias-bg-layer-2',
+      '--dsw-alias-markdown-code-block', '--dsw-alias-markdown-inline-code',
+      '--dsw-alias-button-info-fill', '--dsw-alias-tooltip-bg',
+    ]) {
+      expect(document.body.style.getPropertyValue(token), token).toBe('')
+    }
+  })
+
+  it('repaints the accent tokens with the dark hue when the theme flips', async () => {
+    mockFetch()
+    await mount()
+    expect(document.body.style.getPropertyValue('--dsw-alias-button-info-fill'))
+      .toContain('65, 118, 230')
+    document.body.dataset.dsDarkTheme = ''
+    await vi.waitFor(() => {
+      expect(document.body.style.getPropertyValue('--dsw-alias-button-info-fill'))
+        .toContain('103, 158, 254')
+    })
+  })
+
+  it('restores a pre-existing universal token value on dispose', async () => {
+    document.body.style.setProperty('--dsw-specific-menu', 'rgb(1, 2, 3)')
+    mockFetch()
+    await mount()
+    expect(document.body.style.getPropertyValue('--dsw-specific-menu')).toContain('rgba(')
+    await fiber?.dispose()
+    fiber = undefined
+    expect(document.body.style.getPropertyValue('--dsw-specific-menu')).toBe('rgb(1, 2, 3)')
+  })
+
+  it('injects blur/sheen anchors for the universal surfaces', async () => {
+    mockFetch()
+    await mount()
+    const cssTag = document.querySelector('style[data-plugin-css="deepseek-harness-background/styles"]')
+    const cssText = cssTag?.textContent ?? ''
+    // Code surfaces incl. inline code and the sticky banner wrap.
+    expect(cssText).toContain('.md-code-block')
+    expect(cssText).toContain('[data-terminal]')
+    expect(cssText).toContain('_ioCard')
+    expect(cssText).toContain(':not(pre) > code')
+    expect(cssText).toContain('_bannerWrap')
+    // Menus, dialogs/panels, cards.
+    expect(cssText).toContain('[role="menu"]')
+    expect(cssText).toContain('_dialog')
+    expect(cssText).toContain('_panel')
+    expect(cssText).toContain('_card')
+    // Buttons & chips: new session, plus, send, attachment rail, toasts.
+    expect(cssText).toContain('_newSession')
+    expect(cssText).toContain('_add')
+    expect(cssText).toContain('_primary')
+    expect(cssText).toContain('_rail')
+    expect(cssText).toContain('_toBottom')
+    expect(cssText).toContain('_toast')
+    // Empty-state hero glow dims so the wallpaper stays visible.
+    expect(cssText).toContain('_heroGlow')
+  })
+
+  it('calibrates the glass exposure: dimmed in light, lifted in dark', async () => {
+    mockFetch()
+    await mount()
+    const style = document.body.style
+    // Light scheme: no brightness boost and a halved sheen, so bright
+    // wallpapers no longer blow out through the stacked glass layers.
+    expect(style.getPropertyValue('--bg-glass-brightness')).toBe('0.98')
+    expect(style.getPropertyValue('--bg-glass-sheen')).toBe('0.07')
+    expect(style.getPropertyValue('--bg-glass-sheen-mid')).toBe('0.02')
+    // Saturate rides a gentler capped slope: 1.1 + blur * 0.02 (max 1.6).
+    expect(style.getPropertyValue('--bg-glass-saturate')).toBe('1.42')
+    // Dark scheme keeps the reference engine's slight lift + full sheen.
+    document.body.dataset.dsDarkTheme = ''
+    await vi.waitFor(() => {
+      expect(style.getPropertyValue('--bg-glass-brightness')).toBe('1.04')
+      expect(style.getPropertyValue('--bg-glass-sheen')).toBe('0.16')
+      expect(style.getPropertyValue('--bg-glass-sheen-mid')).toBe('0.05')
+    })
+  })
+
+  it('neutralizes the exposure once the glass turns off', async () => {
+    mockFetch()
+    await mount()
+    section = { ...SECTION, panelOpacity: 1 }
+    await settingsClient.load()
+    await vi.waitFor(() => {
+      expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toBe('')
+    })
+    expect(document.body.style.getPropertyValue('--bg-glass-brightness')).toBe('1')
+  })
+
+  it('mirrors the calibrated exposure on the settings preview surface', async () => {
+    const el = document.createElement('div')
+    paintPreviewSurface(el, { ...SECTION })
+    expect(el.style.getPropertyValue('--bg-glass-brightness')).toBe('0.98')
+    expect(el.style.getPropertyValue('--bg-glass-saturate')).toBe('1.42')
+    document.body.dataset.dsDarkTheme = ''
+    paintPreviewSurface(el, { ...SECTION })
+    expect(el.style.getPropertyValue('--bg-glass-brightness')).toBe('1.04')
+    delete document.body.dataset.dsDarkTheme
+    // Glass off (panelOpacity 1): the preview filter goes fully neutral.
+    paintPreviewSurface(el, { ...SECTION, panelOpacity: 1 })
+    expect(el.style.getPropertyValue('--bg-glass-brightness')).toBe('1')
+    expect(el.style.getPropertyValue('--bg-glass-blur')).toBe('0px')
   })
 
   it('is a no-op while the transport has not loaded', async () => {
