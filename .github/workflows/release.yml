@@ -1,0 +1,33 @@
+# A pushed version tag IS the release: verify the tagged tree, then open the
+# GitHub Release with generated notes. The npm publish stays a separate manual
+# step (it requires the owner's 2FA OTP).
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # pnpm version comes from the packageManager field in package.json only
+      # (a "version" input alongside packageManager is a hard error in
+      # pnpm/action-setup).
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm test
+      - run: pnpm run build
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
