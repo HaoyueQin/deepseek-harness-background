@@ -7,9 +7,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { RenderResult } from '@testing-library/react'
 import { paintBackground } from '../src/client/backdrop.ts'
 import { BackgroundSettingsRow } from '../src/client/SettingsRow.tsx'
-import { settingsClient } from '../src/client/settings-client.ts'
+import { settingsClient, type SaveResult } from '../src/client/settings-client.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
 
 const SECTION: BackgroundSettings = {
@@ -34,10 +35,10 @@ beforeEach(() => {
   settingsClient.load = vi.fn(async () => {
     ;(settingsClient as unknown as { snapshot: unknown }).snapshot = { status: 'ready', value: { ...persisted } }
   })
-  settingsClient.save = vi.fn(async (section: BackgroundSettings) => {
+  settingsClient.save = vi.fn(async (section: BackgroundSettings): Promise<SaveResult> => {
     persisted = { ...section }
     ;(settingsClient as unknown as { snapshot: unknown }).snapshot = { status: 'ready', value: { ...section } }
-    return true
+    return 'ok'
   })
   settingsClient.upload = vi.fn(async () => null)
   void settingsClient.load()
@@ -47,11 +48,12 @@ afterEach(() => {
   cleanup()
   document.body.removeAttribute('data-dsh-bg')
   document.body.style.cssText = ''
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
-function renderRow(): void {
-  render(<BackgroundSettingsRow t={t} />)
+function renderRow(): RenderResult {
+  return render(<BackgroundSettingsRow t={t} />)
 }
 
 /** CSS Modules hash the class names; match by suffix so jsdom works too. */
@@ -154,5 +156,84 @@ describe('BackgroundSettingsRow', () => {
     })
     expect(persisted.url).toBe('')
     expect(persisted.uploadId).toBe('up-abc')
+  })
+
+  it('does not adopt a superseded save (an older save resolving after a newer one)', async () => {
+    let release!: (result: SaveResult) => void
+    const gated = new Promise<SaveResult>((resolve) => { release = resolve })
+    let posts = 0
+    settingsClient.save = vi.fn((section: BackgroundSettings): Promise<SaveResult> => {
+      posts += 1
+      if (posts === 1) return gated
+      // The newer save commits and owns the snapshot.
+      persisted = { ...section }
+      ;(settingsClient as unknown as { snapshot: unknown }).snapshot = { status: 'ready', value: { ...section } }
+      return Promise.resolve('ok')
+    })
+    paintBackground({ ...persisted, enabled: true })
+    const view = renderRow()
+    await screen.findByText('background.opacity')
+    vi.useFakeTimers()
+    try {
+      const slider = document.querySelector('input[type="range"]') as HTMLInputElement
+      // Gesture 1 → save #1 hangs; gesture 2 → save #2 commits 0.6.
+      fireEvent.input(slider, { target: { value: '0.3' } })
+      fireEvent.pointerUp(slider)
+      await vi.advanceTimersByTimeAsync(120)
+      expect(posts).toBe(1)
+      fireEvent.input(slider, { target: { value: '0.6' } })
+      fireEvent.pointerUp(slider)
+      await vi.advanceTimersByTimeAsync(120)
+      expect(persisted.opacity).toBe(0.6)
+      // The older save resolves late, displaced — the draft must stay at 0.6.
+      release('superseded')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(slider.value).toBe('0.6')
+      expect(screen.queryByRole('alert')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+      view.unmount()
+    }
+  })
+
+  it('flushes a pending debounced commit on unmount exactly once', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    const view = renderRow()
+    await screen.findByText('background.opacity')
+    vi.useFakeTimers()
+    try {
+      const slider = document.querySelector('input[type="range"]') as HTMLInputElement
+      fireEvent.input(slider, { target: { value: '0.5' } })
+      fireEvent.pointerUp(slider)
+      // Unmount inside the debounce window: the armed commit must fire now.
+      await vi.advanceTimersByTimeAsync(50)
+      view.unmount()
+      await vi.advanceTimersByTimeAsync(200)
+      expect(persisted.opacity).toBe(0.5)
+      expect(settingsClient.save).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not re-save on unmount when the debounced commit already ran', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    const view = renderRow()
+    await screen.findByText('background.opacity')
+    vi.useFakeTimers()
+    try {
+      const slider = document.querySelector('input[type="range"]') as HTMLInputElement
+      fireEvent.input(slider, { target: { value: '0.5' } })
+      fireEvent.pointerUp(slider)
+      // Let the debounce elapse naturally: the gesture is fully committed.
+      await vi.advanceTimersByTimeAsync(200)
+      expect(settingsClient.save).toHaveBeenCalledTimes(1)
+      view.unmount()
+      await vi.advanceTimersByTimeAsync(200)
+      // A fired timer must not look like an armed one — no second POST.
+      expect(settingsClient.save).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

@@ -85,6 +85,3 @@ declare module '@deepseek-ai/cordis' {
     }
   }
 }
-
-/** Re-exported for type-only consumers. */
-export type { Context, SlotMap, LocaleNamespaceMap }

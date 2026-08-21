@@ -9,7 +9,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
-import { createServer } from 'node:http'
+import { createServer, request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import { join as joinPath, resolve as resolvePath } from 'node:path'
@@ -322,26 +322,70 @@ describe('section write scrubs legacy unknown fields', () => {
   })
 })
 
+/** GET /settings through the raw node:http client, which (unlike fetch/undici)
+ * sends the given Host header verbatim — the only way to simulate a browser
+ * whose Host differs from the connection target. Resolves with the status. */
+function rawGetSettings(port: number, connectHost: string, headers: Record<string, string>): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { host: connectHost, port, path: '/api/bg-wallpaper/settings', method: 'GET', headers },
+      (res) => { res.resume(); res.on('end', () => resolve(res.statusCode ?? 0)) },
+    )
+    req.on('error', reject)
+    req.end()
+  })
+}
+
 describe('request fence (loopback host allowlist)', () => {
-  it('rejects a non-loopback Host even when Origin is self-consistent (DNS rebinding)', async () => {
+  /** One settings route over a server bound to `bindHost`, torn down after `fn`. */
+  async function withFenceServer(
+    fn: (port: number) => Promise<void>,
+    bindHost = '127.0.0.1',
+  ): Promise<void> {
     const home = freshHome()
     const routes = makeBackgroundRoutes(settingsMock(), { home })
     const server = createServer((req, res) => {
       void routes[0]?.handler(req, res)
     })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    await new Promise<void>((resolve) => server.listen(0, bindHost, resolve))
     const port = (server.address() as AddressInfo).port
     try {
-      // Origin matches Host and sec-fetch-site is same-origin — the old
-      // self-consistency check alone would admit this; the loopback
-      // allowlist must refuse it.
-      const res = await fetch(`http://127.0.0.1:${port}/api/bg-wallpaper/settings`, {
-        headers: { host: 'attacker.example:8080', origin: 'http://attacker.example:8080', 'sec-fetch-site': 'same-origin' },
-      })
-      expect(res.status).toBe(403)
+      await fn(port)
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }
+  }
+
+  it('rejects a non-loopback Host even when Origin is self-consistent (DNS rebinding)', async () => {
+    await withFenceServer(async (port) => {
+      // Origin matches Host and sec-fetch-site is same-origin — the old
+      // self-consistency check alone would admit this; the loopback
+      // allowlist must refuse it.
+      const status = await rawGetSettings(port, '127.0.0.1', {
+        host: 'attacker.example:8080', origin: 'http://attacker.example:8080', 'sec-fetch-site': 'same-origin',
+      })
+      expect(status).toBe(403)
+    })
+  })
+
+  it('accepts a bracketed IPv6 loopback Host with port ([::1]:<port>)', async () => {
+    // Bind ::1 for real and connect over it: node:http then sends the Host a
+    // browser would (`[::1]:<port>`), exercising the bracket-stripping path.
+    await withFenceServer(async (port) => {
+      const status = await rawGetSettings(port, '::1', {
+        origin: `http://[::1]:${port}`, 'sec-fetch-site': 'same-origin',
+      })
+      expect(status).toBe(200)
+    }, '::1')
+  })
+
+  it('rejects a bracketed non-loopback Host with port', async () => {
+    await withFenceServer(async (port) => {
+      const status = await rawGetSettings(port, '127.0.0.1', {
+        host: '[attacker.example]:8080', origin: 'http://attacker.example:8080', 'sec-fetch-site': 'same-origin',
+      })
+      expect(status).toBe(403)
+    })
   })
 
   it('accepts a loopback Host with no Origin header (curl-style)', async () => {
@@ -357,6 +401,25 @@ describe('request fence (loopback host allowlist)', () => {
         headers: { origin: base, 'sec-fetch-site': 'same-origin' },
       })
       expect(res.status).toBe(200)
+    })
+  })
+})
+
+describe('image route (serve stored uploads)', () => {
+  it('serves a stored upload as its sniffed image type with nosniff', async () => {
+    await withServer(async (base) => {
+      const id = await postUpload(base, PNG_BYTES, 'image/png')
+      const res = await fetch(`${base}/api/bg-wallpaper/image/${id}`)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toBe('image/png')
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+    })
+  })
+
+  it('answers 404 for an unknown or malformed id', async () => {
+    await withServer(async (base) => {
+      expect((await fetch(`${base}/api/bg-wallpaper/image/up-${'a'.repeat(24)}`)).status).toBe(404)
+      expect((await fetch(`${base}/api/bg-wallpaper/image/..%2Fetc%2Fpasswd`)).status).toBe(404)
     })
   })
 })

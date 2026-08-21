@@ -134,7 +134,18 @@ function requireMethod(req: IncomingMessage, res: ServerResponse, method: string
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
 
 function isLoopbackHost(host: string): boolean {
-  const bare = host.includes(':') && !host.startsWith('[') ? host.slice(0, host.indexOf(':')) : host
+  // Strip the port. A bare IPv4/hostname ends at the first colon; a bracketed
+  // IPv6 literal (`[::1]:8080`, what browsers actually send) keeps up to the
+  // closing bracket — stripping at the first colon would leave `[::1]` intact
+  // but `[::1]:8080` unstrippable, so the bracket form is handled first.
+  let bare = host
+  if (host.startsWith('[')) {
+    const end = host.indexOf(']')
+    if (end !== -1) bare = host.slice(0, end + 1)
+  } else {
+    const colon = host.indexOf(':')
+    if (colon !== -1) bare = host.slice(0, colon)
+  }
   return LOOPBACK_HOSTS.has(bare) || LOOPBACK_HOSTS.has(host)
 }
 
@@ -302,8 +313,9 @@ function uploadPath(id: string, homeOverride?: string): string {
   // Only allow well-formed ids over the image route — the path-escape fence.
   if (!isUploadId(id)) return ''
   const dir = pluginHome(homeOverride)
-  // Extension is fixed to the sniffed format at write time; scan for the file.
-  for (const ext of ['jpg', 'jpeg', 'png', 'webp', 'gif']) {
+  // Extension is fixed to the sniffed format at write time (jpg/png/webp/gif);
+  // scan for the file.
+  for (const ext of ['jpg', 'png', 'webp', 'gif']) {
     const candidate = joinPath(dir, `${id}.${ext}`)
     if (existsSync(candidate)) return candidate
   }
@@ -456,6 +468,10 @@ export function makeBackgroundRoutes(settings: SettingsProvider, opts: { home?: 
           const stat = statSync(abs)
           res.writeHead(200, {
             'content-type': mime,
+            // The bytes are sniffed at write time, but pin the interpretation
+            // anyway so a future storage change can never turn a stored file
+            // into an executable document.
+            'x-content-type-options': 'nosniff',
             'content-length': String(data.length),
             'last-modified': stat.mtime.toUTCString(),
             'cache-control': 'public, max-age=31536000, immutable',

@@ -224,22 +224,37 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   /** Persist one section through the host route and adopt it on success. */
   const saveNow = useCallback(async (next: BackgroundSettings): Promise<void> => {
     dirtyRef.current = true
-    const ok = await settingsClient.save(next)
-    if (ok) dirtyRef.current = false
-    setError(ok ? '' : t('background.saveFailed'))
-    if (ok) {
-      lastSavedRef.current = next
-      draftRef.current = next
-      setDraft(next)
-      if (!next.uploadId) setUrlText(next.url)
+    const result = await settingsClient.save(next)
+    if (result === 'failed') {
+      setError(t('background.saveFailed'))
+      return
     }
+    // A superseded save lost to a newer one: that newer save owns adoption
+    // and the dirty flag — adopting here would resurrect an outdated section.
+    if (result === 'superseded') return
+    dirtyRef.current = false
+    setError('')
+    lastSavedRef.current = next
+    draftRef.current = next
+    setDraft(next)
+    if (!next.uploadId) setUrlText(next.url)
   }, [t])
+
+  // The latest saveNow, readable from stable callbacks and the unmount
+  // cleanup (never a stale closure).
+  const saveNowRef = useRef(saveNow)
+  saveNowRef.current = saveNow
 
   /** Debounced commit: one POST per drag gesture, from the latest draft. */
   const onCommit = useCallback((): void => {
     clearTimeout(commitTimer.current)
-    commitTimer.current = window.setTimeout(() => { void saveNow(draftRef.current) }, 120)
-  }, [saveNow])
+    commitTimer.current = window.setTimeout(() => {
+      // Reset before saving: a fired timer must never look like an armed one,
+      // or the unmount flush would re-save an already-committed gesture.
+      commitTimer.current = undefined
+      void saveNowRef.current(draftRef.current)
+    }, 120)
+  }, [])
 
   // Sync the draft from the persisted value when it changes externally, but
   // never overwrite a draft the user is mid-editing.
@@ -260,16 +275,20 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   // timer is still armed, fire the save NOW (the timer callback would never
   // run after unmount, and dirtyRef is only set inside saveNow — clearing
   // the timer alone would silently drop the last slider adjustment). Then
-  // wait out any save already in flight.
+  // wait out any save already in flight. The effect runs once per mount:
+  // saveNow is reached through its ref, so an identity change mid-session
+  // cannot re-trigger this teardown, and editingRef is reset so a cleared
+  // editing window can never block snapshot sync forever.
   useEffect(() => () => {
     clearTimeout(editingTimer.current)
+    editingRef.current = false
     if (commitTimer.current !== undefined) {
       clearTimeout(commitTimer.current)
       commitTimer.current = undefined
-      void saveNow(draftRef.current)
+      void saveNowRef.current(draftRef.current)
     }
     if (dirtyRef.current) void settingsClient.flush()
-  }, [saveNow])
+  }, [])
 
   const handleFile = async (file?: File): Promise<void> => {
     if (!file) return

@@ -18,6 +18,10 @@ export interface SettingsSnapshot {
 
 type Listener = () => void
 
+/** Outcome of one save attempt: committed, displaced by a newer save (the
+ * caller must not adopt its own section back into the draft), or rejected. */
+export type SaveResult = 'ok' | 'superseded' | 'failed'
+
 /**
  * Observable settings client (getSnapshot/subscribe — the uSES currency).
  * Methods are arrow properties so React's useSyncExternalStore can call them
@@ -29,7 +33,7 @@ export class SettingsClient {
   /** Monotonic request id; the latest save wins even when POSTs interleave. */
   private saveSeq = 0
   /** Pending save promise (used by the row's flush-on-unmount). */
-  private pending: Promise<boolean> | undefined
+  private pending: Promise<SaveResult> | undefined
 
   /** @returns the current sync snapshot (stable reference until the next change). */
   getSnapshot = (): SettingsSnapshot => this.snapshot
@@ -66,13 +70,14 @@ export class SettingsClient {
   /**
    * Persist the section through the host route. Concurrent calls are
    * serialized by a request sequence: an older save that resolves after a
-   * newer one must not clobber the newer snapshot with its stale value.
+   * newer one answers 'superseded' instead of 'ok', so the caller can never
+   * mistake a stale write for success and adopt its outdated section.
    * @param section - the complete next section.
-   * @returns whether the host accepted the write.
+   * @returns whether the write committed, was displaced by a newer save, or failed.
    */
-  async save(section: BackgroundSettings): Promise<boolean> {
+  async save(section: BackgroundSettings): Promise<SaveResult> {
     const seq = ++this.saveSeq
-    const run = async (): Promise<boolean> => {
+    const run = async (): Promise<SaveResult> => {
       try {
         const response = await fetch(`${BACKGROUND_API_PREFIX}/settings`, {
           method: 'POST',
@@ -80,15 +85,15 @@ export class SettingsClient {
           body: JSON.stringify(section),
         })
         const body = await response.json() as { ok: boolean; value?: BackgroundSettings }
-        if (!response.ok || !body.ok || body.value === undefined) return false
+        if (!response.ok || !body.ok || body.value === undefined) return 'failed'
         // Discard the response of a superseded save — it reflects an older
         // document that must not overwrite the latest one.
-        if (seq !== this.saveSeq) return true
+        if (seq !== this.saveSeq) return 'superseded'
         this.snapshot = { status: 'ready', value: body.value }
         this.notify()
-        return true
+        return 'ok'
       } catch {
-        return false
+        return 'failed'
       }
     }
     const promise = run()

@@ -28,6 +28,21 @@ const SURFACE_TOKENS = [
 const GLASS_MIN_ALPHA = 0.05
 
 /**
+ * The theme-aware glass surface alphas for one panelOpacity: the input-surface
+ * token and the bubble token share one curve, dimmed per scheme. Shared by the
+ * live painter and the settings-row preview card so the two cannot drift.
+ */
+function glassSurfaceAlphas(panelOpacity: number, inDark: boolean): { major: string; bubble: string } {
+  const alpha = GLASS_MIN_ALPHA + panelOpacity * (0.9 - GLASS_MIN_ALPHA)
+  const clamped = Math.max(0, Math.min(0.9, alpha))
+  const factor = inDark ? 0.4 : 0.8
+  return {
+    major: `rgba(255, 255, 255, ${(clamped * factor).toFixed(3)})`,
+    bubble: `rgba(255, 255, 255, ${(clamped * factor * 0.8).toFixed(3)})`,
+  }
+}
+
+/**
  * Resolve the effective background image url for a section.
  * @param settings - resolved background section.
  * @returns the image url, or '' when no source is set.
@@ -210,14 +225,11 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
       return
     }
 
-    // glassAlpha brightens from GLASS_MIN_ALPHA at opacity 0 toward 0.9 at
-    // opacity 1. Dark scheme uses a lower white alpha (the wallpaper stays
-    // visible without washing the surface), mirroring the reference engine.
-    const alpha = GLASS_MIN_ALPHA + settings.panelOpacity * (0.9 - GLASS_MIN_ALPHA)
-    const clamped = Math.max(0, Math.min(0.9, alpha))
-    const factor = inDark ? 0.4 : 0.8
-    s.setProperty('--dsw-specific-input-major', `rgba(255, 255, 255, ${(clamped * factor).toFixed(3)})`)
-    s.setProperty('--dsw-specific-bubble', `rgba(255, 255, 255, ${(clamped * factor * 0.8).toFixed(3)})`)
+    // Dark scheme uses a lower white alpha (the wallpaper stays visible
+    // without washing the surface), mirroring the reference engine.
+    const { major, bubble } = glassSurfaceAlphas(settings.panelOpacity, inDark)
+    s.setProperty('--dsw-specific-input-major', major)
+    s.setProperty('--dsw-specific-bubble', bubble)
   }
 
   /** Remove the wallpaper + scrim layers and clear the active attribute. */
@@ -307,10 +319,8 @@ export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSetting
   }
   s.setProperty('--bg-glass-blur', `${settings.blur}px`)
   s.setProperty('--bg-glass-saturate', String(1.15 + settings.blur * 0.03))
-  const alpha = GLASS_MIN_ALPHA + settings.panelOpacity * (0.9 - GLASS_MIN_ALPHA)
-  const clamped = Math.max(0, Math.min(0.9, alpha))
-  const factor = inDark ? 0.4 : 0.8
-  s.setProperty('--bg-preview-glass', `rgba(255, 255, 255, ${(clamped * factor * 0.8).toFixed(3)})`)
+  // The preview bubble mirrors the live --dsw-specific-bubble token.
+  s.setProperty('--bg-preview-glass', glassSurfaceAlphas(settings.panelOpacity, inDark).bubble)
 }
 
 /** Remove every preview variable from an element (restores CSS defaults). */
