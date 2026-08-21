@@ -158,6 +158,22 @@ describe('BackgroundSettingsRow', () => {
     expect(persisted.uploadId).toBe('up-abc')
   })
 
+  it('aligns percentage sliders: equal percentages sit at equal track positions', async () => {
+    persisted = { ...SECTION, opacity: 0.5, scrim: 0.5 }
+    await settingsClient.load()
+    renderRow()
+    await screen.findByText('background.opacity')
+    const fill = (label: string): string => {
+      const el = [...document.querySelectorAll('input[type="range"]')]
+        .find((r) => r.getAttribute('aria-label') === label) as HTMLInputElement
+      return el.style.getPropertyValue('--bg-fill')
+    }
+    // Every percent-unit slider shares one 0..1 domain, so the same displayed
+    // percentage puts every thumb at the same fraction of its track.
+    expect(fill('background.opacity')).toBe('50%')
+    expect(fill('background.scrim')).toBe('50%')
+  })
+
   it('does not adopt a superseded save (an older save resolving after a newer one)', async () => {
     let release!: (result: SaveResult) => void
     const gated = new Promise<SaveResult>((resolve) => { release = resolve })

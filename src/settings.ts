@@ -20,8 +20,10 @@ export const BACKGROUND_API_PREFIX = '/api/bg-wallpaper'
 /** Minimum scrim opacity (0 = no veil at all). */
 export const SCRIM_MIN = 0
 
-/** Maximum scrim opacity (a nearly opaque veil keeps text legible over any art). */
-export const SCRIM_MAX = 0.95
+/** Maximum scrim opacity (1 = fully opaque veil — hides the wallpaper entirely).
+ * Kept at 1 so every percent-unit slider shares one 0..1 domain: the same
+ * displayed percentage puts every thumb at the same fraction of its track. */
+export const SCRIM_MAX = 1
 
 /** Default scrim strength applied over user art (a light readability veil). */
 export const DEFAULT_SCRIM = 0.25
