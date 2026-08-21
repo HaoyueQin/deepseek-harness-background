@@ -256,13 +256,20 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     }
   }, [snapshot])
 
-  // Teardown: flush any pending debounced save before the row unmounts so a
-  // quick panel close after a release cannot drop the edit.
+  // Teardown: a pending debounced commit must not die with the row. If the
+  // timer is still armed, fire the save NOW (the timer callback would never
+  // run after unmount, and dirtyRef is only set inside saveNow — clearing
+  // the timer alone would silently drop the last slider adjustment). Then
+  // wait out any save already in flight.
   useEffect(() => () => {
-    clearTimeout(commitTimer.current)
     clearTimeout(editingTimer.current)
+    if (commitTimer.current !== undefined) {
+      clearTimeout(commitTimer.current)
+      commitTimer.current = undefined
+      void saveNow(draftRef.current)
+    }
     if (dirtyRef.current) void settingsClient.flush()
-  }, [])
+  }, [saveNow])
 
   const handleFile = async (file?: File): Promise<void> => {
     if (!file) return
@@ -289,7 +296,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   const handleUrlSubmit = (): void => {
     const url = urlText.trim()
     if (!/^https?:\/\//i.test(url)) {
-      setError(t('background.saveFailed'))
+      setError(t('background.invalidUrl'))
       return
     }
     markEditing()
@@ -341,7 +348,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
         {hasImage
           ? (
             <>
-              <img className={css.previewImg} src={sourceUrl} alt="" draggable={false} />
+              <img className={css.previewImg} src={sourceUrl} alt="" draggable={false} referrerPolicy="no-referrer" />
               <div className={css.previewScrim} />
               <div className={css.previewGlass}>
                 <span className={css.previewGlassText}>{t('background.previewGlass')}</span>
@@ -375,7 +382,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
           >
             {uploading ? t('background.uploading') : t('background.upload')}
           </button>
-          <span className={css.hint}>{t('background.uploadMinetypes')}</span>
+          <span className={css.hint}>{t('background.uploadMediaTypes')}</span>
           {draft.uploadId && <span className={css.enabledBadge}>✓ {t('background.enabled')}</span>}
         </div>
         <div className={css.urlRow}>

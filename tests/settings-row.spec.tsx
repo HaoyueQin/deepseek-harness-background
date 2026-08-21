@@ -150,7 +150,7 @@ describe('BackgroundSettingsRow', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
     // The draft source stays empty and nothing persisted.
     await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toBe('background.saveFailed')
+      expect(screen.getByRole('alert').textContent).toBe('background.invalidUrl')
     })
     expect(persisted.url).toBe('')
     expect(persisted.uploadId).toBe('up-abc')

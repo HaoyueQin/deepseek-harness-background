@@ -81,7 +81,12 @@ export class BackgroundPainter {
     const url = backgroundImageUrl(settings, uploadBase)
     if (url === '') {
       // No source: leave the frame alone, restore the removed layers and any
-      // glass-token overrides we may have written on a previous apply.
+      // glass-token overrides we may have written on a previous apply. The
+      // theme observer must go too — a later light/dark flip would re-run
+      // applySurfaceGlass with forceRestore=false and write the translucent
+      // tokens back onto panels that no longer sit over a wallpaper.
+      this.observer?.disconnect()
+      this.observer = undefined
       this.applySurfaceGlass(settings, true)
       this.active = false
       this.removeLayers()
@@ -96,10 +101,16 @@ export class BackgroundPainter {
       this.img = document.createElement('img')
       this.img.className = IMAGE_CLASS
       this.img.alt = ''
+      // Remote-url sources must not leak the local origin via Referer.
+      this.img.referrerPolicy = 'no-referrer'
       this.layer.appendChild(this.img)
       document.body.appendChild(this.layer)
     }
-    if (this.img && this.img.src !== url) this.img.src = url
+    // Compare the *attribute* (the raw value we set) rather than the .src
+    // property, which resolves to an absolute URL and would make this check
+    // always-true for relative urls. Same-value writes are no-ops in the DOM,
+    // so this is a clarity fix, not a behavior fix.
+    if (this.img && this.img.getAttribute('src') !== url) this.img.src = url
 
     if (!this.scrim) {
       this.scrim = document.createElement('div')
