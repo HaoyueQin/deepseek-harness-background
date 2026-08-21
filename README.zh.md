@@ -93,7 +93,7 @@ dsh --profile web
 - **设置行**位于官方「通用」设置分区的 `settings.general.item` 槽中，紧挨「外观」行。控件样式全部使用 `--dsw-alias-*` 设计 token（按钮 / 胶囊 / 分段控件 / 滑块轨道与官方 chrome 一致），滑块为原生 `input[type=range]` 的 5% / 1–2px 步进 + 松手提交。
 - 插件自有的 host 路由（`/api/bg-wallpaper/*`：`settings`、`upload`、`image/<id>`）负责读写设置与提供上传图片，带同源校验、大小上限、MIME/签名校验与路径穿越防护。使用自定义路由族，是因为 api-proxy 的 settings 白名单不向第三方命名空间开放 settings RPC。
 - 背景以 `body` 上一张固定的 `z-index:-2` 壁纸层 + `z-index:-1` 遮罩绘制，由 `data-dsh-bg` 属性开关；遮罩在注入样式表里按 `data-ds-dark-theme` 切换白/黑纱帘；毛玻璃效果通过覆盖外壳的 surface 设计 token 实现。
-- 上传文件存放在 `$DSH_HOME/deepseek-harness-background/`（内容寻址 id）。切换新图片或清除背景时，被替换的旧上传文件会被自动回收，目录不会堆积死图片。关闭 / 卸载后不留残留。
+- 上传文件存放在 `$DSH_HOME/deepseek-harness-background/`（内容寻址 id）。切换新图片或清除背景时，被替换的旧上传文件会被自动回收，正常使用下目录不会堆积死图片。（例外：上传后从未保存进设置——例如上传后立刻关闭标签页——会留下一个孤儿文件。）关闭 / 卸载后不留残留。
 
 ## 开发
 

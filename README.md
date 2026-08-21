@@ -93,7 +93,7 @@ dsh --profile web
 - The **settings row** lives in the official General settings section (`settings.general.item` slot), next to the Appearance row. Its chrome uses only `--dsw-alias-*` design tokens (buttons / pills / segmented control / slider track match the official shell); sliders are native `input[type=range]` with 5% / 1–2px steps and release-commit.
 - The plugin's own host routes (`/api/bg-wallpaper/*`: `settings`, `upload`, `image/<id>`) read/write the section and serve uploads with same-origin + size caps + MIME/signature checks + a path-escape fence. A custom route family is used because the api-proxy settings allowlist does not expose third-party namespaces over the settings RPC.
 - The background is drawn as a fixed `z-index:-2` wallpaper layer plus a `z-index:-1` scrim on `body`, toggled by the `data-dsh-bg` attribute; the scrim switches white/black by `data-ds-dark-theme` in the injected stylesheet; the frosted-glass effect overrides the shell's surface design tokens.
-- Uploads live under `$DSH_HOME/deepseek-harness-background/` (content-addressed ids). Switching to a new image or clearing the background deletes the superseded upload file, so the directory never accumulates dead images. Disable / uninstall leaves nothing behind.
+- Uploads live under `$DSH_HOME/deepseek-harness-background/` (content-addressed ids). Switching to a new image or clearing the background deletes the superseded upload file, so the directory does not accumulate dead images in normal use. (An upload that is never saved into the section — e.g. the tab closes right after an upload — can leave one orphaned file behind.) Disable / uninstall leaves nothing behind.
 
 ## Development
 

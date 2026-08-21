@@ -17,7 +17,8 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { extname, join as joinPath } from 'node:path'
 import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
@@ -28,6 +29,7 @@ import {
   DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR,
   OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
   SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX,
+  FIT_MODES, type BackgroundFit,
   type BackgroundSettings,
 } from './settings.ts'
 import { PLUGIN_HOME_REL, resolveHarnessHome } from './harness-home.ts'
@@ -120,14 +122,29 @@ function requireMethod(req: IncomingMessage, res: ServerResponse, method: string
  * the request `Host` is rejected. Requests without either header (curl, node
  * http) pass — this is a local single-user tool, and the fence only targets
  * the cross-site browser vector.
+ *
+ * The `Host` itself must also be a loopback name: under a DNS-rebinding
+ * attack the attacker's page resolves their own domain to 127.0.0.1, so both
+ * `Origin` and `Host` carry the attacker's hostname and the self-consistency
+ * check above alone would admit them. The web server binds loopback (or is
+ * deliberately exposed on 0.0.0.0 by its operator), so accepting only
+ * 127.0.0.1 / localhost / [::1] keeps every legitimate same-origin client
+ * working while refusing rebounded ones.
  */
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
+
+function isLoopbackHost(host: string): boolean {
+  const bare = host.includes(':') && !host.startsWith('[') ? host.slice(0, host.indexOf(':')) : host
+  return LOOPBACK_HOSTS.has(bare) || LOOPBACK_HOSTS.has(host)
+}
+
 function isSameOriginRequest(req: IncomingMessage): boolean {
   const site = req.headers['sec-fetch-site']
   if (typeof site === 'string' && site === 'cross-site') return false
+  const host = req.headers.host
+  if (typeof host !== 'string' || !isLoopbackHost(host)) return false
   const origin = req.headers.origin
   if (typeof origin === 'string' && origin !== '' && origin !== 'null') {
-    const host = req.headers.host
-    if (typeof host !== 'string' || host === '') return false
     try {
       return new URL(origin).host === host
     } catch {
@@ -230,6 +247,17 @@ export function validateSectionBody(body: Record<string, unknown>, home?: string
       return 'invalid-range'
     }
   }
+  // The remaining fields get the same explicit treatment so every rejected
+  // body answers with a stable error code instead of the schema layer's raw
+  // ValidationError text. (Measured on @deepseek-ai/schemastery 3.18.1: it
+  // does reject non-boolean/non-enum values — this is message consistency,
+  // not a coercion fix.)
+  const enabled = body.enabled
+  if (enabled !== undefined && typeof enabled !== 'boolean') return 'invalid-enabled'
+  const fit = body.fit
+  if (fit !== undefined && fit !== '' && !FIT_MODES.includes(fit as BackgroundFit)) {
+    return 'invalid-fit'
+  }
   return null
 }
 
@@ -267,11 +295,13 @@ export function storeUpload(bytes: Buffer, mime: string, homeOverride?: string):
   return { id, url: `${BACKGROUND_API_PREFIX}/image/${id}` }
 }
 
-/** Resolve an upload id to its on-disk path (or "" if invalid / missing). */
+/** Resolve an upload id to its on-disk path (or "" if invalid / missing).
+ * Read-only: unlike the write path this never creates the plugin home, so a
+ * GET cannot pay for (or race) a mkdirSync on every request. */
 function uploadPath(id: string, homeOverride?: string): string {
   // Only allow well-formed ids over the image route — the path-escape fence.
   if (!isUploadId(id)) return ''
-  const dir = ensurePluginHome(homeOverride)
+  const dir = pluginHome(homeOverride)
   // Extension is fixed to the sniffed format at write time; scan for the file.
   for (const ext of ['jpg', 'jpeg', 'png', 'webp', 'gif']) {
     const candidate = joinPath(dir, `${id}.${ext}`)
@@ -403,7 +433,7 @@ export function makeBackgroundRoutes(settings: SettingsProvider, opts: { home?: 
     {
       kind: 'prefix',
       path: `${BACKGROUND_API_PREFIX}/image`,
-      handler: (req, res) => {
+      handler: async (req, res) => {
         // Same-origin fence like the write routes: a cross-site page must not
         // be able to load (probe) locally stored uploads through <img> tags.
         if (!isSameOriginRequest(req)) {
@@ -421,7 +451,7 @@ export function makeBackgroundRoutes(settings: SettingsProvider, opts: { home?: 
           return
         }
         try {
-          const data = readFileSync(abs)
+          const data = await readFile(abs)
           const mime = mimeForPath(abs) ?? 'application/octet-stream'
           const stat = statSync(abs)
           res.writeHead(200, {

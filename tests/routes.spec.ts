@@ -11,8 +11,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { tmpdir } from 'node:os'
-import { join as joinPath } from 'node:path'
+import { homedir, tmpdir } from 'node:os'
+import { join as joinPath, resolve as resolvePath } from 'node:path'
 import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import { resolveHarnessHome } from '../src/harness-home.ts'
 import { makeBackgroundRoutes, pluginHome, storeUpload, validateSectionBody } from '../src/routes.ts'
@@ -45,7 +45,14 @@ afterEach(() => {
 describe('resolveHarnessHome', () => {
   it('prefers $DSH_HOME over the homedir fallback', () => {
     const env = { DSH_HOME: 'C:/custom/dsh' } as NodeJS.ProcessEnv
-    expect(resolveHarnessHome(env)).toBe('C:/custom/dsh')
+    expect(resolveHarnessHome(env)).toBe(resolvePath('C:/custom/dsh'))
+  })
+
+  it('expands a leading tilde against the OS home (official expandHomePath semantics)', () => {
+    const env = { DSH_HOME: '~/my-dsh' } as NodeJS.ProcessEnv
+    expect(resolveHarnessHome(env)).toBe(joinPath(homedir(), 'my-dsh'))
+    const winEnv = { DSH_HOME: '~\\my-dsh' } as NodeJS.ProcessEnv
+    expect(resolveHarnessHome(winEnv)).toBe(joinPath(homedir(), 'my-dsh'))
   })
 
   it('falls back to ~/.dsh when DSH_HOME is unset or blank', () => {
@@ -312,5 +319,60 @@ describe('section write scrubs legacy unknown fields', () => {
       expect(after.scrim).toBe(0.4)
       expect(after.blur).toBe(3)
     }, legacyInitial)
+  })
+})
+
+describe('request fence (loopback host allowlist)', () => {
+  it('rejects a non-loopback Host even when Origin is self-consistent (DNS rebinding)', async () => {
+    const home = freshHome()
+    const routes = makeBackgroundRoutes(settingsMock(), { home })
+    const server = createServer((req, res) => {
+      void routes[0]?.handler(req, res)
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const port = (server.address() as AddressInfo).port
+    try {
+      // Origin matches Host and sec-fetch-site is same-origin — the old
+      // self-consistency check alone would admit this; the loopback
+      // allowlist must refuse it.
+      const res = await fetch(`http://127.0.0.1:${port}/api/bg-wallpaper/settings`, {
+        headers: { host: 'attacker.example:8080', origin: 'http://attacker.example:8080', 'sec-fetch-site': 'same-origin' },
+      })
+      expect(res.status).toBe(403)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
+  it('accepts a loopback Host with no Origin header (curl-style)', async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/bg-wallpaper/settings`)
+      expect(res.status).toBe(200)
+    })
+  })
+
+  it('accepts a same-origin browser request on a loopback Host', async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/bg-wallpaper/settings`, {
+        headers: { origin: base, 'sec-fetch-site': 'same-origin' },
+      })
+      expect(res.status).toBe(200)
+    })
+  })
+})
+
+describe('validateSectionBody field pre-checks', () => {
+  it('rejects a non-boolean enabled', () => {
+    expect(validateSectionBody({ enabled: 'false' })).toBe('invalid-enabled')
+    expect(validateSectionBody({ enabled: 1 })).toBe('invalid-enabled')
+  })
+
+  it('rejects an out-of-enum fit', () => {
+    expect(validateSectionBody({ fit: 'fill' })).toBe('invalid-fit')
+    expect(validateSectionBody({ fit: 1 })).toBe('invalid-fit')
+  })
+
+  it('still accepts valid enabled/fit values', () => {
+    expect(validateSectionBody({ enabled: true, fit: 'contain' })).toBeNull()
   })
 })

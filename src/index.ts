@@ -31,9 +31,20 @@ const BACKGROUND_NAMESPACE = settingsNamespace(BACKGROUND_SETTINGS_NAMESPACE)
  */
 export function apply(ctx: Context): void {
   ctx.inject(['settings', 'webServer'], (hostCtx) => {
-    hostCtx.settings.register(BACKGROUND_NAMESPACE, BackgroundSettingsSchema, {
-      applies: 'live',
-    })
+    // Idempotence fence: the settings service registers its namespace effect
+    // on the *provider's* fiber (not this plugin's), so a re-run of this
+    // inject callback (HMR hot-replace, or a settings/webServer service
+    // rebuild) would throw "already registered" and take the routes down
+    // with it. Skip when our namespace is already registered — the routes
+    // below still need re-mounting because they live on this plugin fiber.
+    const alreadyRegistered = hostCtx.settings.describe().some(
+      (descriptor) => descriptor.ns === BACKGROUND_SETTINGS_NAMESPACE,
+    )
+    if (!alreadyRegistered) {
+      hostCtx.settings.register(BACKGROUND_NAMESPACE, BackgroundSettingsSchema, {
+        applies: 'live',
+      })
+    }
     // Route failures are logged, never thrown — the plugin must not take the
     // web server down when the route family cannot mount.
     try {
