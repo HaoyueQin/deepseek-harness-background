@@ -31,6 +31,11 @@ export const zh: BackgroundCardDict = {
   'background.clear': '清除背景',
   'background.uploadFailed': '上传失败，请重试',
   'background.saveFailed': '保存失败，请重试',
+  'background.timeline': '会话时间线',
+  'background.timelineHint': '右侧消息导航轨，悬停展开问题列表（DeepSeek 官网风格）',
+  'timeline.railLabel': '对话时间线',
+  'timeline.roleUser': '用户',
+  'timeline.noText': '（无文本内容）',
 }
 
 /** English copy. */
@@ -59,4 +64,9 @@ export const en: BackgroundCardDict = {
   'background.clear': 'Clear background',
   'background.uploadFailed': 'Upload failed, try again',
   'background.saveFailed': 'Save failed, try again',
+  'background.timeline': 'Conversation timeline',
+  'background.timelineHint': 'Message rail at the right edge; hover to expand the question list (DeepSeek web style)',
+  'timeline.railLabel': 'Chat timeline',
+  'timeline.roleUser': 'User',
+  'timeline.noText': '(no text)',
 }

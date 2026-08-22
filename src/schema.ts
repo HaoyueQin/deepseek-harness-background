@@ -4,14 +4,14 @@ import z from '@deepseek-ai/schemastery'
 import {
   BACKGROUND_SETTINGS_NAMESPACE, BLUR_MAX, BLUR_MIN, DEFAULT_BLUR,
   DEFAULT_FIT, DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM,
-  DEFAULT_WALLPAPER_BLUR, FIT_MODES, OPACITY_MAX, OPACITY_MIN,
+  DEFAULT_TIMELINE, DEFAULT_WALLPAPER_BLUR, FIT_MODES, OPACITY_MAX, OPACITY_MIN,
   PANEL_OPACITY_MAX, PANEL_OPACITY_MIN, SCRIM_MAX, SCRIM_MIN,
   WALLPAPER_BLUR_MAX, type BackgroundFit, type BackgroundSettings,
 } from './settings.ts'
 
 export {
   BACKGROUND_SETTINGS_NAMESPACE, DEFAULT_FIT, DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY,
-  DEFAULT_SCRIM, FIT_MODES, OPACITY_MAX, OPACITY_MIN, SCRIM_MAX, SCRIM_MIN,
+  DEFAULT_SCRIM, DEFAULT_TIMELINE, FIT_MODES, OPACITY_MAX, OPACITY_MIN, SCRIM_MAX, SCRIM_MIN,
   type BackgroundFit, type BackgroundSettings,
 } from './settings.ts'
 
@@ -33,4 +33,5 @@ export const BackgroundSettingsSchema: z<BackgroundSettings> = z.object({
   blur: z.number().min(BLUR_MIN).max(BLUR_MAX).default(DEFAULT_BLUR),
   wallpaperBlur: z.number().min(BLUR_MIN).max(WALLPAPER_BLUR_MAX).default(DEFAULT_WALLPAPER_BLUR),
   fit: z.union([...FIT_MODES]).default(DEFAULT_FIT),
+  timeline: z.boolean().default(DEFAULT_TIMELINE),
 })

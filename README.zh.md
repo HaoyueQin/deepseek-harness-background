@@ -1,4 +1,6 @@
 # DeepSeek Harness Background
+│       ├── timeline.tsx     # 会话时间线导航轨（官方 ScrollNav 结构 × 本插件玻璃体系）
+│       ├── timeline-css.ts  # 时间线样式（dsbt- 前缀，官方度量）
 
 [![GitHub stars](https://img.shields.io/github/stars/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/releases)
@@ -35,6 +37,7 @@
 - **填充方式** —— `cover`（铺满、裁剪）或 `contain`（完整、留白）。
 - **主题自适应遮罩** —— 浅色主题用白色纱帘（把图片提亮保持深色文字对比度），深色主题自动换成黑色纱帘（压暗图片保持浅色文字对比度）。
 - **毛玻璃** —— 启用背景后，*所有*不透明表面都会变成覆盖在壁纸上的半透明玻璃（顶部白色高光渐变 + `backdrop-filter`）：输入框卡片与消息气泡、代码块 / 终端 / diff / 工具卡与行内代码、菜单与弹出层、对话框与设置面板、dock 卡片，以及各类按钮（新会话、加号、发送、Toast 等）。模糊半径由「毛玻璃模糊」滑块驱动；「面板不透明度」调至 100% 即全局恢复官方不透明表面。语义警告条、遮罩与启动页保持官方样式。
+- **会话时间线** —— 长会话右缘的 DeepSeek 官网风格滚动导航轨：毛玻璃胶囊上每条用户消息一枚指示刻度；悬停展开为列出全部提问的毛玻璃面板（当前阅读位置品牌蓝高亮）；点击跳转到对应消息。折叠态与展开态**共用同一高度**（零跳变），裁切边缘带官方同款 **32px 淡化渐变**，两种形态都走同一套面板不透明度/模糊参数。可在设置行内用「会话时间线」开关关闭；若同时安装了第三方 dsh-chat-timeline 插件，本轨道会自动让位避免重叠。
 - **持久化到官方设置文档** —— 存于 `$DSH_HOME/settings.yaml`，跨重启保留。
 - **干净卸载** —— 关闭、清除或卸载后完整恢复原背景；插件只移除自己写过的内容。
 
@@ -85,12 +88,14 @@ dsh --profile web
 | 毛玻璃模糊 | `0..40px` 半透明表面上的 `backdrop-filter` 模糊（1px 步进）。 |
 | 壁纸模糊 | `0..60px` 壁纸图片本身的模糊（2px 步进）。 |
 | 填充方式 | `cover`（铺满）或 `contain`（完整）。 |
+| 会话时间线 | 会话右侧时间线导航轨的开关（默认开启）。 |
 
 5. 点 **清除背景** 移除背景，恢复默认外观。
 
 ## 原理
 
 - **设置行**位于官方「通用」设置分区的 `settings.general.item` 槽中，紧挨「外观」行。控件样式全部使用 `--dsw-alias-*` 设计 token（按钮 / 胶囊 / 分段控件 / 滑块轨道与官方 chrome 一致），滑块为原生 `input[type=range]` 的 5% / 1–2px 步进 + 松手提交。
+- **会话时间线**注册进 `conversation.input.dock` 槽位（绑定每会话生命周期），portal 渲染到 `body`。数据来自运行时 sessions 服务（已加载聊天节点 + 有界 loadOlder 补全）；填充复用与其它表面相同的 `--dsw-*` token，玻璃关闭时自动回到官方面板观感。
 - 插件自有的 host 路由（`/api/bg-wallpaper/*`：`settings`、`upload`、`image/<id>`）负责读写设置与提供上传图片，带同源校验、大小上限、MIME/签名校验与路径穿越防护。使用自定义路由族，是因为 api-proxy 的 settings 白名单不向第三方命名空间开放 settings RPC。
 - 背景以 `body` 上一张固定的 `z-index:-2` 壁纸层 + `z-index:-1` 遮罩绘制，由 `data-dsh-bg` 属性开关；遮罩在注入样式表里按 `data-ds-dark-theme` 切换白/黑纱帘；毛玻璃效果通过覆盖外壳的 surface 设计 token 实现。
 - 上传文件存放在 `$DSH_HOME/deepseek-harness-background/`（内容寻址 id）。切换新图片或清除背景时，被替换的旧上传文件会被自动回收，正常使用下目录不会堆积死图片。（例外：上传后从未保存进设置——例如上传后立刻关闭标签页——会留下一个孤儿文件。）关闭 / 卸载后不留残留。

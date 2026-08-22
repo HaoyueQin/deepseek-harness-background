@@ -179,3 +179,68 @@ Glass-off (panelOpacity 1 / no source) now also neutralizes brightness to 1.
 The settings-row preview filter gained the same `brightness()` term so the
 card can't read brighter than the live surfaces. Version stays 0.2.1 — no
 release bump without the user's say-so.
+
+## 0.3.0 — conversation timeline + second-wave glass coverage
+
+Date: 2026-08-22
+
+### Timeline rail (DeepSeek web ScrollNav port)
+
+Official design extracted from chat.deepseek.com's shipped bundle
+(main.e80cdf62f5.js CSS-module map + main.1dbdc179ba.css; saved under
+.research/): nav `_189b4a0` (34x300 fixed right edge, vertically centered),
+capsule `_6ffc3c9` (blur 5px, rgba(255,255,255,.8)/dark rgba(21,21,23,.6)),
+wrapper `_4ce999d` (fit-content max 240px, radius 16, show state =
+--dsw-alias-bg-layer-1 + --dsw-shadow-lv3 + inverted border), fade veils
+(::before/::after, 32px linear-gradient(fill 20.19%, transparent), shown by
+.show and per-scroll top/bottom/none classes), page `_8dbd25b` (max-height
+250px), items 30px, indicator 8x2 scale(1.5) active in brand color, title
+13px fades in. The third-party dsh-chat-timeline port deviated: near-opaque
+panel fills (.94/.95), collapsed capsule height vs content-sized panel
+(height jump), and no fade veils at all.
+
+Rebuilt in this plugin (`src/client/timeline.tsx` + `timeline-css.ts`,
+`dsbt-` prefix avoids every `[class*="_xxx"]` glass anchor):
+
+- **Glass integration**: capsule fill = overridden `--dsw-alias-bg-overlay`;
+  expanded panel fill = official `--dsw-alias-bg-layer-1`; both blur via the
+  shared --bg-glass-* knobs. panelOpacity drives them live; glass-off
+  restores the official opaque surfaces automatically.
+- **Equal heights**: --dsbt-h = clamp(count*30 + 38, 140, 300) on the nav;
+  capsule and expanded panel share that exact box — no jump on expand.
+- **Fade veils** as elements: a bar of the panel's own fill token masked
+  (linear-gradient #000 20.19% -> transparent), rotated for the bottom edge;
+  visibility follows the page's real scroll clip state.
+- **Width**: >8 messages -> 240px; otherwise canvas-measured longest title
+  clamped to [96, 240]; animates from the 34px collapsed width.
+- **Data/jump logic** adapted from dsh-chat-timeline (MIT): chat-node
+  collector -> bounded loadOlder loop; click loads history on demand then
+  scrolls the row into view; reading position tracked nearest the 40%
+  viewport line; right-edge avoidance from the conversation scrollport;
+  hidden <768px; yields when a .dsct_nav (the other plugin) exists.
+
+Settings: `timeline` boolean (default on) end-to-end — schema default,
+routes validation ('invalid-timeline'), BACKGROUND_SETTINGS_FIELDS whitelist,
+General-row switch, locale keys (background.timeline/timelineHint,
+timeline.railLabel/roleUser/noText).
+
+### Second-wave glass coverage (audit of packages/client @ this checkout)
+
+Swept every background declaration across all client UI sources (891 files)
+and bucketed by token vs literal. New surface overrides:
+--dsw-alias-button-floating-hover / button-ghost-active-fill /
+button-tool-bar-fill / button-tool-bar-hover (composer tool-row chips) /
+specific-sidebar-nav-item-hover / specific-sidebar-nav-item-active.
+New accent overrides (hue kept): button-info-hover, button-primary-hover,
+state-business-tertiary, state-success-tertiary. HoverCard's component-level
+ink (--dsw-hovercard-bg: #2C2C2E — the old audit's known limitation) is
+re-scoped to a translucent ink via a body[data-dsh-bg] [_card] variable rule;
+only HoverCard consumes it. The universal sheet gains [class*="_toolbar"]
+(unique in-tree).
+
+Deliberately NOT overridden, verified against definitions/usages:
+interactive-bg-hover/-active/-hover-danger are already rgba translucent;
+state-{business,error,success,warn}-primary are consumed as color/outline/
+border/stroke far too widely (a global override would wash text);
+fill-l2/fill-tsp-secondary are undefined tokens (render transparent);
+mask/label/skeleton/boot families stay official as before.

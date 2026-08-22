@@ -11,7 +11,7 @@ export const BACKGROUND_SETTINGS_NAMESPACE = 'ui-background'
  */
 export const BACKGROUND_SETTINGS_FIELDS = [
   'enabled', 'uploadId', 'url', 'opacity', 'scrim',
-  'panelOpacity', 'blur', 'wallpaperBlur', 'fit',
+  'panelOpacity', 'blur', 'wallpaperBlur', 'fit', 'timeline',
 ] as const
 
 /** Browser-facing base path of the background API (shared with the host routes). */
@@ -61,6 +61,9 @@ export const DEFAULT_WALLPAPER_BLUR = 0
 /** Maximum wallpaper blur radius. */
 export const WALLPAPER_BLUR_MAX = 60
 
+/** Whether the DeepSeek-style conversation timeline rail renders (default on). */
+export const DEFAULT_TIMELINE = true
+
 /** Default background rendering mode. */
 export const DEFAULT_FIT = 'cover'
 
@@ -96,4 +99,6 @@ export interface BackgroundSettings {
   wallpaperBlur: number
   /** How the image fits the frame. */
   fit: BackgroundFit
+  /** Whether the conversation timeline rail renders at the right edge. */
+  timeline: boolean
 }

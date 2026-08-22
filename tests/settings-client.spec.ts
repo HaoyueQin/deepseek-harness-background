@@ -12,7 +12,7 @@ import type { BackgroundSettings } from '../src/settings.ts'
 
 const SECTION_A: BackgroundSettings = {
   enabled: true, uploadId: 'up-a', url: '', opacity: 0.3, scrim: 0.25,
-  panelOpacity: 0.15, blur: 16, wallpaperBlur: 0, fit: 'cover',
+  panelOpacity: 0.15, blur: 16, wallpaperBlur: 0, fit: 'cover', timeline: true,
 }
 const SECTION_B: BackgroundSettings = { ...SECTION_A, uploadId: 'up-b', opacity: 0.6 }
 

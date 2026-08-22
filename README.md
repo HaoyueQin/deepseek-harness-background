@@ -35,6 +35,7 @@ The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels d
 - **Fit modes** — `cover` (fill, crop) or `contain` (whole image).
 - **Theme-aware scrim** — the light theme uses a white veil (lifts the art so dark text keeps contrast); the dark theme automatically switches to a black veil (dims the art so light text keeps contrast).
 - **Frosted glass** — while a background is active, *every* opaque surface turns into translucent glass over the wallpaper (specular sheen + `backdrop-filter`): the composer card and message bubbles, code blocks / terminal / diff / tool cards and inline code, menus and popovers, dialogs and the settings panel, dock cards, and the chrome buttons (new session, plus, send, toasts…). The blur radius is driven by the glass-blur slider; `panelOpacity` at 100% restores the official opaque surfaces everywhere. Semantic alerts, masks and the boot screen keep their official look.
+- **Conversation timeline** — a DeepSeek-web-style scroll-navigation rail at the right edge of long conversations: one tick per user message on a frosted capsule; hovering expands it into a frosted panel listing every question (active one highlighted in brand blue); clicking jumps the chat to that message. Collapsed and expanded share **one identical height** (no jump), clipped edges get the official **32px fade veils**, and both states ride the same panel-opacity/blur knobs as every other surface. Toggle it off with the timeline switch in the row. If the third-party dsh-chat-timeline plugin is also installed, this rail steps aside instead of doubling it.
 - **Persisted in the official settings document** (`$DSH_HOME/settings.yaml`), waits out restarts.
 - **Clean teardown** — disabling, clearing or uninstalling restores the original background exactly; the plugin only ever removes what it wrote.
 
@@ -85,6 +86,7 @@ dsh --profile web
 | 毛玻璃模糊 / Glass blur | `0..40px` `backdrop-filter` blur on the translucent surfaces (1px steps). |
 | 壁纸模糊 / Wallpaper blur | `0..60px` blur of the wallpaper image itself (2px steps). |
 | 填充方式 / Fit | `cover` or `contain`. |
+| 会话时间线 / Timeline | on/off switch for the conversation timeline rail (default on). |
 
 5. **清除背景** removes the background and restores the stock look.
 
@@ -93,6 +95,7 @@ dsh --profile web
 - The **settings row** lives in the official General settings section (`settings.general.item` slot), next to the Appearance row. Its chrome uses only `--dsw-alias-*` design tokens (buttons / pills / segmented control / slider track match the official shell); sliders are native `input[type=range]` with 5% / 1–2px steps and release-commit.
 - The plugin's own host routes (`/api/bg-wallpaper/*`: `settings`, `upload`, `image/<id>`) read/write the section and serve uploads with same-origin + size caps + MIME/signature checks + a path-escape fence. A custom route family is used because the api-proxy settings allowlist does not expose third-party namespaces over the settings RPC.
 - The background is drawn as a fixed `z-index:-2` wallpaper layer plus a `z-index:-1` scrim on `body`, toggled by the `data-dsh-bg` attribute; the scrim switches white/black by `data-ds-dark-theme` in the injected stylesheet; the frosted-glass effect overrides the shell's surface design tokens.
+- The **timeline rail** is registered into the `conversation.input.dock` slot (per-session lifecycle) and portals to `body`. Its data comes from the runtime sessions service (loaded chat nodes, then a bounded loadOlder loop); its fills reuse the same overridden `--dsw-*` tokens as every other surface, so the glass-off state returns the official panel look.
 - Uploads live under `$DSH_HOME/deepseek-harness-background/` (content-addressed ids). Switching to a new image or clearing the background deletes the superseded upload file, so the directory does not accumulate dead images in normal use. (An upload that is never saved into the section — e.g. the tab closes right after an upload — can leave one orphaned file behind.) Disable / uninstall leaves nothing behind.
 
 ## Development
@@ -119,6 +122,8 @@ deepseek-harness-background/          # the plugin repo (package name stays the 
 │       ├── index.ts          # painter lifecycle + settings row registration
 │       ├── backdrop.ts       # fixed wallpaper layer + scrim + glass surface + preview vars
 │       ├── background-css.ts # injected stylesheet (layers, glass, light/dark scrim, variables)
+│       ├── timeline.tsx     # conversation timeline rail (ScrollNav port on the glass system)
+│       ├── timeline-css.ts  # timeline stylesheet (dsbt- prefixed, official metrics)
 │       ├── SettingsRow.tsx   # the General-settings row (preview surface + stepped sliders)
 │       ├── SettingsRow.module.css # row styles (official tokens)
 │       ├── settings-client.ts# fetch transport (read/write/upload)

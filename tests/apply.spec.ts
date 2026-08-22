@@ -24,6 +24,7 @@ const SECTION: BackgroundSettings = {
   blur: 16,
   wallpaperBlur: 0,
   fit: 'cover',
+  timeline: true,
 }
 
 let section: BackgroundSettings = { ...SECTION }
@@ -46,11 +47,12 @@ function mockFetch(): void {
   }))
 }
 
-/** Apply with slots/locale stubs (the renderer is not mounted in jsdom). */
+/** Apply with slots/locale/sessions stubs (no renderer is mounted in jsdom). */
 async function mount() {
   const ctx = new Context()
   ctx.provide('slots', { inject: () => () => {}, register: () => () => {} } as never)
   ctx.provide('locale', { register: () => () => {} } as never)
+  ctx.provide('sessions', { binding: () => undefined } as never)
   const f = ctx.plugin({ apply })
   await f.await()
   fiber = f
@@ -85,8 +87,8 @@ afterEach(async () => {
 })
 
 describe('deepseek-harness-background apply', () => {
-  it('declares the framework service injections (slots, locale)', () => {
-    expect(inject).toEqual(['slots', 'locale'])
+  it('declares the framework service injections (slots, locale, sessions)', () => {
+    expect(inject).toEqual(['slots', 'locale', 'sessions'])
   })
 
   it('paints a background layer + scrim with the resolved image and active attribute', async () => {
@@ -211,6 +213,9 @@ describe('deepseek-harness-background apply', () => {
       '--dsw-alias-bg-module-platform', '--dsw-alias-bg-overlay',
       '--dsw-specific-tip', '--dsw-specific-selector',
       '--dsw-alias-button-elevated-fill', '--dsw-alias-button-floating-fill',
+      '--dsw-alias-button-floating-hover', '--dsw-alias-button-ghost-active-fill',
+      '--dsw-alias-button-tool-bar-fill', '--dsw-alias-button-tool-bar-hover',
+      '--dsw-specific-sidebar-nav-item-hover', '--dsw-specific-sidebar-nav-item-active',
       '--dsw-alias-interactive-bg-hover-solid',
     ]) {
       expect(style.getPropertyValue(token), token).toContain('rgba(')
@@ -220,6 +225,13 @@ describe('deepseek-harness-background apply', () => {
       .toMatch(/^rgba\(65, 118, 230, 0\.\d{3}\)$/)
     expect(style.getPropertyValue('--dsw-alias-tooltip-bg')).toContain('rgba(')
     expect(style.getPropertyValue('--dsw-alias-state-warn-tertiary')).toContain('rgba(')
+    // Second-wave accents: hover states and pale state bands keep their hue.
+    for (const token of [
+      '--dsw-alias-button-info-hover', '--dsw-alias-button-primary-hover',
+      '--dsw-alias-state-business-tertiary', '--dsw-alias-state-success-tertiary',
+    ]) {
+      expect(style.getPropertyValue(token), token).toContain('rgba(')
+    }
   })
 
   it('clears every universal token when panelOpacity is at maximum', async () => {
@@ -277,15 +289,19 @@ describe('deepseek-harness-background apply', () => {
     expect(cssText).toContain('_dialog')
     expect(cssText).toContain('_panel')
     expect(cssText).toContain('_card')
-    // Buttons & chips: new session, plus, send, attachment rail, toasts.
+    // Buttons & chips: new session, plus, send, attachment rail, toasts,
+    // composer tool-row buttons.
     expect(cssText).toContain('_newSession')
     expect(cssText).toContain('_add')
     expect(cssText).toContain('_primary')
     expect(cssText).toContain('_rail')
     expect(cssText).toContain('_toBottom')
     expect(cssText).toContain('_toast')
+    expect(cssText).toContain('_toolbar')
     // Empty-state hero glow dims so the wallpaper stays visible.
     expect(cssText).toContain('_heroGlow')
+    // HoverCard's component-level ink is re-scoped to a translucent glass ink.
+    expect(cssText).toContain('--dsw-hovercard-bg')
   })
 
   it('calibrates the glass exposure: dimmed in light, lifted in dark', async () => {
@@ -342,6 +358,7 @@ describe('deepseek-harness-background apply', () => {
     const ctx = new Context()
     ctx.provide('slots', { inject: () => () => {}, register: () => () => {} } as never)
     ctx.provide('locale', { register: () => () => {} } as never)
+    ctx.provide('sessions', { binding: () => undefined } as never)
     const f = ctx.plugin({ apply })
     await f.await()
     fiber = f

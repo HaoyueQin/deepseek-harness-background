@@ -23,9 +23,9 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 import clsx from 'clsx'
 import {
   BACKGROUND_API_PREFIX, BLUR_MAX, BLUR_MIN, DEFAULT_BLUR, DEFAULT_FIT,
-  DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR,
-  FIT_MODES, OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
-  SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX, type BackgroundFit,
+  DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_TIMELINE,
+  DEFAULT_WALLPAPER_BLUR, FIT_MODES, OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX,
+  PANEL_OPACITY_MIN, SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX, type BackgroundFit,
   type BackgroundSettings,
 } from '../settings.ts'
 import { clearPreviewSurface, paintBackground, paintBackgroundKnob, paintPreviewSurface } from './backdrop.ts'
@@ -47,6 +47,7 @@ const DEFAULTS: BackgroundSettings = {
   blur: DEFAULT_BLUR,
   wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
   fit: DEFAULT_FIT,
+  timeline: DEFAULT_TIMELINE,
 }
 
 /** The numeric field keys a slider edits. */
@@ -79,6 +80,7 @@ function sameSettings(a: BackgroundSettings, b: BackgroundSettings): boolean {
   return a.enabled === b.enabled && a.uploadId === b.uploadId && a.url === b.url
     && a.opacity === b.opacity && a.scrim === b.scrim && a.panelOpacity === b.panelOpacity
     && a.blur === b.blur && a.wallpaperBlur === b.wallpaperBlur && a.fit === b.fit
+    && a.timeline === b.timeline
 }
 
 /**
@@ -345,6 +347,15 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     void saveNow(next)
   }
 
+  const handleTimelineToggle = (): void => {
+    markEditing()
+    const next: BackgroundSettings = { ...draftRef.current, timeline: !draftRef.current.timeline }
+    draftRef.current = next
+    setDraft(next)
+    // The rail reads the shared snapshot itself; no painter repaint needed.
+    void saveNow(next)
+  }
+
   const sourceUrl = draft.uploadId ? `${BACKGROUND_API_PREFIX}/image/${draft.uploadId}` : draft.url
   const hasImage = sourceUrl !== ''
 
@@ -445,6 +456,21 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
               </button>
             ))}
           </div>
+        </div>
+        <div className={css.segRow}>
+          <span className={css.segLabel}>{t('background.timeline')}</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={draft.timeline}
+            aria-label={t('background.timeline')}
+            title={t('background.timelineHint')}
+            className={css.switch}
+            onClick={handleTimelineToggle}
+          >
+            <span className={css.switchKnob} />
+          </button>
+          <span className={css.hint}>{t('background.timelineHint')}</span>
         </div>
       </div>
 

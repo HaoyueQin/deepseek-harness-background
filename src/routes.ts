@@ -26,8 +26,8 @@ import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
   BACKGROUND_API_PREFIX, BACKGROUND_SETTINGS_FIELDS, BACKGROUND_SETTINGS_NAMESPACE,
   BLUR_MAX, BLUR_MIN, DEFAULT_BLUR, DEFAULT_FIT,
-  DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_WALLPAPER_BLUR,
-  OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
+  DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_TIMELINE,
+  DEFAULT_WALLPAPER_BLUR, OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
   SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX,
   FIT_MODES, type BackgroundFit,
   type BackgroundSettings,
@@ -48,6 +48,7 @@ const DEFAULTS: BackgroundSettings = {
   blur: DEFAULT_BLUR,
   wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
   fit: DEFAULT_FIT,
+  timeline: DEFAULT_TIMELINE,
 }
 
 /** Keep only the schema's known fields (see BACKGROUND_SETTINGS_FIELDS). */
@@ -265,6 +266,8 @@ export function validateSectionBody(body: Record<string, unknown>, home?: string
   // not a coercion fix.)
   const enabled = body.enabled
   if (enabled !== undefined && typeof enabled !== 'boolean') return 'invalid-enabled'
+  const timeline = body.timeline
+  if (timeline !== undefined && typeof timeline !== 'boolean') return 'invalid-timeline'
   const fit = body.fit
   if (fit !== undefined && fit !== '' && !FIT_MODES.includes(fit as BackgroundFit)) {
     return 'invalid-fit'

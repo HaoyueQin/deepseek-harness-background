@@ -430,6 +430,12 @@ describe('validateSectionBody field pre-checks', () => {
     expect(validateSectionBody({ enabled: 1 })).toBe('invalid-enabled')
   })
 
+  it('rejects a non-boolean timeline flag', () => {
+    expect(validateSectionBody({ timeline: 'true' })).toBe('invalid-timeline')
+    expect(validateSectionBody({ timeline: 1 })).toBe('invalid-timeline')
+    expect(validateSectionBody({ timeline: false })).toBeNull()
+  })
+
   it('rejects an out-of-enum fit', () => {
     expect(validateSectionBody({ fit: 'fill' })).toBe('invalid-fit')
     expect(validateSectionBody({ fit: 1 })).toBe('invalid-fit')

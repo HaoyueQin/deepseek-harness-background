@@ -17,7 +17,21 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * this package can type its registration without importing that package.
      */
     'settings.general.item': { kind: 'list'; scope: 'root'; owner: BackgroundRowOwnerProps }
+    /**
+     * One row in the conversation input dock (above the composer card).
+     * Declared by `ui-conversation` at runtime; re-declared here (interface
+     * merge) so this package can mount the timeline rail without importing
+     * that package. The rail portals to body, so the owner share is unused —
+     * declared as an empty marker to satisfy the merge shape only.
+     */
+    'conversation.input.dock': { kind: 'list'; scope: 'session'; owner: TimelineInputZoneProps }
   }
+}
+
+/** Owner share of a conversation input-dock entry (unused by the timeline). */
+export interface TimelineInputZoneProps {
+  /** Marker field: the dock owner share carries nothing this plugin reads. */
+  children?: never
 }
 
 /** Owner share of a General settings row: the section supplies nothing. */
@@ -59,6 +73,11 @@ export type BackgroundCardLocaleKey =
   | 'background.clear'
   | 'background.uploadFailed'
   | 'background.saveFailed'
+  | 'background.timeline'
+  | 'background.timelineHint'
+  | 'timeline.railLabel'
+  | 'timeline.roleUser'
+  | 'timeline.noText'
 
 /** Cordis Context merges: the services this plugin injects. */
 declare module '@deepseek-ai/cordis' {
@@ -82,6 +101,22 @@ declare module '@deepseek-ai/cordis' {
       register(ns: string, dict: Record<string, Record<string, string>>): () => void
       /** Bind a namespace to a translate function. */
       bind(ns: string): (key: string) => string
+    }
+    /**
+     * Sessions service provided by the client runtime. Structurally narrowed
+     * to the face the timeline rail consumes (the real service carries the
+     * full port API; this merge only types what this package touches).
+     */
+    sessions: {
+      binding(sessionId: string):
+        | {
+            session: {
+              subscribe(listener: () => void): () => void
+              getSnapshot(): unknown
+              loadOlder(): Promise<unknown>
+            }
+          }
+        | undefined
     }
   }
 }

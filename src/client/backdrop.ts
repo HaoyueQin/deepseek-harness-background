@@ -41,6 +41,12 @@ const GLASS_SURFACE_TOKENS: readonly { token: string; factor: number }[] = [
   { token: '--dsw-specific-selector', factor: 0.9 },
   { token: '--dsw-alias-button-elevated-fill', factor: 0.9 },
   { token: '--dsw-alias-button-floating-fill', factor: 0.9 },
+  { token: '--dsw-alias-button-floating-hover', factor: 0.95 },
+  { token: '--dsw-alias-button-ghost-active-fill', factor: 0.9 },
+  { token: '--dsw-alias-button-tool-bar-fill', factor: 0.9 },
+  { token: '--dsw-alias-button-tool-bar-hover', factor: 0.95 },
+  { token: '--dsw-specific-sidebar-nav-item-hover', factor: 0.7 },
+  { token: '--dsw-specific-sidebar-nav-item-active', factor: 0.85 },
   { token: '--dsw-alias-interactive-bg-hover-solid', factor: 0.9 },
 ]
 
@@ -51,10 +57,14 @@ const GLASS_SURFACE_TOKENS: readonly { token: string; factor: number }[] = [
  */
 const GLASS_ACCENT_TOKENS: readonly { token: string; light: string; dark: string }[] = [
   { token: '--dsw-alias-button-info-fill', light: '65, 118, 230', dark: '103, 158, 254' },
+  { token: '--dsw-alias-button-info-hover', light: '103, 158, 254', dark: '65, 118, 230' },
   { token: '--dsw-alias-button-primary-fill', light: '15, 17, 21', dark: '249, 250, 251' },
+  { token: '--dsw-alias-button-primary-hover', light: '67, 69, 74', dark: '235, 238, 242' },
   { token: '--dsw-alias-button-contrast-fill', light: '97, 102, 107', dark: '249, 250, 251' },
   { token: '--dsw-alias-tooltip-bg', light: '44, 44, 46', dark: '67, 69, 74' },
   { token: '--dsw-alias-state-warn-tertiary', light: '254, 245, 231', dark: '39, 36, 31' },
+  { token: '--dsw-alias-state-business-tertiary', light: '228, 237, 253', dark: '52, 65, 91' },
+  { token: '--dsw-alias-state-success-tertiary', light: '230, 250, 237', dark: '35, 60, 44' },
 ]
 
 /** Every token the glass owns (save/restore key set). */

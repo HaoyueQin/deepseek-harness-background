@@ -7,6 +7,10 @@ lib/
 # Reasonix session/task state (not part of the plugin)
 .reasonix/
 
+# Local research dumps fetched while designing the timeline rail (large
+# upstream snapshots; the distilled facts live in docs/superpowers/specs/)
+.research/
+
 # Logs
 *.log
 npm-debug.log*

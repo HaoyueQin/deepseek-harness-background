@@ -89,7 +89,8 @@ export const BACKGROUND_CSS = `
   body[data-dsh-bg] [class*="_primary"],
   body[data-dsh-bg] [class$="_rail"],
   body[data-dsh-bg] [class*="_toBottom"],
-  body[data-dsh-bg] [class*="_toast"] {
+  body[data-dsh-bg] [class*="_toast"],
+  body[data-dsh-bg] [class*="_toolbar"] {
     background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
@@ -114,6 +115,15 @@ export const BACKGROUND_CSS = `
   }
   body[data-ds-dark-theme][data-dsh-bg] [class*="_buildRevision"] {
     background-color: rgba(249, 250, 251, 0.62);
+  }
+
+  /* HoverCard defines its own component-level ink (--dsw-hovercard-bg:
+     #2C2C2E) on the card element — the one literal fill no token reaches.
+     Re-scope that variable to the translucent ink on card-classed elements
+     while the glass is active; only HoverCard consumes the variable, and it
+     already carries the shared blur via the [_card] anchor above. */
+  body[data-dsh-bg] [class*="_card"] {
+    --dsw-hovercard-bg: rgba(44, 44, 46, 0.78);
   }
 
   /* The empty-state hero glow asset would wash out the wallpaper behind the

@@ -25,6 +25,7 @@ describe('ui-background schema', () => {
       blur: 16,
       wallpaperBlur: 0,
       fit: 'cover',
+      timeline: true,
     })
   })
 
@@ -39,6 +40,7 @@ describe('ui-background schema', () => {
       blur: 20,
       wallpaperBlur: 5,
       fit: 'contain',
+      timeline: false,
     })).toEqual({
       enabled: true,
       uploadId: 'up-abc123',
@@ -49,6 +51,7 @@ describe('ui-background schema', () => {
       blur: 20,
       wallpaperBlur: 5,
       fit: 'contain',
+      timeline: false,
     })
   })
 
@@ -65,6 +68,7 @@ describe('ui-background schema', () => {
     expect(() => resolve({ panelOpacity: 1.2 })).toThrow()
     expect(() => resolve({ blur: 100 })).toThrow()
     expect(() => resolve({ fit: 'stretch' as BackgroundSettings['fit'] })).toThrow()
+    expect(() => resolve({ timeline: 'yes' as unknown as boolean })).toThrow()
   })
 
   it('accepts every numeric bound exactly at its edge', () => {

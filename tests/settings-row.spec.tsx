@@ -23,6 +23,7 @@ const SECTION: BackgroundSettings = {
   blur: 16,
   wallpaperBlur: 0,
   fit: 'cover',
+  timeline: true,
 }
 
 /** In-memory store the mock fetch reads/writes. */
