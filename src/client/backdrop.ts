@@ -265,9 +265,12 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
     if (forceRestore || settings === undefined || settings.panelOpacity >= 1) {
       restore()
       document.body.removeAttribute(GLASS_ATTR)
-      // No blur and a neutral exposure when glass is off.
+      // No blur and a neutral exposure when glass is off; the bare alpha
+      // knobs only matter under the glass gate.
       this.setVar('--bg-glass-blur', '0px')
       this.setVar('--bg-glass-brightness', '1')
+      s.removeProperty('--bg-glass-alpha')
+      s.removeProperty('--bg-glass-alpha-strong')
       return
     }
 
@@ -285,6 +288,11 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
     for (const { token, factor } of GLASS_SURFACE_TOKENS) {
       s.setProperty(token, `rgba(255, 255, 255, ${(base * factor).toFixed(3)})`)
     }
+    // Bare alpha knobs for the surfaces that keep their own hue (preview
+    // badge, via color-mix) or need a hover boost (chrome buttons): the same
+    // curve every glass surface shares.
+    this.setVar('--bg-glass-alpha', base.toFixed(3))
+    this.setVar('--bg-glass-alpha-strong', Math.min(0.9, base * 1.5).toFixed(3))
   }
 
   /** Remove the wallpaper + scrim layers and clear the active attribute. */

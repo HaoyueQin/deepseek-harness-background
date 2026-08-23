@@ -10,14 +10,15 @@
  *   whose scroll area holds 30px rows (tick indicator + fading-in title);
  *   32px gradient fade veils top/bottom shown while that side clips.
  *
- * Glass integration: the rail is SELF-CONTAINED frosted glass — it carries the
- * official capsule/panel paints (light rgba(255,255,255,.8)/.94, dark
- * rgba(21,21,23,.6)/rgba(28,28,32,.95)) and its own backdrop blur (5px
- * collapsed / 16px expanded), exactly like chat.deepseek.com. It deliberately
- * does NOT read the --dsw-* surface tokens: those stay official for every
- * non-whitelisted surface, so the rail must not depend on them. Class prefix
- * `dsbt-` deliberately avoids every `[class*="_xxx"]` anchor of the plugin's
- * glass sheet (underscores only).
+ * Glass integration: the official chat.deepseek.com paints (light
+ * rgba(255,255,255,.8)/.94, dark rgba(21,21,23,.6)/rgba(28,28,32,.95),
+ * 5px collapsed / 16px expanded blur) remain as the NO-GLASS fallback.
+ * While the plugin's glass system is on (`body[data-dsh-bg-glass]`), the
+ * rail joins the SAME unified recipe as the composer card and bubbles:
+ * fill = the painter's `--dsw-specific-input-major` token, blur/saturate/
+ * brightness = the shared `--bg-glass-*` variables, i.e. the glass-blur
+ * slider. Class prefix `dsbt-` deliberately avoids every
+ * `[class*="_xxx"]` anchor of the plugin's glass sheet (underscores only).
  */
 
 /** Unique id stamped on the injected style element (dedup key). */
@@ -232,6 +233,22 @@ export const TIMELINE_CSS = `
   }
   body[data-ds-dark-theme] .dsbt-item.dsbt-marked .dsbt-line { background-color: #fbbf24; width: 10px; height: 2.5px; }
   body[data-ds-dark-theme] .dsbt-item.dsbt-marked:hover .dsbt-line { background-color: #fde047; }
+
+  /* ---- Unified glass integration -----------------------------------------
+     Glass system on (wallpaper active + panelOpacity < 1): the rail joins
+     the composer/bubble recipe — the same translucent fill token and the
+     same blur/saturate/brightness chain (the glass-blur slider drives it,
+     no fixed 5/16px). Placed after the dark-theme rules so equal-specificity
+     overrides win in both schemes. */
+  body[data-dsh-bg-glass] .dsbt-bg,
+  body[data-dsh-bg-glass] .dsbt-wrap.dsbt-show {
+    background-color: var(--dsw-specific-input-major);
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+  }
+  body[data-dsh-bg-glass] .dsbt-fade {
+    background-color: var(--dsw-specific-input-major);
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .dsbt-nav, .dsbt-bg, .dsbt-wrap, .dsbt-fade, .dsbt-title, .dsbt-line, .dsbt-star, .dsbt-filterbtn, .dsbt-filterbar { transition: none; }

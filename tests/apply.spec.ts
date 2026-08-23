@@ -298,6 +298,15 @@ describe('deepseek-harness-background apply', () => {
     // a glassed label doubles the button fill).
     expect(cssText).toContain('[class*="_newSession"]:not([class*="Label"])')
     expect(cssText).toContain('[class*="_toBottom"]:not([class*="Slot"])')
+    // Unified recipe: chrome buttons + popover fill from the composer token,
+    // badge keeps its hue via color-mix on the shared alpha var, and NO
+    // surface caps the blur away from the glass-blur slider or pins a fixed
+    // heavier fill.
+    expect(cssText).toContain('var(--dsw-specific-input-major)')
+    expect(cssText).toContain('color-mix(in srgb')
+    expect(cssText).not.toContain('min(var(--bg-glass-blur')
+    expect(cssText).not.toContain('rgba(255, 255, 255, 0.62')
+    expect(cssText).not.toContain('rgba(255, 255, 255, 0.9)')
     // Subagent lineage popover + home hero preview badge.
     expect(cssText).toContain('[role="tree"][class*="_menu"]')
     expect(cssText).toContain('_previewBadge')
@@ -327,12 +336,18 @@ describe('deepseek-harness-background apply', () => {
     expect(style.getPropertyValue('--bg-glass-sheen-mid')).toBe('0.02')
     // Saturate rides a gentler capped slope: 1.1 + blur * 0.02 (max 1.6).
     expect(style.getPropertyValue('--bg-glass-saturate')).toBe('1.42')
-    // Dark scheme keeps the reference engine's slight lift + full sheen.
+    // Bare alpha knobs: every glass surface shares one curve (panelOpacity
+    // 0.15 -> base 0.142 light, hover boost capped at 0.9).
+    expect(style.getPropertyValue('--bg-glass-alpha')).toBe('0.142')
+    expect(style.getPropertyValue('--bg-glass-alpha-strong')).toBe('0.213')
+    // Dark scheme keeps the reference engine's slight lift + full sheen and
+    // the dimmed dark alpha.
     document.body.dataset.dsDarkTheme = ''
     await vi.waitFor(() => {
       expect(style.getPropertyValue('--bg-glass-brightness')).toBe('1.04')
       expect(style.getPropertyValue('--bg-glass-sheen')).toBe('0.16')
       expect(style.getPropertyValue('--bg-glass-sheen-mid')).toBe('0.05')
+      expect(style.getPropertyValue('--bg-glass-alpha')).toBe('0.071')
     })
   })
 

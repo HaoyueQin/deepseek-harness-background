@@ -128,4 +128,17 @@ describe('TimelineRail component', () => {
     cleanup()
     expect(document.querySelector('.dsbt-nav')).toBeNull()
   })
+
+  it('joins the unified glass recipe while the glass gate is on', () => {
+    const tag = document.querySelector('style[data-plugin-css="deepseek-harness-background/timeline"]')
+    const text = tag?.textContent ?? ''
+    // Under the glass gate the capsule + expanded panel take the composer's
+    // fill token and the shared blur chain (the glass-blur slider), instead
+    // of the fixed official 5/16px paints.
+    expect(text).toContain('body[data-dsh-bg-glass] .dsbt-bg')
+    expect(text).toContain('body[data-dsh-bg-glass] .dsbt-wrap.dsbt-show')
+    expect(text).toContain('var(--dsw-specific-input-major)')
+    expect(text).toContain('blur(var(--bg-glass-blur')
+    expect(text).toContain('saturate(var(--bg-glass-saturate')
+  })
 })

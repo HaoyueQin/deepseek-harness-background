@@ -33,9 +33,14 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * skill/MCP call cards), the three chrome buttons (new session, composer +
  * button, scroll-to-bottom), the agent task strip family (`
  * --dsw-specific-tip`), the subagent lineage popover, the home hero
- * "preview" badge, and the timeline rail (timeline-css.ts). Dialogs, the
- * settings UI, menus, tooltips, toasts and every hover/accent fill keep the
- * OFFICIAL opaque paints — they are reading surfaces and must stay legible.
+ * "preview" badge, and the timeline rail (timeline-css.ts). Every glassed
+ * surface shares ONE recipe: fill from the painter's --dsw-specific-input-
+ * major token (same alpha curve + theme dimming), the full shared
+ * blur/saturate/brightness chain driven by the glass-blur slider, and the
+ * shared sheen vars — so no surface reads heavier than the composer card.
+ * Dialogs, the settings UI, menus, tooltips, toasts and every hover/accent
+ * fill keep the OFFICIAL opaque paints — they are reading surfaces and must
+ * stay legible.
  *
  * Selectors target authored attributes (`data-dsh-bg`, `data-composer-card`,
  * `data-terminal`…), the `:global` `.md-code-block` anchor, and CSS-module
@@ -133,15 +138,20 @@ export const BACKGROUND_CSS = `
   /* ---- Whitelisted chrome buttons --------------------------------------
      These three buttons' official fills ride button-* tokens shared with
      unrelated surfaces, so instead of overriding the tokens they get explicit
-     theme-aware glass paints here, gated on data-dsh-bg-glass (off when the
-     panel is fully opaque). Blur is capped for the tiny areas. */
+     paints — but the SAME glass recipe as the composer card and bubbles:
+     fill = the painter's --dsw-specific-input-major token (the identical
+     translucent white + theme curve), filter = the sheet's exact
+     blur/saturate/brightness chain (blur follows the glass-blur slider, no
+     caps), sheen = the shared sheen vars. Hover = the same white glass at the
+     boosted alpha var. Gated on data-dsh-bg-glass (off when the panel is
+     fully opaque). */
   body[data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]),
   body[data-dsh-bg-glass] [data-composer-card] [class*="_add"],
   body[data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]) {
-    background-color: rgba(255, 255, 255, 0.62);
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02));
-    -webkit-backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 8px)) saturate(var(--bg-glass-saturate, 1.42));
-    backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 8px)) saturate(var(--bg-glass-saturate, 1.42));
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.32),
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
@@ -150,22 +160,7 @@ export const BACKGROUND_CSS = `
   body[data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]):hover,
   body[data-dsh-bg-glass] [data-composer-card] [class*="_add"]:hover:not(:disabled),
   body[data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]):hover {
-    background-color: rgba(255, 255, 255, 0.8);
-  }
-  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]),
-  body[data-ds-dark-theme][data-dsh-bg-glass] [data-composer-card] [class*="_add"],
-  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]) {
-    background-color: rgba(28, 28, 32, 0.55);
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.01));
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.09),
-      inset 0 0 0 0.5px rgba(255, 255, 255, 0.06),
-      0 4px 14px rgba(0, 0, 0, 0.28);
-  }
-  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]):hover,
-  body[data-ds-dark-theme][data-dsh-bg-glass] [data-composer-card] [class*="_add"]:hover:not(:disabled),
-  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]):hover {
-    background-color: rgba(46, 46, 52, 0.72);
+    background-color: color-mix(in srgb, rgb(255 255 255) calc(var(--bg-glass-alpha-strong, 0.8) * 100%), transparent);
   }
   /* Collapsed rail renders the new-session control as a bare icon — keep the
      official transparent paint (and its official translucent hover). */
@@ -179,27 +174,28 @@ export const BACKGROUND_CSS = `
   /* ---- Subagent lineage popover (title-bar expanded list) --------------
      Its official fill rides the menu token shared with every dropdown; glass
      THIS popover explicitly via its role="tree" + _menu combination so real
-     menus stay officially opaque and legible. */
+     menus stay officially opaque and legible. Same unified recipe: the
+     composer fill token + the full shared filter chain (the official
+     elevation shadow stays). */
   body[data-dsh-bg-glass] [role="tree"][class*="_menu"] {
-    background-color: rgba(255, 255, 255, 0.9);
-    -webkit-backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 16px)) saturate(var(--bg-glass-saturate, 1.42));
-    backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 16px)) saturate(var(--bg-glass-saturate, 1.42));
-  }
-  body[data-ds-dark-theme][data-dsh-bg-glass] [role="tree"][class*="_menu"] {
-    background-color: rgba(28, 28, 32, 0.92);
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
 
   /* ---- Home hero "preview" badge (top-right superscript pill) ----------
      Officially the state-business-tertiary pastel; re-emit the same hue as
-     translucent glass so it sits on the wallpaper without turning into a
-     solid patch. */
+     glass but with the UNIFIED alpha curve (color-mix against the painter's
+     --bg-glass-alpha) and the shared blur chain, so it sits on the wallpaper
+     with exactly the glass strength of the composer card. */
   body[data-dsh-bg-glass] [class*="_previewBadge"] {
-    background-color: rgba(228, 237, 253, 0.72);
-    -webkit-backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 6px)) saturate(var(--bg-glass-saturate, 1.42));
-    backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 6px)) saturate(var(--bg-glass-saturate, 1.42));
+    background-color: color-mix(in srgb, rgb(228 237 253) calc(var(--bg-glass-alpha, 0.72) * 100%), transparent);
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
   body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_previewBadge"] {
-    background-color: rgba(52, 65, 91, 0.72);
+    background-color: color-mix(in srgb, rgb(52 65 91) calc(var(--bg-glass-alpha, 0.72) * 100%), transparent);
   }
 `
 
