@@ -542,6 +542,10 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
   }, [messages])
 
   // Reading position tracking: nearest user row to the 40% viewport line.
+  // An IntersectionObserver (when available) keeps a live set of the rows
+  // currently inside the scrollport — the best row is always one of them — so
+  // each pass reads a few dozen rects instead of one per row of a possibly
+  // thousand-row history; without IO measure() scans every row as before.
   react.useEffect(() => {
     if (messages.length === 0) return
     const indexByKey = new Map<string, number>()
@@ -549,18 +553,24 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
       const key = resolveAnchorKey(m)
       if (key !== undefined) indexByKey.set(key, i)
     })
+    const sp = document.querySelector('[data-conversation-scroll]')
+    if (sp === null) return
+    const rows = sp.querySelectorAll('[data-chat-anchor-key]')
+
+    let settleTimer: number | undefined
+    let frame = 0
+    const nearRows = new Set<Element>()
+
     const updateActive = (): void => {
       // A jump is animating: freeze the highlight so the panel cannot jitter.
       if (jumpPendingRef.current) return
-      const sp = document.querySelector('[data-conversation-scroll]')
-      if (sp === null) return
       const rect = sp.getBoundingClientRect()
       if (rect.height === 0) return
+      const candidates = nearRows.size > 0 ? nearRows : rows
       const line = rect.top + rect.height * 0.4
-      const rows = sp.querySelectorAll('[data-chat-anchor-key]')
       let best = -1
       let bestDist = Infinity
-      for (const row of rows) {
+      for (const row of candidates) {
         const key = row.getAttribute('data-chat-anchor-key')
         if (key === null) continue
         const idx = indexByKey.get(key) ?? -1
@@ -574,10 +584,26 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
       }
       setActiveIndex(best)
     }
-    updateActive()
-    const el = document.querySelector('[data-conversation-scroll]')
-    let timer: number | undefined
-    let settleTimer: number | undefined
+    const scheduleMeasure = (): void => {
+      if (frame !== 0) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        updateActive()
+      })
+    }
+
+    let io: IntersectionObserver | undefined
+    if (typeof IntersectionObserver === 'function') {
+      io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) nearRows.add(entry.target)
+          else nearRows.delete(entry.target)
+        }
+        scheduleMeasure()
+      }, { root: sp })
+      rows.forEach((row) => io?.observe(row))
+    }
+
     const onScroll = (): void => {
       // Detect the true end of scrolling: 150ms after the LAST scroll event
       // release the jump lock and refresh the highlight exactly once.
@@ -593,22 +619,20 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
           updateActive()
         }
       }, 150)
-      if (timer !== undefined) return
-      timer = window.setTimeout(() => {
-        timer = undefined
-        updateActive()
-      }, 60)
+      scheduleMeasure()
     }
-    el?.addEventListener('scroll', onScroll, { passive: true })
-    const interval = window.setInterval(updateActive, 2000)
+    sp.addEventListener('scroll', onScroll, { passive: true })
+    const interval = window.setInterval(scheduleMeasure, 2000)
+    scheduleMeasure()
     return () => {
-      if (timer !== undefined) clearTimeout(timer)
+      io?.disconnect()
+      if (frame !== 0) cancelAnimationFrame(frame)
       if (settleTimer !== undefined) clearTimeout(settleTimer)
       if (jumpFallbackRef.current !== undefined) {
         clearTimeout(jumpFallbackRef.current)
         jumpFallbackRef.current = undefined
       }
-      el?.removeEventListener('scroll', onScroll)
+      sp.removeEventListener('scroll', onScroll)
       clearInterval(interval)
     }
   }, [messages])

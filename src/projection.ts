@@ -136,8 +136,12 @@ export const timelineProjectionDefinition = {
       const seq = typeof e.seq === 'number' ? e.seq : undefined
       if (source !== null && typeof source === 'object' && source.kind === 'user'
         && seq !== undefined && Number.isFinite(seq)) {
-        // Same-seq replay (mux replays, cache re-seeds): keep the fold pure.
-        if (!state.messages.some((m) => m.seq === seq)) {
+        // Same-seq replay guard (mux replays, cache re-seeds): events reach
+        // the fold in seq order, so an exact replay can only re-deliver the
+        // tail — an O(1) last-entry check keeps long-log folds linear where a
+        // whole-array scan made them quadratic.
+        const last = state.messages[state.messages.length - 1]
+        if (!(last !== undefined && last.seq === seq)) {
           const rawTime = typeof e.time === 'number' ? e.time : typeof e.data?.time === 'number' ? e.data.time : 0
           const id = typeof e.data?.id === 'string' && e.data.id !== '' ? e.data.id : undefined
           const entry: TimelineProjectionEntry = {
