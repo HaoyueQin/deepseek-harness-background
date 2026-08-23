@@ -208,15 +208,26 @@ export const TIMELINE_CSS = `
 
   /* One message row: 30px, star bookmark + tick indicator at the right,
      title fading in. */
+  /* Row shell: layout + shared ink only — the interactive hit areas are the
+     sibling .dsbt-jump / .dsbt-star buttons below. */
   .dsbt-item {
-    cursor: pointer; height: 30px; min-height: 30px; flex-shrink: 0;
+    height: 30px; min-height: 30px; flex-shrink: 0;
     justify-content: flex-end; align-items: center;
-    width: calc(100% - 4px); margin-right: 4px; line-height: 20px;
-    display: flex; background: none; border: none; font: inherit;
-    text-align: right; box-sizing: border-box; padding: 0;
+    width: calc(100% - 4px); margin-right: 4px;
+    display: flex; box-sizing: border-box;
     color: var(--dsw-alias-label-tertiary, rgba(0, 0, 0, .65));
     transition: color .15s ease;
   }
+
+  /* Jump target: a real button so Enter/Space work natively without nesting
+     an interactive element inside another. */
+  .dsbt-jump {
+    cursor: pointer; background: none; border: none; margin: 0; padding: 0;
+    font: inherit; line-height: 20px; text-align: right; color: inherit;
+    flex: 1 1 auto; min-width: 0; height: 100%;
+    display: flex; align-items: center; justify-content: flex-end;
+  }
+  .dsbt-jump:focus-visible { outline: 1px solid currentColor; outline-offset: -1px; border-radius: 6px; }
   .dsbt-item:hover { color: var(--dsw-alias-label-primary, rgba(0, 0, 0, .95)); }
   body[data-ds-dark-theme] .dsbt-item { color: rgba(255, 255, 255, .65); }
   body[data-ds-dark-theme] .dsbt-item:hover { color: rgba(255, 255, 255, .95); }
@@ -229,14 +240,17 @@ export const TIMELINE_CSS = `
   .dsbt-show .dsbt-title { opacity: 1; }
 
   /* Star bookmark — appears on row hover while the panel is expanded; gold
-     when marked. Keyboard-operable (span[role=button]). */
+     when marked. A real sibling button next to the jump target, so marking
+     stays keyboard-operable without nested interactive elements. */
   .dsbt-star {
-    font-size: 13px; line-height: 16px; width: 18px; height: 18px;
+    font-size: ${TIMELINE_TITLE_FONT_PX}px; line-height: 16px; width: 18px; height: 18px;
     display: inline-flex; align-items: center; justify-content: center;
     opacity: 0; cursor: pointer; transition: all .15s ease; margin-right: 6px;
     flex-shrink: 0; color: rgba(0, 0, 0, .25); border-radius: 4px; user-select: none;
     -webkit-user-select: none;
+    background: none; border: none; padding: 0; font-family: inherit;
   }
+  .dsbt-star:focus-visible { outline: 1px solid currentColor; outline-offset: 1px; opacity: .9; }
   .dsbt-wrap.dsbt-show .dsbt-item:hover .dsbt-star { opacity: .75; }
   .dsbt-wrap.dsbt-show .dsbt-star:hover { opacity: 1; transform: scale(1.2); color: #d97706; }
   .dsbt-wrap.dsbt-show .dsbt-star.dsbt-staron { opacity: 1; color: #f59e0b; }
@@ -289,6 +303,6 @@ export const TIMELINE_CSS = `
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .dsbt-nav, .dsbt-bg, .dsbt-wrap, .dsbt-fade, .dsbt-title, .dsbt-line, .dsbt-star, .dsbt-filterbtn, .dsbt-filterbar { transition: none; }
+    .dsbt-nav, .dsbt-bg, .dsbt-wrap, .dsbt-fade, .dsbt-title, .dsbt-line, .dsbt-jump, .dsbt-star, .dsbt-filterbtn, .dsbt-filterbar { transition: none; }
   }
 `

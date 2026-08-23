@@ -755,54 +755,49 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
               const marked = markedSet.has(mk)
               const isActive = activeKey !== '' && mk === activeKey
               const cls = `dsbt-item${isActive ? ' dsbt-active' : ''}${marked ? ' dsbt-marked' : ''}`
-              const label = `${marked ? '★ ' : ''}${t('timeline.roleUser')}: ${m.text.slice(0, 60) || t('timeline.noText')}`
               return (
-                <button
-                  type="button"
-                  key={m.seq}
-                  ref={isActive ? activeItemRef : undefined}
-                  className={cls}
-                  title={`${marked ? '★ ' : ''}${m.text === '' ? t('timeline.noText') : m.text}`}
-                  aria-label={label}
-                  aria-current={isActive ? 'location' : undefined}
-                  onClick={() => {
-                    if (key === undefined) return
-                    // Engage the stabilization lock with a fallback timeout:
-                    // the settle timer normally releases it after the jump.
-                    // A fresh click replaces the pending fallback so a rapid
-                    // second jump cannot be unlocked by the first one's timer.
-                    jumpPendingRef.current = true
-                    if (jumpFallbackRef.current !== undefined) clearTimeout(jumpFallbackRef.current)
-                    jumpFallbackRef.current = window.setTimeout(() => {
-                      jumpFallbackRef.current = undefined
-                      jumpPendingRef.current = false
-                    }, 800)
-                    void jumpToMessage(sessionsService, sessionId, key).catch(() => {})
-                  }}
-                >
-                  <span className="dsbt-title">{m.text === '' ? t('timeline.noText') : m.text}</span>
-                  <span
-                    className={marked ? 'dsbt-star dsbt-staron' : 'dsbt-star'}
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={marked}
-                    aria-label={marked ? t('timeline.unmark') : t('timeline.mark')}
-                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault() }}
-                    onClick={(e) => { e.stopPropagation(); toggleMark(m) }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        toggleMark(m)
-                      }
+                <div key={m.seq} className={cls}>
+                  {/* Jump target and star bookmark are SIBLING real buttons —
+                      the previous span[role=button] nested inside the row
+                      button was invalid interactive-in-interactive markup,
+                      while native buttons keep Enter/Space for both roles. */}
+                  <button
+                    type="button"
+                    className="dsbt-jump"
+                    ref={isActive ? activeItemRef : undefined}
+                    title={`${marked ? '★ ' : ''}${m.text === '' ? t('timeline.noText') : m.text}`}
+                    aria-label={`${marked ? '★ ' : ''}${t('timeline.roleUser')}: ${m.text.slice(0, 60) || t('timeline.noText')}`}
+                    aria-current={isActive ? 'location' : undefined}
+                    onClick={() => {
+                      if (key === undefined) return
+                      // Engage the stabilization lock with a fallback timeout:
+                      // the settle timer normally releases it after the jump.
+                      // A fresh click replaces the pending fallback so a rapid
+                      // second jump cannot be unlocked by the first one's timer.
+                      jumpPendingRef.current = true
+                      if (jumpFallbackRef.current !== undefined) clearTimeout(jumpFallbackRef.current)
+                      jumpFallbackRef.current = window.setTimeout(() => {
+                        jumpFallbackRef.current = undefined
+                        jumpPendingRef.current = false
+                      }, 800)
+                      void jumpToMessage(sessionsService, sessionId, key).catch(() => {})
                     }}
                   >
+                    <span className="dsbt-title">{m.text === '' ? t('timeline.noText') : m.text}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={marked ? 'dsbt-star dsbt-staron' : 'dsbt-star'}
+                    aria-pressed={marked}
+                    aria-label={marked ? t('timeline.unmark') : t('timeline.mark')}
+                    onClick={() => toggleMark(m)}
+                  >
                     ★
-                  </span>
+                  </button>
                   <span className="dsbt-ind" aria-hidden>
                     <span className="dsbt-line" />
                   </span>
-                </button>
+                </div>
               )
             })}
         </div>
