@@ -17,9 +17,11 @@
  * - Only direct user turns (`user/message` with source.kind === 'user') join
  *   the timeline — plugin/tool-injected context rides the same event type
  *   with another source.kind and would crowd the rail with non-questions.
- * - Rewind (surface replace) drops the cut user messages so the rail matches
- *   what the conversation still shows; compaction is NOT a cut (its marker is
- *   plugin-sourced and never passes the user filter).
+ * - A surface replace (`{ op: 'replace', … }` — the only non-append
+ *   SurfaceOp) drops the user messages it shadows so the rail matches the
+ *   surviving surface, whatever event type carries it: compaction's
+ *   checkpoint rides `user/message`, rewind-style producers differ. The
+ *   checkpoint marker itself is plugin-sourced and never joins the index.
  *
  * The registry service is provided by @deepseek-ai/dsh-session-projection,
  * which ships in the base bundle. Registration is defensive: without the
@@ -81,12 +83,15 @@ interface LooseEvent {
 }
 
 /**
- * A surface replace cuts nodes out of the model-visible surface (the rewind
- * command's empty marker does this). Drop indexed user messages whose seq is
- * shadowed so the rail matches the cut.
+ * A surface replace cuts nodes out of the model-visible surface so indexed
+ * user messages whose seq is cited in sourceEventSeqs must leave the index.
+ * SurfaceOp.replace is the OBJECT form `{ op: 'replace', start, end }`
+ * (core/session types) — never the bare string 'replace'; matching the whole
+ * value against a string can never fire.
  */
 function dropShadowedMessages(state: TimelineProjectionState, event: LooseEvent): TimelineProjectionState {
-  if ((event as { surfaceOp?: unknown }).surfaceOp !== 'replace') return state
+  const op = (event as { surfaceOp?: unknown }).surfaceOp
+  if (op === null || typeof op !== 'object' || (op as { op?: unknown }).op !== 'replace') return state
   const shadowed = event.sourceEventSeqs
   if (!Array.isArray(shadowed) || shadowed.length === 0) return state
   const hide = new Set<number>()
@@ -122,25 +127,33 @@ export const timelineProjectionDefinition = {
   init: (): TimelineProjectionState => ({ messages: [] }),
   apply: (state: TimelineProjectionState, event: unknown): TimelineProjectionState => {
     const e = (event ?? {}) as LooseEvent
+    // Fall-through structure on purpose: a replace cut can arrive ON the same
+    // user/message event that carries a plugin-sourced checkpoint, so the
+    // indexer must not early-return past the shadow filter below.
+    let next = state
     if (e.type === 'user/message') {
       const source = e.data?.source
-      if (source === null || typeof source !== 'object' || source.kind !== 'user') return state
       const seq = typeof e.seq === 'number' ? e.seq : undefined
-      if (seq === undefined || !Number.isFinite(seq)) return state
-      const rawTime = typeof e.time === 'number' ? e.time : typeof e.data?.time === 'number' ? e.data.time : 0
-      const id = typeof e.data?.id === 'string' && e.data.id !== '' ? e.data.id : undefined
-      // Same-seq replay (mux replays, cache re-seeds): keep the fold pure.
-      if (state.messages.some((m) => m.seq === seq)) return state
-      const entry: TimelineProjectionEntry = {
-        seq,
-        time: rawTime,
-        text: textOf(e.data?.content),
-        ...(id === undefined ? {} : { id }),
+      if (source !== null && typeof source === 'object' && source.kind === 'user'
+        && seq !== undefined && Number.isFinite(seq)) {
+        // Same-seq replay (mux replays, cache re-seeds): keep the fold pure.
+        if (!state.messages.some((m) => m.seq === seq)) {
+          const rawTime = typeof e.time === 'number' ? e.time : typeof e.data?.time === 'number' ? e.data.time : 0
+          const id = typeof e.data?.id === 'string' && e.data.id !== '' ? e.data.id : undefined
+          const entry: TimelineProjectionEntry = {
+            seq,
+            time: rawTime,
+            text: textOf(e.data?.content),
+            ...(id === undefined ? {} : { id }),
+          }
+          next = { messages: [...state.messages, entry] }
+        }
       }
-      return { messages: [...state.messages, entry] }
     }
-    if (e.type === 'assistant/message') return dropShadowedMessages(state, e)
-    return state
+    // Surface replace cuts ride any surface-eligible carrier (compaction's
+    // checkpoint is a user/message; rewind-style producers differ) — filter
+    // shadowed entries regardless of the event type.
+    return dropShadowedMessages(next, e)
   },
   wire: {
     viewSchema: stateSchema,

@@ -11,6 +11,7 @@ import {
   readMarks, resolveAnchorKey, rewindTargetOfOutcome,
   writeMarks, MARKS_STORAGE_PREFIX, TIMELINE_PROJECTION_KEY,
 } from '../src/client/timeline.tsx'
+import { timelineProjectionDefinition, type TimelineProjectionState } from '../src/projection.ts'
 
 describe('timeline data collection', () => {
   it('collects user nodes sorted by seq and extracts preview text', () => {
@@ -212,5 +213,60 @@ describe('timeline geometry contract', () => {
     expect(railWidthFor(Array.from({ length: 9 }, (_, i) => `question ${i}`))).toBe(260)
     // jsdom has no 2d context: measurement falls back to the minimum width.
     expect(railWidthFor(['hi'])).toBe(96)
+  })
+})
+
+describe('bgTimeline projection fold (host)', () => {
+  const def = timelineProjectionDefinition
+  const fold = (events: unknown[]): TimelineProjectionState =>
+    events.reduce<TimelineProjectionState>(
+      (state, event) => def.apply(state, event) as TimelineProjectionState,
+      def.init(),
+    )
+
+  const userEvent = (seq: number, id: string, text: string): unknown => ({
+    type: 'user/message', seq, time: seq,
+    data: { id, time: seq, content: [{ type: 'text', text }], source: { kind: 'user' } },
+  })
+
+  it('indexes direct user turns and skips plugin-sourced context rows', () => {
+    const state = fold([
+      userEvent(2, 'a', 'first'),
+      { type: 'user/message', seq: 4, time: 4, data: { id: 'ctx', time: 4, content: [{ type: 'text', text: 'context' }], source: { kind: 'plugin', plugin: 'fixture' } } },
+    ])
+    expect(state.messages.map((m) => m.seq)).toEqual([2])
+  })
+
+  it('drops messages shadowed by an OBJECT-form surface replace on any carrier', () => {
+    // Regression: the port compared the whole surfaceOp to the string
+    // 'replace'; core types define replace as { op: 'replace', start, end },
+    // so the filter never fired and compacted/rewound questions lingered.
+    const state = fold([
+      userEvent(2, 'a', 'kept'),
+      userEvent(5, 'b', 'compacted away'),
+      // Compaction checkpoint — the replace rides a user/message event.
+      { type: 'user/message', seq: 9, time: 9,
+        surfaceOp: { op: 'replace', start: 3, end: 8 },
+        sourceEventSeqs: [3, 8, 5],
+        data: { id: 'cp', time: 9, content: [{ type: 'text', text: 'checkpoint' }], source: { kind: 'plugin', plugin: 'compact' } } },
+      // A rewind-style producer riding assistant/message.
+      { type: 'assistant/message', seq: 12, time: 12,
+        surfaceOp: { op: 'replace', start: 9, end: 11 },
+        sourceEventSeqs: [2],
+        data: {} },
+    ])
+    expect(state.messages).toEqual([])
+  })
+
+  it('keeps the index intact for plain append ops', () => {
+    const state = fold([
+      userEvent(2, 'a', 'kept'),
+      { type: 'assistant/message', seq: 3, time: 3, surfaceOp: 'append', sourceEventSeqs: [2], data: {} },
+    ])
+    expect(state.messages.map((m) => m.seq)).toEqual([2])
+  })
+
+  it('answers TIMELINE_PROJECTION_KEY bgTimeline through the shared constant', () => {
+    expect(def.key).toBe(TIMELINE_PROJECTION_KEY)
   })
 })
