@@ -393,6 +393,14 @@ export function makeBackgroundRoutes(settings: SettingsProvider, opts: { home?: 
             // keys in the document, so a merge-only write would let legacy
             // fields (e.g. the old lightUrl/darkUrl pair) linger forever.
             const merged = { ...pickKnown(readSection()), ...pickKnown(body) }
+            // Exclusivity is a property of the MERGED section, not of the
+            // posted body alone: a partial write ({ url } only) over a stored
+            // uploadId would otherwise leave both sources set — the browser
+            // resolves uploads first, so the fresh url could never paint.
+            if (merged.uploadId !== '' && merged.url !== '') {
+              json(res, 400, { ok: false, error: 'mutually-exclusive-source' })
+              return
+            }
             await settings.replace(BACKGROUND_SETTINGS_NAMESPACE, merged)
             const after = readSection()
             // Prune the replaced upload: switching images (or clearing) must

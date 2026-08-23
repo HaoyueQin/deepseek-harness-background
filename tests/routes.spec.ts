@@ -283,6 +283,35 @@ describe('upload pruning (swap / clear deletes the superseded file)', () => {
   })
 })
 
+describe('merged-section source exclusivity (partial writes included)', () => {
+  it('rejects a partial write that would leave both sources set after merging', async () => {
+    await withServer(async (base, home) => {
+      const id = await postUpload(base, PNG_BYTES, 'image/png')
+      // The stored section references an upload…
+      expect(await postSection(base, { enabled: true, uploadId: id, url: '' })).toBe(200)
+      // …a url-only body passes body-level validation (the two fields are not
+      // both present in the POST), but the merged section would carry BOTH
+      // sources — the route must refuse it before replace commits.
+      expect(await postSection(base, { url: 'https://example.com/a.jpg' })).toBe(400)
+      const after = await getSection(base)
+      expect(after.uploadId).toBe(id)
+      expect(after.url).toBe('')
+      expect(existsSync(pngPath(home, id))).toBe(true)
+    })
+  })
+
+  it('still accepts full-section swaps that clear the other source', async () => {
+    await withServer(async (base, home) => {
+      const id = await postUpload(base, PNG_BYTES, 'image/png')
+      expect(await postSection(base, { enabled: true, uploadId: id, url: '' })).toBe(200)
+      expect(await postSection(base, { enabled: true, uploadId: '', url: 'https://example.com/a.jpg' })).toBe(200)
+      const after = await getSection(base)
+      expect(after.uploadId).toBe('')
+      expect(after.url).toBe('https://example.com/a.jpg')
+    })
+  })
+})
+
 describe('section write scrubs legacy unknown fields', () => {
   /** A user document written by an older plugin version: carries lightUrl/darkUrl. */
   const legacyInitial = {
