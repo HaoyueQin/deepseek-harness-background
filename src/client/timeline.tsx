@@ -20,10 +20,17 @@
  * - Rewind integration: messages withdrawn by a rewind command node are
  *   filtered out of the rail.
  *
- * Data source (client-side only): loaded chat nodes -> background loadOlder
- * loop until complete. Clicking a row loads older history on demand, scrolls
- * the conversation to the target row, and keeps the rail's own active row
- * visible.
+ * Data source, fastest first: the host-side `bgTimeline` session projection
+ * (src/projection.ts — a complete enumeration of the session's user messages
+ * delivered through the projection baseline/push channel) -> the loaded chat
+ * node window. The conversation's own lazy loading is never driven from here;
+ * clicking a row pages older history on demand, scrolls the conversation to
+ * the target row, and keeps the rail's own active row visible.
+ *
+ * Collapsed idle strategy (official ScrollNav behavior): the tick stack is
+ * pinned to the BOTTOM inner edge — the newest question's tick always sits at
+ * the bottom of the capsule, older ticks clip away at the top. Hovering
+ * expands the SAME box and scrolls the active row into view instead.
  *
  * The rail reads the shared settings transport: it renders unless
  * `timeline: false`. Its glass paints are self-contained official values
@@ -78,6 +85,8 @@ export interface TimelineSessionsService {
 export interface TimelineRailProps {
   sessionId?: string
   sessionsService?: TimelineSessionsService
+  /** Framework projection reader (SessionStandardProps seat; undefined-capable). */
+  useProjection?: (key: string) => unknown
   t: (key: string) => string
 }
 
@@ -176,13 +185,31 @@ function isRewindPreviewCommand(command: { args?: unknown }): boolean {
  * @param chat - a chat snapshot (loosely typed on purpose).
  */
 export function hiddenSeqsOfChat(chat: unknown): Set<number> {
+  const hidden = rewindHiddenSeqsOfChat(chat)
+  const spans = rewindSpansOfChat(chat)
+  if (spans.length === 0) return hidden
+  const nodes = (chat as { nodes?: Map<string, ChatNodeLike> }).nodes
+  if (nodes === undefined || typeof nodes.values !== 'function') return hidden
+  for (const node of nodes.values()) {
+    if (node === null || typeof node !== 'object') continue
+    const anchor = typeof node.anchorSeq === 'number' ? node.anchorSeq : undefined
+    if (anchor === undefined) continue
+    if (spans.some((span) => anchor >= span.start && anchor <= span.end)) hidden.add(anchor)
+  }
+  return hidden
+}
+
+/**
+ * Seq numbers a rewind hid directly: successful commands hide their own row;
+ * preview commands hide their target.
+ * @param chat - a chat snapshot (loosely typed on purpose).
+ */
+export function rewindHiddenSeqsOfChat(chat: unknown): Set<number> {
   const hidden = new Set<number>()
   if (chat === null || typeof chat !== 'object') return hidden
   const nodes = (chat as { nodes?: Map<string, ChatNodeLike> }).nodes
   if (nodes === undefined || typeof nodes.values !== 'function') return hidden
-  const all = [...nodes.values()]
-  const spans: { start: number; end: number }[] = []
-  for (const node of all) {
+  for (const node of nodes.values()) {
     if (node === null || typeof node !== 'object') continue
     if (node.kind !== 'command') continue
     const command = node.data
@@ -194,20 +221,37 @@ export function hiddenSeqsOfChat(chat: unknown): Set<number> {
     }
     const outcome = command.outcome
     if (outcome === null || typeof outcome !== 'object' || outcome.kind !== 'success') continue
+    if (typeof command.seq === 'number') hidden.add(command.seq)
+  }
+  return hidden
+}
+
+/**
+ * The [target, sourceEventSeq] spans successful rewind commands cut — the
+ * range form of hiding, needed to filter sources that are NOT chat nodes
+ * (the host projection) by plain seq membership.
+ * @param chat - a chat snapshot (loosely typed on purpose).
+ */
+export function rewindSpansOfChat(chat: unknown): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = []
+  if (chat === null || typeof chat !== 'object') return spans
+  const nodes = (chat as { nodes?: Map<string, ChatNodeLike> }).nodes
+  if (nodes === undefined || typeof nodes.values !== 'function') return spans
+  for (const node of nodes.values()) {
+    if (node === null || typeof node !== 'object') continue
+    if (node.kind !== 'command') continue
+    const command = node.data
+    if (command === null || typeof command !== 'object') continue
+    if (command.name !== 'rewind') continue
+    if (isRewindPreviewCommand(command)) continue
+    const outcome = command.outcome
+    if (outcome === null || typeof outcome !== 'object' || outcome.kind !== 'success') continue
     const marker = outcome.sourceEventSeq
     if (typeof marker !== 'number') continue
-    if (typeof command.seq === 'number') hidden.add(command.seq)
     const target = rewindTargetOfOutcome(outcome.text)
     if (target !== undefined) spans.push({ start: target, end: marker })
   }
-  if (spans.length === 0) return hidden
-  for (const node of all) {
-    if (node === null || typeof node !== 'object') continue
-    const anchor = typeof node.anchorSeq === 'number' ? node.anchorSeq : undefined
-    if (anchor === undefined) continue
-    if (spans.some((span) => anchor >= span.start && anchor <= span.end)) hidden.add(anchor)
-  }
-  return hidden
+  return spans
 }
 
 /**
@@ -239,6 +283,79 @@ export function collectMessages(snapshot: unknown): TimelineMessage[] {
 /** Resolve the DOM anchor key of one entry (direct key form only). */
 export function resolveAnchorKey(m: TimelineMessage): string | undefined {
   return typeof m.key === 'string' && m.key !== '' ? m.key : undefined
+}
+
+/* ---- Host projection source --------------------------------------------- */
+
+/** Projection key the host half registers (see src/projection.ts). */
+export const TIMELINE_PROJECTION_KEY = 'bgTimeline'
+
+/** The user-message node definition kind in ui-conversation. */
+const INPUT_MESSAGE_KIND = 'input-message'
+
+/**
+ * Rebuild a chat row's DOM anchor key from the durable message id — the same
+ * engine formula as conversationContextKey(kind, id) for the input-message
+ * definition (`13:input-message<id>`), so projected entries can jump even
+ * when their chat node is not loaded yet.
+ * @param id - the durable message id carried by the projection entry.
+ */
+export function inputAnchorKeyOf(id: string): string {
+  return `${INPUT_MESSAGE_KIND.length}:${INPUT_MESSAGE_KIND}${id}`
+}
+
+/**
+ * Validate one projected wire value into rail entries (defensive: the value
+ * crosses the wire and may be absent, partial, or stale).
+ * @param value - the raw useProjection(TIMELINE_PROJECTION_KEY) snapshot.
+ */
+export function normalizeProjectedTimeline(value: unknown): TimelineMessage[] {
+  if (value === null || typeof value !== 'object') return []
+  const raw = (value as { messages?: unknown }).messages
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<number>()
+  const out: TimelineMessage[] = []
+  for (const item of raw) {
+    if (item === null || typeof item !== 'object') continue
+    const rec = item as { seq?: unknown; time?: unknown; text?: unknown; id?: unknown }
+    if (typeof rec.seq !== 'number' || !Number.isFinite(rec.seq)) continue
+    if (seen.has(rec.seq)) continue
+    seen.add(rec.seq)
+    out.push({
+      seq: rec.seq,
+      time: typeof rec.time === 'number' ? rec.time : 0,
+      text: typeof rec.text === 'string' ? rec.text.slice(0, 80) : '',
+      ...(typeof rec.id === 'string' && rec.id !== '' ? { key: inputAnchorKeyOf(rec.id) } : {}),
+    })
+  }
+  out.sort((a, b) => a.seq - b.seq)
+  return out
+}
+
+/**
+ * Rail messages with the fastest source first: the host projection covers the
+ * WHOLE session (and already excludes rewind cuts), so it wins whenever it
+ * has anything; otherwise fall back to the loaded chat-node window. The
+ * projection path still applies locally-known rewind hiding so a cut lands
+ * instantly even before the next projection push arrives.
+ * @param snapshot - the session conversation snapshot (node fallback).
+ * @param projected - the raw bgTimeline projection value.
+ */
+export function railMessages(snapshot: unknown, projected: unknown): TimelineMessage[] {
+  const projectedMessages = normalizeProjectedTimeline(projected)
+  if (projectedMessages.length > 0) {
+    // The host projection already drops rewind cuts authoritatively; this
+    // locally-known hiding (command rows, preview targets and cut spans read
+    // off the loaded window) makes a rewind land instantly, before the next
+    // projection push arrives.
+    const chat = (snapshot as { chat?: { nodes?: Map<string, ChatNodeLike> } } | undefined)?.chat
+    const hidden = rewindHiddenSeqsOfChat(chat)
+    const spans = rewindSpansOfChat(chat)
+    if (hidden.size === 0 && spans.length === 0) return projectedMessages
+    return projectedMessages.filter((m) =>
+      !hidden.has(m.seq) && !spans.some((span) => m.seq >= span.start && m.seq <= span.end))
+  }
+  return collectMessages(snapshot)
 }
 
 /**
@@ -325,7 +442,7 @@ function otherRailPresent(): boolean {
  * conversation input dock purely to bind per-session lifecycle.
  */
 export function TimelineRail(props: TimelineRailProps): react.ReactElement | null {
-  const { sessionId, sessionsService, t } = props
+  const { sessionId, sessionsService, useProjection, t } = props
 
   // Shared settings: the rail hides while timeline === false. Read through a
   // hook like every other store here, but the gate itself must sit with the
@@ -353,11 +470,17 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
   )
   const nodeSnapshot = react.useSyncExternalStore(subscribeSession, snapshotSession)
 
-  // Collected per snapshot change (the collector allocates + sorts); memoized
-  // so width measurement and tracking effects key on content, not renders.
-  const messages = react.useMemo(() => collectMessages(nodeSnapshot), [nodeSnapshot])
+  // Host projection first: the full-session user-message index (baseline on
+  // session open, live push frames after). Undefined until the framework
+  // seat exists or the deployment lacks the projection registry — then the
+  // loaded chat-node window below is the fallback source.
+  const projected = useProjection !== undefined ? useProjection(TIMELINE_PROJECTION_KEY) : undefined
 
-  const [loadedAll, setLoadedAll] = react.useState(false)
+  // Collected per snapshot/projection change (the collector allocates +
+  // sorts); memoized so width measurement and tracking effects key on
+  // content, not renders.
+  const messages = react.useMemo(() => railMessages(nodeSnapshot, projected), [nodeSnapshot, projected])
+
   const [activeIndex, setActiveIndex] = react.useState(-1)
   const [show, setShow] = react.useState(false)
   const [rightOffset, setRightOffset] = react.useState(16)
@@ -411,37 +534,12 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     return () => mql.removeEventListener('change', onChange)
   }, [])
 
-  // Background full-history load: follow hasMore until complete. Skipped
-  // entirely while the rail is switched off (or standing aside for another
-  // rail) — paging the whole history into the client window is wasted work
-  // when nothing renders.
+  // Width follows the longest title (remeasured when messages arrive/change).
+  // No gating on a "fully loaded" flag: the projection source is complete by
+  // construction, and the node fallback measures whatever it has.
   react.useEffect(() => {
-    if (session === undefined || isNarrow || sessionId === undefined || timelineUnknown || timelineDisabled || hidden) return
-    setLoadedAll(false)
-    let cancelled = false
-    const run = async (): Promise<void> => {
-      let guard = 0
-      while (!cancelled && guard++ < 120) {
-        const snap = session.getSnapshot() as { hasMore?: boolean; loadingOlder?: boolean }
-        if (snap?.hasMore !== true) break
-        if (snap.loadingOlder === true) {
-          await delay(50)
-          continue
-        }
-        await session.loadOlder()
-      }
-      if (!cancelled) setLoadedAll(true)
-    }
-    void run().catch(() => { if (!cancelled) setLoadedAll(true) })
-    return () => { cancelled = true }
-  }, [sessionId, isNarrow, session, timelineUnknown, timelineDisabled, hidden])
-
-  // Width follows the longest title (remeasured when messages arrive/change);
-  // loadedAll gates it so late history cannot leave a stale narrow rail.
-  react.useEffect(() => {
-    if (!loadedAll && messages.length > 0) return
     setRailWidth(railWidthFor(messages.map((m) => m.text)))
-  }, [loadedAll, messages])
+  }, [messages])
 
   // Reading position tracking: nearest user row to the 40% viewport line.
   react.useEffect(() => {
@@ -526,7 +624,7 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     const canBot = page.scrollTop + page.clientHeight < page.scrollHeight - 2
     setFades((prev) => (prev.top === canTop && prev.bottom === canBot ? prev : { top: canTop, bottom: canBot }))
   }, [])
-  react.useEffect(syncFades, [syncFades, show, messages.length, loadedAll, marksOnly])
+  react.useEffect(syncFades, [syncFades, show, messages.length, marksOnly])
 
   // Keep the active row visible inside the rail without moving the chat.
   react.useLayoutEffect(() => {
@@ -537,6 +635,21 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     scrollTimelineItemIntoView(page, item)
     syncFades()
   }, [activeIndex, messages.length, marksOnly, show, syncFades])
+
+  // Collapsed idle strategy (official ScrollNav behavior): pin the tick stack
+  // to the BOTTOM inner edge so the newest question's tick always hugs the
+  // bottom of the capsule and older ticks clip away at the top. overflow:hidden
+  // boxes still accept programmatic scrollTop; scrollHeight clamps the value,
+  // and short stacks that fit simply stay put (the page centers them). Runs on
+  // every collapse and whenever the stack changes while idle, so a message
+  // sent in another window keeps the newest tick pinned.
+  const height = railHeightFor(messages.length)
+  react.useLayoutEffect(() => {
+    if (show) return
+    const page = pageRef.current
+    if (page === null) return
+    page.scrollTop = page.scrollHeight
+  }, [show, messages.length, marksOnly, height])
 
   // Avoid right-side workbenches: derive the offset from the chat scrollport.
   react.useEffect(() => {
@@ -573,7 +686,6 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     return null
   }
 
-  const height = railHeightFor(messages.length)
   // Compare actives by bookmark key, not index: the filtered display list
   // reindexes rows, and the active ref must track the SAME question.
   const activeKey = activeIndex >= 0 && activeIndex < messages.length ? markKeyOf(messages[activeIndex]) : ''

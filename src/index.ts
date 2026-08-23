@@ -11,6 +11,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { BACKGROUND_SETTINGS_NAMESPACE, BackgroundSettingsSchema } from './schema.ts'
 import { makeBackgroundRoutes } from './routes.ts'
+import { registerTimelineProjection } from './projection.ts'
 
 export {
   BACKGROUND_SETTINGS_NAMESPACE, BackgroundSettingsSchema, FIT_MODES,
@@ -20,6 +21,7 @@ export {
 } from './schema.ts'
 export { BACKGROUND_API_PREFIX, makeBackgroundRoutes } from './routes.ts'
 export { resolveHarnessHome, PLUGIN_HOME_REL } from './harness-home.ts'
+export { TIMELINE_PROJECTION_KEY, timelineProjectionDefinition } from './projection.ts'
 
 const BACKGROUND_NAMESPACE = settingsNamespace(BACKGROUND_SETTINGS_NAMESPACE)
 
@@ -30,6 +32,10 @@ const BACKGROUND_NAMESPACE = settingsNamespace(BACKGROUND_SETTINGS_NAMESPACE)
  * @param ctx - Host context that may acquire the settings and webServer services.
  */
 export function apply(ctx: Context): void {
+  // Full-history timeline projection (no-op on deployments without the
+  // session-projection registry; the rail then reads the loaded node window).
+  registerTimelineProjection(ctx)
+
   ctx.inject(['settings', 'webServer'], (hostCtx) => {
     // Idempotence fence: the settings service registers its namespace effect
     // on the *provider's* fiber (not this plugin's), so a re-run of this

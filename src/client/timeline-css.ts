@@ -8,7 +8,16 @@
  *   nav 34px-wide rail, fixed right edge, vertically centered; collapsed
  *   blurred capsule (height − 8px); expanding panel (max 260px, radius 16)
  *   whose scroll area holds 30px rows (tick indicator + fading-in title);
- *   32px gradient fade veils top/bottom shown while that side clips.
+ *   32px gradient fade veils top/bottom, expanded-only, shown while that
+ *   side actually clips.
+ *
+ * Deviations from the reference port, all fidelity fixes:
+ *   - The filter bar collapses to zero height while idle instead of staying
+ *     in layout invisibly (it pushed every tick ~33px down).
+ *   - Short stacks center vertically; overflowing stacks are bottom-pinned
+ *     by the component so the newest tick hugs the capsule's bottom edge
+ *     (the official idle strategy — the reference port flowed ticks from
+ *     the top and clipped the newest away).
  *
  * Glass integration: the official chat.deepseek.com paints (light
  * rgba(255,255,255,.8)/.94, dark rgba(21,21,23,.6)/rgba(28,28,32,.95),
@@ -38,6 +47,9 @@ export function injectTimelineCss(): void {
 export const TIMELINE_CSS = `
   .dsbt-nav {
     user-select: none; -webkit-user-select: none;
+    /* Filter-bar chrome height shared by the bar itself and the top veil's
+       expanded offset. */
+    --dsbt-bar-h: 33px;
     z-index: 90; align-items: center; width: 34px;
     height: var(--dsbt-h, 300px);
     transition: right .2s ease, opacity .2s ease;
@@ -103,7 +115,10 @@ export const TIMELINE_CSS = `
   /* Content fade veils — the official ::before/::after pair rebuilt as
      elements: a bar of the panel's OWN fill color masked to nothing over
      32px (solid -> mask == gradient-to-transparent, but works with the
-     translucent fill). Shown only while that side actually clips. */
+     translucent fill). They belong to the EXPANDED panel only — the idle
+     capsule hard-clips its ticks at the rounded ends like the official
+     strip — and while expanded the top veil starts BELOW the filter bar,
+     not over it. Shown only while that side actually clips. */
   .dsbt-fade {
     z-index: 2; pointer-events: none; opacity: 0;
     background-color: rgba(255, 255, 255, .94);
@@ -114,15 +129,25 @@ export const TIMELINE_CSS = `
   }
   body[data-ds-dark-theme] .dsbt-fade { background-color: rgba(28, 28, 32, .95); }
   .dsbt-fade.dsbt-fade-bot { top: auto; bottom: 0; transform: rotate(180deg); }
-  .dsbt-fade.dsbt-fade-on { opacity: 1; }
+  .dsbt-wrap.dsbt-show .dsbt-fade.dsbt-fade-on { opacity: 1; }
+  .dsbt-wrap.dsbt-show .dsbt-fade:not(.dsbt-fade-bot) { top: var(--dsbt-bar-h, 33px); }
 
-  /* Filter bar — "marked only" toggle pinned above the scroll area. */
+  /* Filter bar — "marked only" toggle pinned above the scroll area while
+     expanded. Collapsed, it collapses to ZERO height (not just opacity): a
+     transparent-but-in-layout bar pushed every tick ~33px down, one of the
+     reasons the idle capsule read as off-alignment. */
   .dsbt-filterbar {
+    height: var(--dsbt-bar-h, 33px);
     padding: 8px 12px 4px; display: flex; justify-content: flex-end;
     align-items: center; border-bottom: 1px solid rgba(0, 0, 0, .05);
-    box-sizing: border-box; flex: none; transition: opacity .2s ease;
+    box-sizing: border-box; flex: none; overflow: hidden;
+    transition: opacity .2s ease, height .2s ease, padding .2s ease,
+      border-color .2s ease;
   }
-  .dsbt-wrap:not(.dsbt-show) .dsbt-filterbar { opacity: 0; }
+  .dsbt-wrap:not(.dsbt-show) .dsbt-filterbar {
+    height: 0; padding-top: 0; padding-bottom: 0; opacity: 0;
+    border-bottom-color: transparent;
+  }
   body[data-ds-dark-theme] .dsbt-filterbar { border-bottom-color: rgba(255, 255, 255, .06); }
   .dsbt-filterbtn {
     font-size: 11px; line-height: 16px; padding: 2px 8px; border-radius: 10px;
@@ -144,12 +169,18 @@ export const TIMELINE_CSS = `
     background: rgba(251, 191, 36, .18); border-color: #fbbf24; color: #fbbf24;
   }
 
-  /* Scroll area — rows hug the right edge; scrolls only when overfull. */
+  /* Scroll area — rows hug the right edge; scrolls only when overfull. The
+     auto-margin pseudo pair vertically centers the stack when it fits the
+     capsule (short conversations), and resolves to zero free space when it
+     overflows, so bottom-pinned scrolling behaves like a plain column. */
   .dsbt-page {
     padding: 15px 0 15px 24px; box-sizing: border-box;
     overscroll-behavior: contain; flex: 1 1 auto; min-height: 0;
     flex-direction: column; align-items: flex-end; display: flex;
     position: relative; width: 100%; overflow: hidden;
+  }
+  .dsbt-page::before, .dsbt-page::after {
+    content: ''; flex: none; margin-block: auto;
   }
   .dsbt-wrap.dsbt-show .dsbt-page {
     overflow-y: auto; overflow-x: hidden;

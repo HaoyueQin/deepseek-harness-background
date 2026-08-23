@@ -31,16 +31,17 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * as small cards/buttons over the wallpaper are glassed — composer card,
  * message bubbles, code surfaces (blocks, inline code, tool IO cards,
  * skill/MCP call cards), the three chrome buttons (new session, composer +
- * button, scroll-to-bottom), the agent task strip family (`
- * --dsw-specific-tip`), the subagent lineage popover, the home hero
- * "preview" badge, and the timeline rail (timeline-css.ts). Every glassed
- * surface shares ONE recipe: fill from the painter's --dsw-specific-input-
- * major token (same alpha curve + theme dimming), the full shared
- * blur/saturate/brightness chain driven by the glass-blur slider, and the
- * shared sheen vars — so no surface reads heavier than the composer card.
- * Dialogs, the settings UI, menus, tooltips, toasts and every hover/accent
- * fill keep the OFFICIAL opaque paints — they are reading surfaces and must
- * stay legible.
+ * button, scroll-to-bottom), the load-earlier history button, the composer
+ * dock family (agent task strips: TodoPanel / GoalBar / QueueDock) and its
+ * takeover panels (approval, question, plan review), the subagent lineage
+ * popover, the home hero "preview" badge, the sidebar build badge, and the
+ * timeline rail (timeline-css.ts). Every glassed surface shares ONE recipe:
+ * fill from the painter's --dsw-specific-input-major token (same alpha
+ * curve + theme dimming), the full shared blur/saturate/brightness chain
+ * driven by the glass-blur slider, and the shared sheen vars — so no
+ * surface reads heavier than the composer card. Dialogs, the settings UI,
+ * menus, tooltips, toasts and every hover/accent fill keep the OFFICIAL
+ * opaque paints — they are reading surfaces and must stay legible.
  *
  * Selectors target authored attributes (`data-dsh-bg`, `data-composer-card`,
  * `data-terminal`…), the `:global` `.md-code-block` anchor, and CSS-module
@@ -196,6 +197,53 @@ export const BACKGROUND_CSS = `
   }
   body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_previewBadge"] {
     background-color: color-mix(in srgb, rgb(52 65 91) calc(var(--bg-glass-alpha, 0.72) * 100%), transparent);
+  }
+
+  /* ---- Composer dock family: task strips + takeover panels --------------
+     The agent task strips (TodoPanel, GoalBar, QueueDock — one dock column
+     above the composer) and the composer takeovers (approval, question,
+     plan review) paint with tokens the painter turns translucent
+     (--dsw-specific-tip / --dsw-specific-input-major) but their own styles
+     never blur anything: translucent-without-blur reads as bare
+     transparency, not frosted glass. Give each the shared sheen + filter
+     chain; their fills stay token-driven so the panel-opacity slider keeps
+     driving them. Anchors are the components' own stable data attributes
+     plus a structural child, so no generic class suffix is swept in. */
+  body[data-dsh-bg-glass] [data-testid="todo-panel"],
+  body[data-dsh-bg-glass] [data-goal-bar] > div,
+  body[data-dsh-bg-glass] [data-queue-dock] > div,
+  body[data-dsh-bg-glass] [data-approval-key] > div,
+  body[data-dsh-bg-glass] [data-question-key] > section,
+  body[data-dsh-bg-glass] [data-plan-review-key] > section {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+  }
+
+  /* ---- "Load earlier" history button (top of long conversations) --------
+     Its official fill is an opaque solid button token that is deliberately
+     NOT overridden, so unlike the tip family it needs an explicit glass
+     fill too — same recipe as the three chrome buttons above. */
+  body[data-dsh-bg-glass] [class*="_older"] button {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+      0 4px 14px rgba(0, 0, 0, 0.08);
+  }
+  body[data-dsh-bg-glass] [class*="_older"] button:hover:not(:disabled) {
+    background-color: color-mix(in srgb, rgb(255 255 255) calc(var(--bg-glass-alpha-strong, 0.8) * 100%), transparent);
+  }
+
+  /* Sidebar build badge: translucent ink already, but it sat directly on
+     the wallpaper without frost. Join the shared blur chain under the same
+     gate (its theme-aware ink fills from the active block above). */
+  body[data-dsh-bg-glass] [class*="_buildRevision"] {
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
 `
 

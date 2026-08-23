@@ -6,7 +6,10 @@
  * into useSyncExternalStore (which drops the receiver and throws "Cannot read
  * properties of undefined") fails this suite. Also pins the visibility gates:
  * no rail while the persisted timeline toggle is still loading or switched
- * off, and no full-history paging when the rail is off.
+ * off, and no full-history paging when the rail is off. Also pins the
+ * projection-first data source: entries from the host bgTimeline projection
+ * render even when their chat nodes were never loaded into the client
+ * window.
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
@@ -63,10 +66,12 @@ function setSettings(status: 'loading' | 'ready' | 'error', timeline: boolean): 
   }
 }
 
-function renderRail(sessionId: string, store: SessionLike): void {
+function renderRail(sessionId: string, store: SessionLike, projected?: unknown): void {
+  const extra = projected === undefined ? {} : { useProjection: (): unknown => projected }
   render(React.createElement(TimelineRail as never, {
     sessionId,
     sessionsService: { binding: (id: string) => id === sessionId ? { session: store } : undefined },
+    ...extra,
     t,
   }))
 }
@@ -115,6 +120,24 @@ describe('TimelineRail component', () => {
     expect(document.querySelector('.dsbt-nav')).toBeNull()
     // The full-history loader must not run when the rail is switched off.
     expect(store.loadOlderCalls).toHaveLength(0)
+  })
+
+  it('renders projected entries for messages absent from the loaded node window', () => {
+    setSettings('ready', true)
+    const store = new SessionLike(snapshotWith(new Map<string, object>([
+      ['a', userNode('13:input-messagea', 2, 'loaded question')],
+    ])))
+    // Host projection: the whole session's user turns, loaded window or not.
+    const projected = { messages: [
+      { seq: 2, time: 1, text: 'loaded question', id: 'a' },
+      { seq: 40, time: 2, text: 'tail question', id: 'z' },
+    ] }
+    renderRail('s1', store, projected)
+    const nav = document.querySelector('.dsbt-nav')
+    expect(nav).not.toBeNull()
+    expect(nav?.querySelectorAll('.dsbt-item')).toHaveLength(2)
+    const titles = [...(nav?.querySelectorAll('.dsbt-title') ?? [])].map((el) => el.textContent)
+    expect(titles).toContain('tail question')
   })
 
   it('unmounts its body portal cleanly', () => {

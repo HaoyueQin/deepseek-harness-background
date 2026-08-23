@@ -310,6 +310,18 @@ describe('deepseek-harness-background apply', () => {
     // Subagent lineage popover + home hero preview badge.
     expect(cssText).toContain('[role="tree"][class*="_menu"]')
     expect(cssText).toContain('_previewBadge')
+    // Composer dock family (task strips + takeover panels): frosted via the
+    // components' own stable data attributes + structural children.
+    expect(cssText).toContain('[data-testid="todo-panel"]')
+    expect(cssText).toContain('[data-goal-bar] > div')
+    expect(cssText).toContain('[data-queue-dock] > div')
+    expect(cssText).toContain('[data-approval-key] > div')
+    expect(cssText).toContain('[data-question-key] > section')
+    expect(cssText).toContain('[data-plan-review-key] > section')
+    // Load-earlier history button gets the explicit chrome-button recipe;
+    // the build badge gains the blur chain under the glass gate.
+    expect(cssText).toContain('[class*="_older"] button')
+    expect(cssText).toContain('body[data-dsh-bg-glass] [class*="_buildRevision"]')
     // Empty-state hero glow dims so the wallpaper stays visible.
     expect(cssText).toContain('_heroGlow')
     // Rollback: no blanket anchors for menus/dialogs/panels/cards/toasts/

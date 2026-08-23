@@ -6,9 +6,10 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  collectMessages, hiddenSeqsOfChat, markKeyOf,
-  railHeightFor, railWidthFor, readMarks, resolveAnchorKey, rewindTargetOfOutcome,
-  writeMarks, MARKS_STORAGE_PREFIX,
+  collectMessages, hiddenSeqsOfChat, inputAnchorKeyOf, markKeyOf,
+  normalizeProjectedTimeline, railHeightFor, railMessages, railWidthFor,
+  readMarks, resolveAnchorKey, rewindTargetOfOutcome,
+  writeMarks, MARKS_STORAGE_PREFIX, TIMELINE_PROJECTION_KEY,
 } from '../src/client/timeline.tsx'
 
 describe('timeline data collection', () => {
@@ -107,6 +108,75 @@ describe('timeline bookmarks', () => {
   })
 })
 
+describe('projection data source', () => {
+  it('rebuilds chat anchor keys with the engine formula (13:input-message<id>)', () => {
+    expect(inputAnchorKeyOf('m1')).toBe('13:input-messagem1')
+    expect(inputAnchorKeyOf('abc')).toBe('13:input-messageabc')
+    expect(TIMELINE_PROJECTION_KEY).toBe('bgTimeline')
+  })
+
+  it('normalizes projected wire values: shapes, caps, sorts, dedupes', () => {
+    const value = {
+      messages: [
+        { seq: 7, time: 2, text: 'second', id: 'b' },
+        { seq: 2, time: 1, text: 'first '.repeat(30), id: 'a' }, // over-cap text
+        { seq: 7, time: 9, text: 'dupe' },                      // same-seq replay
+        { seq: 'bad', time: 1, text: 'nope' },                  // invalid seq
+        null,
+      ],
+    }
+    const messages = normalizeProjectedTimeline(value)
+    expect(messages.map((m) => m.seq)).toEqual([2, 7])
+    expect(messages[0]).toMatchObject({ seq: 2, key: '13:input-messagea' })
+    expect(messages[0]?.text?.length ?? 0).toBeLessThanOrEqual(80)
+    expect(messages[1]).toMatchObject({ seq: 7, key: '13:input-messageb' })
+  })
+
+  it('returns empty for absent or malformed projection values', () => {
+    expect(normalizeProjectedTimeline(undefined)).toEqual([])
+    expect(normalizeProjectedTimeline(null)).toEqual([])
+    expect(normalizeProjectedTimeline({ nope: 1 })).toEqual([])
+    expect(normalizeProjectedTimeline({ messages: 'x' })).toEqual([])
+  })
+
+  it('prefers the projection (whole session) over the loaded node window', () => {
+    const snapshot = {
+      chat: { nodes: new Map<string, object>([
+        ['a', { kind: 'user', key: 'k1', anchorSeq: 2, data: { time: 1, content: [{ type: 'text', text: 'loaded' }] } }],
+      ]) },
+    }
+    const projected = { messages: [
+      { seq: 2, time: 1, text: 'loaded', id: 'a' },
+      { seq: 40, time: 2, text: 'unloaded tail question', id: 'z' },
+    ] }
+    const messages = railMessages(snapshot, projected)
+    expect(messages.map((m) => m.text)).toEqual(['loaded', 'unloaded tail question'])
+    expect(messages[1]?.key).toBe('13:input-messagez')
+  })
+
+  it('falls back to the node window when the projection is empty', () => {
+    const snapshot = {
+      chat: { nodes: new Map<string, object>([
+        ['a', { kind: 'user', key: 'k1', anchorSeq: 2, data: { time: 1, content: [{ type: 'text', text: 'only' }] } }],
+      ]) },
+    }
+    expect(railMessages(snapshot, undefined).map((m) => m.text)).toEqual(['only'])
+    expect(railMessages(snapshot, { messages: [] }).map((m) => m.text)).toEqual(['only'])
+  })
+
+  it('applies locally-known rewind hiding on top of the projection', () => {
+    const snapshot = {
+      chat: { nodes: new Map<string, object>([
+        ['r', { kind: 'command', key: 'cmd', data: { name: 'rewind', seq: 6, outcome: { kind: 'success', sourceEventSeq: 5, text: 'rewound to target 3' } } }],
+      ]) },
+    }
+    const projected = { messages: [
+      { seq: 2, time: 1, text: 'kept', id: 'a' },
+      { seq: 4, time: 2, text: 'rewound away', id: 'b' },
+    ] }
+    expect(railMessages(snapshot, projected).map((m) => m.text)).toEqual(['kept'])
+  })
+})
 describe('rewind filtering helpers', () => {
   it('parses rewind targets from outcome text', () => {
     expect(rewindTargetOfOutcome('rewound to target 4 of 9')).toBe(4)
