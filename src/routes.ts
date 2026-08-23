@@ -99,9 +99,11 @@ function sniffImage(bytes: Uint8Array): string | null {
 /** Per-upload size cap (20 MiB). */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
-/** A stored upload id is `<up-` + hex + `>`; the on-disk file appends its extension. */
+/** A stored upload id is `<up-` + hex + `>`; the on-disk file appends its extension.
+ * Length-capped (ids are 'up-' + 24 hex chars today): the cap keeps the
+ * path-escape fence from admitting absurdly long filesystem probes. */
 function isUploadId(id: string): boolean {
-  return /^up-[a-f0-9]+$/.test(id)
+  return /^up-[a-f0-9]{1,64}$/.test(id)
 }
 
 /** One JSON response. */

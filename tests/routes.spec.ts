@@ -121,6 +121,8 @@ describe('validateSectionBody', () => {
 
   it('rejects a malformed upload id', () => {
     expect(validateSectionBody({ uploadId: '../../etc/passwd' }, freshHome())).toBe('invalid-upload-id')
+    // Length-capped fence: real ids are 'up-' + 24 hex chars.
+    expect(validateSectionBody({ uploadId: 'up-' + 'a'.repeat(65) }, freshHome())).toBe('invalid-upload-id')
   })
 
   it('rejects a well-formed upload id that does not exist on disk', () => {
