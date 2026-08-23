@@ -98,6 +98,11 @@ export class SettingsClient {
     }
     const promise = run()
     this.pending = promise
+    // Release the handle once settled so flush() never awaits a stale save
+    // from a long-finished gesture (a later flush then resolves instantly).
+    void promise.then(() => {
+      if (this.pending === promise) this.pending = undefined
+    })
     return promise
   }
 

@@ -231,8 +231,10 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
       setError(t('background.saveFailed'))
       return
     }
-    // A superseded save lost to a newer one: that newer save owns adoption
-    // and the dirty flag — adopting here would resurrect an outdated section.
+    // A superseded save lost to a newer in-flight one, which now owns BOTH
+    // the snapshot adoption and the dirty flag (cleared when IT commits).
+    // Clearing the flag here would strand that write, and adopting this
+    // response would resurrect an outdated section — so keep it set.
     if (result === 'superseded') return
     dirtyRef.current = false
     setError('')

@@ -60,5 +60,9 @@ describe('SettingsClient.save', () => {
     const client = new SettingsClient()
     expect(await client.save(SECTION_A)).toBe('ok')
     expect(client.getSnapshot().value).toEqual(SECTION_B)
+    // The settled save releases its handle — a later flush() resolves
+    // instantly instead of awaiting a stale gesture's promise forever.
+    expect((client as unknown as { pending: unknown }).pending).toBeUndefined()
+    await client.flush()
   })
 })
