@@ -1,6 +1,4 @@
 # DeepSeek Harness Background
-│       ├── timeline.tsx     # 会话时间线导航轨（官方 ScrollNav 结构 × 本插件玻璃体系）
-│       ├── timeline-css.ts  # 时间线样式（dsbt- 前缀，官方度量）
 
 [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 [![GitHub stars](https://img.shields.io/github/stars/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/stargazers)
@@ -125,6 +123,8 @@ deepseek-harness-background/          # 插件仓库（包名保留 npm 风格 i
 │       ├── index.ts          # painter 生命周期 + 设置行注册
 │       ├── backdrop.ts       # 固定壁纸层 + 遮罩 + 玻璃表面 + 预览变量
 │       ├── background-css.ts # 注入的样式表（层、玻璃、明暗遮罩、变量）
+│       ├── timeline.tsx      # 会话时间线导航轨（官方 ScrollNav 结构 × 本插件玻璃体系）
+│       ├── timeline-css.ts   # 时间线样式（dsbt- 前缀，官方度量）
 │       ├── SettingsRow.tsx   # 通用设置中的设置行（预览卡 + 阻尼滑块）
 │       ├── SettingsRow.module.css # 设置行样式（官方 token）
 │       ├── settings-client.ts# fetch 传输层（读/写/上传）

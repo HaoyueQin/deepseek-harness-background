@@ -39,7 +39,7 @@ export const TIMELINE_CSS = `
     user-select: none; -webkit-user-select: none;
     z-index: 90; align-items: center; width: 34px;
     height: var(--dsbt-h, 300px);
-    transition: width .22s cubic-bezier(.4, 0, .2, 1);
+    transition: right .2s ease, opacity .2s ease;
     display: flex; position: fixed; top: 50%; right: 16px;
     transform: translateY(-50%); pointer-events: auto;
   }
@@ -119,8 +119,9 @@ export const TIMELINE_CSS = `
   .dsbt-filterbar {
     padding: 8px 12px 4px; display: flex; justify-content: flex-end;
     align-items: center; border-bottom: 1px solid rgba(0, 0, 0, .05);
-    box-sizing: border-box; flex: none;
+    box-sizing: border-box; flex: none; transition: opacity .2s ease;
   }
+  .dsbt-wrap:not(.dsbt-show) .dsbt-filterbar { opacity: 0; }
   body[data-ds-dark-theme] .dsbt-filterbar { border-bottom-color: rgba(255, 255, 255, .06); }
   .dsbt-filterbtn {
     font-size: 11px; line-height: 16px; padding: 2px 8px; border-radius: 10px;
@@ -233,6 +234,6 @@ export const TIMELINE_CSS = `
   body[data-ds-dark-theme] .dsbt-item.dsbt-marked:hover .dsbt-line { background-color: #fde047; }
 
   @media (prefers-reduced-motion: reduce) {
-    .dsbt-nav, .dsbt-bg, .dsbt-wrap, .dsbt-fade, .dsbt-title, .dsbt-line, .dsbt-star, .dsbt-filterbtn { transition: none; }
+    .dsbt-nav, .dsbt-bg, .dsbt-wrap, .dsbt-fade, .dsbt-title, .dsbt-line, .dsbt-star, .dsbt-filterbtn, .dsbt-filterbar { transition: none; }
   }
 `

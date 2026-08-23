@@ -292,6 +292,12 @@ describe('deepseek-harness-background apply', () => {
     expect(cssText).toContain('[data-composer-card] [class*="_add"]')
     expect(cssText).toContain('_toBottom')
     expect(cssText).toContain('data-dsh-bg-glass')
+    // Substring-collision exclusions: the new-session button's inner label
+    // span and the zero-height toBottom sticky slot share the suffix but must
+    // keep their own paints (a glassed slot paints a full-width shadow band,
+    // a glassed label doubles the button fill).
+    expect(cssText).toContain('[class*="_newSession"]:not([class*="Label"])')
+    expect(cssText).toContain('[class*="_toBottom"]:not([class*="Slot"])')
     // Subagent lineage popover + home hero preview badge.
     expect(cssText).toContain('[role="tree"][class*="_menu"]')
     expect(cssText).toContain('_previewBadge')

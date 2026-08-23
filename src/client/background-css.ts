@@ -42,8 +42,11 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * SUFFIX conventions (`_bubble`, `_newSession`…) audited for collisions:
  * `_bubble` excludes `role="tooltip"` (Tooltip.module.css shares the suffix),
  * `_add` is scoped under `[data-composer-card]` (DiffBlock line markers share
- * it), and the subagent popover is `role="tree"` + `_menu` so the generic
- * menu surface stays untouched.
+ * it), `_newSession` excludes `Label` (the button's inner label span) and
+ * `_toBottom` excludes `Slot` (the zero-height sticky wrapper) — both share
+ * the substring with the chrome control but must keep their own paint, and
+ * the subagent popover is `role="tree"` + `_menu` so the generic menu
+ * surface stays untouched.
  */
 export const BACKGROUND_CSS = `
   .dsh-bg-layer {
@@ -99,10 +102,10 @@ export const BACKGROUND_CSS = `
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, var(--bg-glass-highlight, 0.32)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
       inset 0 -1px 0 rgba(255, 255, 255, 0.08),
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
-      0 12px 40px rgba(0, 0, 0, var(--bg-glass-shadow, 0.12));
+      0 12px 40px rgba(0, 0, 0, 0.12);
   }
 
   /* The sticky code-block header officially occludes scrolled code with
@@ -132,9 +135,9 @@ export const BACKGROUND_CSS = `
      unrelated surfaces, so instead of overriding the tokens they get explicit
      theme-aware glass paints here, gated on data-dsh-bg-glass (off when the
      panel is fully opaque). Blur is capped for the tiny areas. */
-  body[data-dsh-bg-glass] [class*="_newSession"],
+  body[data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]),
   body[data-dsh-bg-glass] [data-composer-card] [class*="_add"],
-  body[data-dsh-bg-glass] [class*="_toBottom"] {
+  body[data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]) {
     background-color: rgba(255, 255, 255, 0.62);
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02));
     -webkit-backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 8px)) saturate(var(--bg-glass-saturate, 1.42));
@@ -144,14 +147,14 @@ export const BACKGROUND_CSS = `
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
       0 4px 14px rgba(0, 0, 0, 0.08);
   }
-  body[data-dsh-bg-glass] [class*="_newSession"]:hover,
+  body[data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]):hover,
   body[data-dsh-bg-glass] [data-composer-card] [class*="_add"]:hover:not(:disabled),
-  body[data-dsh-bg-glass] [class*="_toBottom"]:hover {
+  body[data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]):hover {
     background-color: rgba(255, 255, 255, 0.8);
   }
-  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_newSession"],
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]),
   body[data-ds-dark-theme][data-dsh-bg-glass] [data-composer-card] [class*="_add"],
-  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_toBottom"] {
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]) {
     background-color: rgba(28, 28, 32, 0.55);
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.01));
     box-shadow:
@@ -159,9 +162,9 @@ export const BACKGROUND_CSS = `
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.06),
       0 4px 14px rgba(0, 0, 0, 0.28);
   }
-  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_newSession"]:hover,
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]):hover,
   body[data-ds-dark-theme][data-dsh-bg-glass] [data-composer-card] [class*="_add"]:hover:not(:disabled),
-  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_toBottom"]:hover {
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]):hover {
     background-color: rgba(46, 46, 52, 0.72);
   }
   /* Collapsed rail renders the new-session control as a bare icon — keep the

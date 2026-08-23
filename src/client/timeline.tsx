@@ -96,35 +96,19 @@ function userTextOf(content: unknown): string {
   return out.trim().slice(0, 80)
 }
 
-/**
- * Normalize one projection/record entry; null when unusable.
- * @param m - candidate entry.
- */
-export function normalizeMessage(m: unknown): TimelineMessage | null {
-  if (m === null || typeof m !== 'object') return null
-  const rec = m as { seq?: unknown; time?: unknown; text?: unknown; key?: unknown }
-  if (typeof rec.seq !== 'number') return null
-  return {
-    seq: rec.seq,
-    time: typeof rec.time === 'number' ? rec.time : 0,
-    text: typeof rec.text === 'string' ? rec.text : '',
-    ...(typeof rec.key === 'string' ? { key: rec.key } : {}),
-  }
-}
-
 /* ---- Key-point bookmarks (ported from dsh-chat-timeline v0.1.4) --------- */
 
 /**
- * Stable bookmark key for one entry: prefer the durable message key, then the
- * seq — so marks survive history reloads.
+ * Stable bookmark key for one entry: the durable message key, falling back to
+ * the anchor seq — so marks survive history reloads. Entries with neither are
+ * not markable (empty key).
  * @param m - the entry (or any shaped object).
  */
 export function markKeyOf(m: unknown): string {
   if (m === null || typeof m !== 'object') return ''
-  const rec = m as { id?: unknown; key?: unknown; seq?: unknown }
-  if (typeof rec.id === 'string' && rec.id !== '') return `id:${rec.id}`
+  const rec = m as { key?: unknown; seq?: unknown }
   if (typeof rec.key === 'string' && rec.key !== '') return `key:${rec.key}`
-  return `seq:${String(rec.seq)}`
+  return typeof rec.seq === 'number' ? `seq:${rec.seq}` : ''
 }
 
 /** localStorage key prefix for the per-session marked-key lists. */
@@ -224,16 +208,6 @@ export function hiddenSeqsOfChat(chat: unknown): Set<number> {
     if (spans.some((span) => anchor >= span.start && anchor <= span.end)) hidden.add(anchor)
   }
   return hidden
-}
-
-/**
- * Drop messages whose seq was hidden by a rewind.
- * @param messages - normalized entries.
- * @param hidden - hidden seq set.
- */
-export function filterVisibleMessages(messages: TimelineMessage[], hidden: Set<number>): TimelineMessage[] {
-  if (hidden.size === 0) return messages
-  return messages.filter((m) => !hidden.has(m.seq))
 }
 
 /**
@@ -346,11 +320,6 @@ function otherRailPresent(): boolean {
   return document.querySelector('.dsct_nav') !== null
 }
 
-/** Stable no-session store faces for useSyncExternalStore (identity-stable). */
-const NOOP_UNSUBSCRIBE = (): void => {}
-const noopSubscribe = (): (() => void) => NOOP_UNSUBSCRIBE
-const noopSnapshot = (): unknown => undefined
-
 /**
  * The timeline rail component. Portaled to body; registered into the
  * conversation input dock purely to bind per-session lifecycle.
@@ -363,12 +332,26 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
   // FINAL early return below — an early return between hooks would crash
   // React ("rendered fewer hooks") the moment the toggle flips mid-session.
   const settings = react.useSyncExternalStore(settingsClient.subscribe, settingsClient.getSnapshot)
+  // Hide only while the persisted toggle is UNKNOWN (no wrong-state flash for
+  // timeline:false users); once loading settles the default-on rail renders
+  // even if the section errored.
+  const timelineUnknown = settings.status === 'loading'
+  const timelineDisabled = settings.value?.timeline === false
 
   const session = sessionId !== undefined && sessionsService !== undefined ? sessionsService.binding(sessionId)?.session : undefined
-  const nodeSnapshot = react.useSyncExternalStore(
-    session?.subscribe ?? noopSubscribe,
-    session?.getSnapshot ?? noopSnapshot,
+  // SessionFace methods are prototype methods reading "this"; React invokes
+  // store callbacks as bare functions, so keep the receiver via closures
+  // (same shape as the host's own wiring, e.g. ModelSelect). Identity stays
+  // stable per session so uSES does not resubscribe on every render.
+  const subscribeSession = react.useCallback(
+    (listener: () => void) => session === undefined ? () => {} : session.subscribe(listener),
+    [session],
   )
+  const snapshotSession = react.useCallback(
+    () => session === undefined ? undefined : session.getSnapshot(),
+    [session],
+  )
+  const nodeSnapshot = react.useSyncExternalStore(subscribeSession, snapshotSession)
 
   // Collected per snapshot change (the collector allocates + sorts); memoized
   // so width measurement and tracking effects key on content, not renders.
@@ -392,8 +375,10 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
   const activeItemRef = react.useRef<HTMLButtonElement | null>(null)
   // Jump-stabilization lock: freezes the reading-position tracker while a
   // click-triggered smooth jump animates (cleared by the settle timer below
-  // or the 800ms fallback in the click handler).
+  // or the 800ms fallback in the click handler). The fallback timeout is
+  // tracked so the settle path can cancel it and unmount cannot leak it.
   const jumpPendingRef = react.useRef(false)
+  const jumpFallbackRef = react.useRef<number | undefined>(undefined)
 
   // Marks follow the session switch; the filter resets with them.
   react.useEffect(() => {
@@ -402,13 +387,19 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
   }, [sessionId])
 
   const markedSet = react.useMemo(() => new Set(marks), [marks])
+  // Mirror ref so rapid successive toggles always see the latest list (the
+  // handler writes storage directly, outside the setState updater — updaters
+  // must stay pure and StrictMode re-runs them).
+  const marksRef = react.useRef(marks)
+  marksRef.current = marks
   const toggleMark = react.useCallback((m: TimelineMessage) => {
     const k = markKeyOf(m)
-    setMarks((prev) => {
-      const next = prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]
-      writeMarks(sessionId, next)
-      return next
-    })
+    if (k === '') return
+    const prev = marksRef.current
+    const next = prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]
+    marksRef.current = next
+    setMarks(next)
+    writeMarks(sessionId, next)
   }, [sessionId])
 
   // Narrow-viewport guard (matches the official breakpoint).
@@ -420,9 +411,12 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     return () => mql.removeEventListener('change', onChange)
   }, [])
 
-  // Background full-history load: follow hasMore until complete.
+  // Background full-history load: follow hasMore until complete. Skipped
+  // entirely while the rail is switched off (or standing aside for another
+  // rail) — paging the whole history into the client window is wasted work
+  // when nothing renders.
   react.useEffect(() => {
-    if (session === undefined || isNarrow || sessionId === undefined) return
+    if (session === undefined || isNarrow || sessionId === undefined || timelineUnknown || timelineDisabled || hidden) return
     setLoadedAll(false)
     let cancelled = false
     const run = async (): Promise<void> => {
@@ -440,7 +434,7 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     }
     void run().catch(() => { if (!cancelled) setLoadedAll(true) })
     return () => { cancelled = true }
-  }, [sessionId, isNarrow, session])
+  }, [sessionId, isNarrow, session, timelineUnknown, timelineDisabled, hidden])
 
   // Width follows the longest title (remeasured when messages arrive/change);
   // loadedAll gates it so late history cannot leave a stale narrow rail.
@@ -494,6 +488,10 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
         settleTimer = undefined
         if (jumpPendingRef.current) {
           jumpPendingRef.current = false
+          if (jumpFallbackRef.current !== undefined) {
+            clearTimeout(jumpFallbackRef.current)
+            jumpFallbackRef.current = undefined
+          }
           updateActive()
         }
       }, 150)
@@ -508,6 +506,10 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     return () => {
       if (timer !== undefined) clearTimeout(timer)
       if (settleTimer !== undefined) clearTimeout(settleTimer)
+      if (jumpFallbackRef.current !== undefined) {
+        clearTimeout(jumpFallbackRef.current)
+        jumpFallbackRef.current = undefined
+      }
       el?.removeEventListener('scroll', onScroll)
       clearInterval(interval)
     }
@@ -566,7 +568,7 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     }
   }, [])
 
-  if (settings.value?.timeline === false
+  if (timelineUnknown || timelineDisabled
     || sessionId === undefined || sessionsService === undefined || isNarrow || hidden || messages.length < 2) {
     return null
   }
@@ -620,15 +622,21 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
                   key={m.seq}
                   ref={isActive ? activeItemRef : undefined}
                   className={cls}
-                  title={`${marked ? '★ ' : ''}${m.text === '' ? t('timeline.noText') : m.text.slice(0, 200)}`}
+                  title={`${marked ? '★ ' : ''}${m.text === '' ? t('timeline.noText') : m.text}`}
                   aria-label={label}
                   aria-current={isActive ? 'location' : undefined}
                   onClick={() => {
                     if (key === undefined) return
                     // Engage the stabilization lock with a fallback timeout:
                     // the settle timer normally releases it after the jump.
+                    // A fresh click replaces the pending fallback so a rapid
+                    // second jump cannot be unlocked by the first one's timer.
                     jumpPendingRef.current = true
-                    window.setTimeout(() => { jumpPendingRef.current = false }, 800)
+                    if (jumpFallbackRef.current !== undefined) clearTimeout(jumpFallbackRef.current)
+                    jumpFallbackRef.current = window.setTimeout(() => {
+                      jumpFallbackRef.current = undefined
+                      jumpPendingRef.current = false
+                    }, 800)
                     void jumpToMessage(sessionsService, sessionId, key).catch(() => {})
                   }}
                 >

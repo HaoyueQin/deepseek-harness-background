@@ -6,22 +6,12 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  collectMessages, filterVisibleMessages, hiddenSeqsOfChat, markKeyOf, normalizeMessage,
+  collectMessages, hiddenSeqsOfChat, markKeyOf,
   railHeightFor, railWidthFor, readMarks, resolveAnchorKey, rewindTargetOfOutcome,
   writeMarks, MARKS_STORAGE_PREFIX,
 } from '../src/client/timeline.tsx'
 
 describe('timeline data collection', () => {
-  it('normalizes valid entries and rejects malformed ones', () => {
-    expect(normalizeMessage({ seq: 3, time: 12, text: 'hi', key: '13:input-messagea' }))
-      .toEqual({ seq: 3, time: 12, text: 'hi', key: '13:input-messagea' })
-    expect(normalizeMessage(null)).toBeNull()
-    expect(normalizeMessage({ time: 1, text: 'x' })).toBeNull()
-    expect(normalizeMessage({ seq: '9', text: 'x' })).toBeNull()
-    // Missing time/text degrade to defaults instead of dropping the row.
-    expect(normalizeMessage({ seq: 1 })).toEqual({ seq: 1, time: 0, text: '' })
-  })
-
   it('collects user nodes sorted by seq and extracts preview text', () => {
     const snapshot = {
       chat: {
@@ -88,10 +78,11 @@ describe('timeline bookmarks', () => {
     }
   })
 
-  it('builds stable bookmark keys (id, then key, then seq)', () => {
-    expect(markKeyOf({ id: 'a' })).toBe('id:a')
+  it('builds stable bookmark keys (message key, then anchor seq)', () => {
     expect(markKeyOf({ key: '13:x' })).toBe('key:13:x')
     expect(markKeyOf({ seq: 7 })).toBe('seq:7')
+    // Entries with neither key nor numeric seq are not markable.
+    expect(markKeyOf({ id: 'a' })).toBe('')
     expect(markKeyOf(null)).toBe('')
     expect(markKeyOf(undefined)).toBe('')
   })
@@ -136,15 +127,6 @@ describe('rewind filtering helpers', () => {
     expect(hidden.has(7)).toBe(true) // the command row itself
     expect(hidden.has(20)).toBe(true) // preview target
     expect(hidden.has(30)).toBe(false)
-  })
-
-  it('filters messages by the hidden set', () => {
-    const msgs = [
-      { seq: 1, time: 0, text: 'a' },
-      { seq: 2, time: 0, text: 'b' },
-    ]
-    expect(filterVisibleMessages(msgs, new Set([2]))).toEqual([{ seq: 1, time: 0, text: 'a' }])
-    expect(filterVisibleMessages(msgs, new Set())).toEqual(msgs)
   })
 })
 
