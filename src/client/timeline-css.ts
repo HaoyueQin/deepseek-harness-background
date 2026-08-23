@@ -33,6 +33,13 @@
 /** Unique id stamped on the injected style element (dedup key). */
 export const TIMELINE_CSS_TAG = 'deepseek-harness-background/timeline'
 
+/**
+ * Expanded-row title size in px. The canvas width measurement in timeline.tsx
+ * reads this same constant — a fitted panel width must track the real text
+ * metrics, so the two can never drift apart.
+ */
+export const TIMELINE_TITLE_FONT_PX = 13
+
 /** Inject the timeline stylesheet once. Idempotent (dedup key on the tag). */
 export function injectTimelineCss(): void {
   if (typeof document === 'undefined') return
@@ -214,7 +221,7 @@ export const TIMELINE_CSS = `
   body[data-ds-dark-theme] .dsbt-item { color: rgba(255, 255, 255, .65); }
   body[data-ds-dark-theme] .dsbt-item:hover { color: rgba(255, 255, 255, .95); }
   .dsbt-title {
-    font-size: 13px; line-height: 20px; flex: 1 1 auto; min-width: 0;
+    font-size: ${TIMELINE_TITLE_FONT_PX}px; line-height: 20px; flex: 1 1 auto; min-width: 0;
     text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
     margin-right: 6px; text-align: right; color: inherit;
     opacity: 0; transition: opacity .12s ease, color .15s ease;

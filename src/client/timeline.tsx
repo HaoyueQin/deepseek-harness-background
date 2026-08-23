@@ -40,7 +40,11 @@
 import react from 'react'
 import reactDom from 'react-dom'
 import { settingsClient } from './settings-client.ts'
-import { injectTimelineCss } from './timeline-css.ts'
+import { TIMELINE_PROJECTION_KEY } from '../settings.ts'
+import { injectTimelineCss, TIMELINE_TITLE_FONT_PX } from './timeline-css.ts'
+
+/** Shared constant lives in settings.ts; re-exported for consumers of this module. */
+export { TIMELINE_PROJECTION_KEY }
 
 // Inject the stylesheet once at module evaluation (the loader removes
 // plugin-owned tags on unload; re-evaluation dedupes on the tag id).
@@ -287,9 +291,6 @@ export function resolveAnchorKey(m: TimelineMessage): string | undefined {
 
 /* ---- Host projection source --------------------------------------------- */
 
-/** Projection key the host half registers (see src/projection.ts). */
-export const TIMELINE_PROJECTION_KEY = 'bgTimeline'
-
 /** The user-message node definition kind in ui-conversation. */
 const INPUT_MESSAGE_KIND = 'input-message'
 
@@ -384,7 +385,7 @@ export function railWidthFor(texts: string[]): number {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     if (ctx) {
-      ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.font = `${TIMELINE_TITLE_FONT_PX}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
       for (const t of texts) {
         const w = ctx.measureText(t === '' ? '…' : t).width
         if (w > widest) widest = w

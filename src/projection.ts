@@ -30,9 +30,10 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { TIMELINE_PROJECTION_KEY } from './settings.ts'
 
-/** Projection key this plugin owns in the client-visible value map. */
-export const TIMELINE_PROJECTION_KEY = 'bgTimeline'
+/** Shared constant lives in settings.ts; re-exported for the plugin's public API. */
+export { TIMELINE_PROJECTION_KEY }
 
 /** One enumerated user message (the wire entry shape). */
 export interface TimelineProjectionEntry {

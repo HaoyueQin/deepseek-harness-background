@@ -80,12 +80,22 @@ function glassExposure(inDark: boolean): { brightness: string; sheen: string; sh
 }
 
 /**
+ * The theme-aware base alpha for one panelOpacity — THE curve every glass
+ * surface shares (surface tokens, bare alpha knobs and the settings preview
+ * included). Single-sourced here so the live painter and the preview card
+ * cannot drift.
+ */
+function glassBaseAlpha(panelOpacity: number, inDark: boolean): number {
+  return glassAlpha(panelOpacity) * (inDark ? 0.4 : 0.8)
+}
+
+/**
  * The theme-aware glass surface alphas for one panelOpacity: the input-surface
  * token and the bubble token share one curve, dimmed per scheme. Shared by the
  * live painter and the settings-row preview card so the two cannot drift.
  */
 function glassSurfaceAlphas(panelOpacity: number, inDark: boolean): { major: string; bubble: string } {
-  const alpha = glassAlpha(panelOpacity) * (inDark ? 0.4 : 0.8)
+  const alpha = glassBaseAlpha(panelOpacity, inDark)
   return {
     major: `rgba(255, 255, 255, ${alpha.toFixed(3)})`,
     bubble: `rgba(255, 255, 255, ${(alpha * 0.8).toFixed(3)})`,
@@ -308,7 +318,7 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
 
     // Dark scheme uses a lower white alpha (the wallpaper stays visible
     // without washing the surface), mirroring the reference engine.
-    const base = glassAlpha(settings.panelOpacity) * (inDark ? 0.4 : 0.8)
+    const base = glassBaseAlpha(settings.panelOpacity, inDark)
     for (const { token, factor } of GLASS_SURFACE_TOKENS) {
       s.setProperty(token, `rgba(255, 255, 255, ${(base * factor).toFixed(3)})`)
     }
