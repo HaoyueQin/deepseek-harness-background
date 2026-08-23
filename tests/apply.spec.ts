@@ -168,6 +168,23 @@ describe('deepseek-harness-background apply', () => {
     expect(img()?.src).toBe('https://example.com/a.jpg')
   })
 
+  it('releases the frame tokens when enabled without any wallpaper source', async () => {
+    mockFetch()
+    await mount()
+    // Painting with a source owns transparent frame fills…
+    expect(document.body.style.getPropertyValue('--dsw-alias-bg-base')).toBe('transparent')
+    expect(document.body.style.getPropertyValue('--dsw-specific-sidebar-fill')).toBe('transparent')
+    // …and a sourceless "enabled" section must hand them back, or the shell
+    // stays transparent over the bare page with nothing behind it.
+    section = { ...SECTION, uploadId: '', url: '' }
+    await settingsClient.load()
+    await vi.waitFor(() => {
+      expect(layer()).toBeNull()
+      expect(document.body.style.getPropertyValue('--dsw-alias-bg-base')).toBe('')
+      expect(document.body.style.getPropertyValue('--dsw-specific-sidebar-fill')).toBe('')
+    })
+  })
+
   it('retracts the layers when the section disables the background', async () => {
     mockFetch()
     await mount()

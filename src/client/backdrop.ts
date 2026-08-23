@@ -18,6 +18,12 @@ const LAYER_CLASS = 'dsh-bg-layer'
 const IMAGE_CLASS = 'dsh-bg-image'
 const SCRIM_CLASS = 'dsh-bg-scrim'
 
+/** Body style properties the painter owns while a wallpaper paints: the app
+ * frame and sidebar fills go transparent so every column shares one art.
+ * Inline values outrank any stylesheet rule (the body[data-dsh-bg] gate only
+ * covers the CSS copy), so a sourceless section must actively restore them. */
+const FRAME_TOKENS = ['--dsw-alias-bg-base', '--dsw-specific-sidebar-fill'] as const
+
 /**
  * White-glass tokens — the WHITELISTED surfaces only. Everything that floats
  * as a small card over the wallpaper: the composer input stack, message
@@ -132,25 +138,28 @@ export class BackgroundPainter {
       return
     }
     injectBackgroundCss()
-    this.rememberOnce('--dsw-alias-bg-base')
-    this.rememberOnce('--dsw-specific-sidebar-fill')
-    document.body.style.setProperty('--dsw-alias-bg-base', 'transparent')
-    document.body.style.setProperty('--dsw-specific-sidebar-fill', 'transparent')
 
     const url = backgroundImageUrl(settings, uploadBase)
     if (url === '') {
-      // No source: leave the frame alone, restore the removed layers and any
-      // glass-token overrides we may have written on a previous apply. The
-      // theme observer must go too — a later light/dark flip would re-run
-      // applySurfaceGlass with forceRestore=false and write the translucent
-      // tokens back onto panels that no longer sit over a wallpaper.
+      // No source: the frame transparency is owned only while a wallpaper
+      // paints — hand the base/sidebar fills back (a sourceless "enabled"
+      // section must never leave transparent chrome over the bare page), and
+      // drop the theme observer + glass tokens whose flip handler would
+      // otherwise re-write translucent panels over that bare page too.
       this.observer?.disconnect()
       this.observer = undefined
+      this.restoreFrameTokens()
       this.applySurfaceGlass(settings, true)
       this.active = false
       this.removeLayers()
       document.body.removeAttribute(ACTIVE_ATTR)
       return
+    }
+
+    // Transparent frame: all columns share the wallpaper behind the UI.
+    for (const prop of FRAME_TOKENS) {
+      this.rememberOnce(prop)
+      document.body.style.setProperty(prop, 'transparent')
     }
 
     // Wallpaper layer + scrim.
@@ -206,6 +215,21 @@ export class BackgroundPainter {
 private setVar(name: string, value: string): void {
   this.rememberOnce(name)
   document.body.style.setProperty(name, value)
+}
+
+/**
+ * Return the owned frame-transparency properties to their saved state (or
+ * remove them when this session never overrode them). dispose() restores
+ * everything wholesale; this targeted variant serves the sourceless path,
+ * where the painter keeps running for a later source.
+ */
+private restoreFrameTokens(): void {
+  for (const prop of FRAME_TOKENS) {
+    this.rememberOnce(prop)
+    const original = this.savedVars.get(prop)
+    if (original !== undefined && original !== '') document.body.style.setProperty(prop, original)
+    else document.body.style.removeProperty(prop)
+  }
 }
 
 /**
