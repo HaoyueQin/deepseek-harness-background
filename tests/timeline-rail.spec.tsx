@@ -100,6 +100,17 @@ describe('TimelineRail component', () => {
     expect(store.loadOlderCalls).toHaveLength(0) // hasMore false: no paging
   })
 
+  it('renders the rail for a single-question session (official ScrollNav shows it too)', () => {
+    setSettings('ready', true)
+    const store = new SessionLike(snapshotWith(new Map<string, object>([
+      ['a', userNode('13:input-messagea', 2, 'only')],
+    ])))
+    renderRail('s1', store)
+    const nav = document.querySelector('.dsbt-nav')
+    expect(nav).not.toBeNull()
+    expect(nav?.querySelectorAll('.dsbt-item')).toHaveLength(1)
+  })
+
   it('hides the rail while the persisted toggle is still loading (no wrong-state flash)', () => {
     setSettings('loading', true)
     const store = new SessionLike(snapshotWith(new Map<string, object>([

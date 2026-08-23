@@ -706,8 +706,11 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
     }
   }, [])
 
+  // Any non-empty conversation gets the rail — the official ScrollNav renders
+  // for a lone question too, and the clamped shared height keeps a single
+  // tick cleanly bottom-pinned instead of hiding the capsule.
   if (timelineUnknown || timelineDisabled
-    || sessionId === undefined || sessionsService === undefined || isNarrow || hidden || messages.length < 2) {
+    || sessionId === undefined || sessionsService === undefined || isNarrow || hidden || messages.length === 0) {
     return null
   }
 
