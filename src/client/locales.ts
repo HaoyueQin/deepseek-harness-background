@@ -36,6 +36,10 @@ export const zh: BackgroundCardDict = {
   'timeline.railLabel': '对话时间线',
   'timeline.roleUser': '用户',
   'timeline.noText': '（无文本内容）',
+  'timeline.marksOnly': '★ 只看标记',
+  'timeline.mark': '标记为重点',
+  'timeline.unmark': '取消重点标记',
+  'timeline.noMarks': '还没有标记的重点',
 }
 
 /** English copy. */
@@ -69,4 +73,8 @@ export const en: BackgroundCardDict = {
   'timeline.railLabel': 'Chat timeline',
   'timeline.roleUser': 'User',
   'timeline.noText': '(no text)',
+  'timeline.marksOnly': '★ Marked only',
+  'timeline.mark': 'Mark as key point',
+  'timeline.unmark': 'Unmark key point',
+  'timeline.noMarks': 'No marked key points',
 }

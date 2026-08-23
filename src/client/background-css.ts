@@ -1,9 +1,10 @@
 /**
  * Background CSS — the stylesheet injected once into the document when the
  * plugin first runs. It defines the behind-body wallpaper layer, the scrim,
- * and the frosted-glass panels, all driven by CSS variables the painter writes
- * onto `document.body`. Kept in a single idempotent `<style data-plugin-css>`
- * tag (mirrors the reference `dsh-wallpaper-engine` bundle).
+ * and the frosted-glass surfaces, all driven by CSS variables the painter
+ * writes onto `document.body`. Kept in a single idempotent
+ * `<style data-plugin-css>` tag (mirrors the reference `dsh-wallpaper-engine`
+ * bundle).
  */
 
 /** Unique id stamped on the injected style element (dedup key). */
@@ -13,14 +14,36 @@ export const BACKGROUND_CSS_TAG = 'deepseek-harness-background/styles'
 export const ACTIVE_ATTR = 'data-dsh-bg'
 
 /**
- * The backdrop CSS. The wallpaper is a fixed \`z-index:-2\` element (below the
- * scrim at \`-1\`, below the UI). While active, the official surface tokens are
- * made transparent (so the wallpaper shows through every column) and the
- * opaque surfaces turn into translucent frosted glass. Selectors target
- * authored attributes (\`data-dsh-bg\`, \`data-composer-card\`, \`data-terminal\`…),
- * the \`:global\` \`.md-code-block\` anchor, \`role="menu"\`, and CSS-module SUFFIX
- * conventions (\`_bubble\`, \`_newSession\`…) — the stable anchors the reference
- * engine uses, since hashed prefixes change across shell rebuilds.
+ * Body attribute the painter sets only while the glass is actually on (a
+ * wallpaper is active AND panelOpacity < 1). The explicit-fill rules below —
+ * whitelisted buttons, popovers and badges whose official fills are not
+ * token-mediated — key on this gate so they return to the exact official
+ * paints when the user maxes the panel-opacity slider.
+ */
+export const GLASS_ATTR = 'data-dsh-bg-glass'
+
+/**
+ * The backdrop CSS. The wallpaper is a fixed `z-index:-2` element (below the
+ * scrim at `-1`, below the UI). While active, the app frame + sidebar fills
+ * turn transparent so all columns share one backdrop.
+ *
+ * Frosted glass is a WHITELIST, not a blanket: only the surfaces that float
+ * as small cards/buttons over the wallpaper are glassed — composer card,
+ * message bubbles, code surfaces (blocks, inline code, tool IO cards,
+ * skill/MCP call cards), the three chrome buttons (new session, composer +
+ * button, scroll-to-bottom), the agent task strip family (`
+ * --dsw-specific-tip`), the subagent lineage popover, the home hero
+ * "preview" badge, and the timeline rail (timeline-css.ts). Dialogs, the
+ * settings UI, menus, tooltips, toasts and every hover/accent fill keep the
+ * OFFICIAL opaque paints — they are reading surfaces and must stay legible.
+ *
+ * Selectors target authored attributes (`data-dsh-bg`, `data-composer-card`,
+ * `data-terminal`…), the `:global` `.md-code-block` anchor, and CSS-module
+ * SUFFIX conventions (`_bubble`, `_newSession`…) audited for collisions:
+ * `_bubble` excludes `role="tooltip"` (Tooltip.module.css shares the suffix),
+ * `_add` is scoped under `[data-composer-card]` (DiffBlock line markers share
+ * it), and the subagent popover is `role="tree"` + `_menu` so the generic
+ * menu surface stays untouched.
  */
 export const BACKGROUND_CSS = `
   .dsh-bg-layer {
@@ -53,44 +76,25 @@ export const BACKGROUND_CSS = `
     --dsw-specific-sidebar-fill: transparent;
   }
 
-  /* Frosted glass over every opaque surface. Fill translucency comes from the
-     --dsw-* token overrides the painter writes onto body (theme-aware, driven
-     by panelOpacity); this block adds the shared wet-glass sheen + blur from
-     --bg-glass-blur. Exposure is calibrated per scheme (the painter writes
-     --bg-glass-brightness / --bg-glass-sheen[-mid]): light glass slightly
-     DIMS and wears a halved sheen — mainstream frosted recipes (macOS
-     vibrancy, Windows acrylic, common web glass) never stack a positive
-     brightness gain on the blur, and ours used to blow out on bright
-     wallpapers; dark glass keeps the reference engine's slight lift.
-     Coverage: composer card + message bubbles (authored anchors), code
-     surfaces (.md-code-block and the data-* block cards, inline code, tool
-     IO cards), every menu (role="menu"), dialogs/settings/dock panels and
-     cards, and the chrome buttons (new session, plus, send, attachment rail,
-     scroll-to-bottom, toasts). Suffix collisions audited — see
-     docs/superpowers/specs/2026-08-22-universal-frosted-glass-design.md. */
-  body[data-dsh-bg] [data-composer-card],
-  body[data-dsh-bg] [class*="_bubble"],
-  body[data-dsh-bg] .md-code-block,
-  body[data-dsh-bg] [data-terminal],
-  body[data-dsh-bg] [data-diff],
-  body[data-dsh-bg] [data-read],
-  body[data-dsh-bg] [data-search],
-  body[data-dsh-bg] [data-web],
-  body[data-dsh-bg] [class*="_ioCard"],
-  body[data-dsh-bg] [class*="_markdown"] :not(pre) > code,
-  body[data-dsh-bg] [role="menu"],
-  body[data-dsh-bg] [class*="_dialog"],
-  body[data-dsh-bg] [class*="_panel"],
-  body[data-dsh-bg] [class*="_card"],
-  body[data-dsh-bg] [class*="_bannerWrap"],
-  body[data-dsh-bg] [class*="_buildRevision"],
-  body[data-dsh-bg] [class*="_newSession"],
-  body[data-dsh-bg] [class*="_add"],
-  body[data-dsh-bg] [class*="_primary"],
-  body[data-dsh-bg] [class$="_rail"],
-  body[data-dsh-bg] [class*="_toBottom"],
-  body[data-dsh-bg] [class*="_toast"],
-  body[data-dsh-bg] [class*="_toolbar"] {
+  /* ---- Whitelisted frosted-glass sheet ---------------------------------
+     Fills come from the --dsw-* tokens the painter overrides on body ONLY for
+     this list's own surfaces (input/bubble/code/tip); this block adds the
+     shared wet-glass sheen + blur from --bg-glass-blur. Exposure is calibrated
+     per scheme (the painter writes --bg-glass-brightness / --bg-glass-sheen):
+     light glass slightly DIMS, dark glass keeps a slight lift. Gated on the
+     GLASS ATTR (wallpaper active AND panelOpacity < 1): maxing the panel
+     slider returns these surfaces to the exact official paints. */
+  body[data-dsh-bg-glass] [data-composer-card],
+  body[data-dsh-bg-glass] [class*="_bubble"]:not([role="tooltip"]),
+  body[data-dsh-bg-glass] .md-code-block,
+  body[data-dsh-bg-glass] [data-terminal],
+  body[data-dsh-bg-glass] [data-diff],
+  body[data-dsh-bg-glass] [data-read],
+  body[data-dsh-bg-glass] [data-search],
+  body[data-dsh-bg-glass] [data-web],
+  body[data-dsh-bg-glass] [class*="_ioCard"],
+  body[data-dsh-bg-glass] [class*="_instructionsCard"],
+  body[data-dsh-bg-glass] [class*="_markdown"] :not(pre) > code {
     background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
@@ -117,19 +121,82 @@ export const BACKGROUND_CSS = `
     background-color: rgba(249, 250, 251, 0.62);
   }
 
-  /* HoverCard defines its own component-level ink (--dsw-hovercard-bg:
-     #2C2C2E) on the card element — the one literal fill no token reaches.
-     Re-scope that variable to the translucent ink on card-classed elements
-     while the glass is active; only HoverCard consumes the variable, and it
-     already carries the shared blur via the [_card] anchor above. */
-  body[data-dsh-bg] [class*="_card"] {
-    --dsw-hovercard-bg: rgba(44, 44, 46, 0.78);
-  }
-
   /* The empty-state hero glow asset would wash out the wallpaper behind the
      welcome message — dim it so the art stays visible. */
   body[data-dsh-bg] [class*="_heroGlow"] {
     opacity: 0.2;
+  }
+
+  /* ---- Whitelisted chrome buttons --------------------------------------
+     These three buttons' official fills ride button-* tokens shared with
+     unrelated surfaces, so instead of overriding the tokens they get explicit
+     theme-aware glass paints here, gated on data-dsh-bg-glass (off when the
+     panel is fully opaque). Blur is capped for the tiny areas. */
+  body[data-dsh-bg-glass] [class*="_newSession"],
+  body[data-dsh-bg-glass] [data-composer-card] [class*="_add"],
+  body[data-dsh-bg-glass] [class*="_toBottom"] {
+    background-color: rgba(255, 255, 255, 0.62);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02));
+    -webkit-backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 8px)) saturate(var(--bg-glass-saturate, 1.42));
+    backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 8px)) saturate(var(--bg-glass-saturate, 1.42));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+      0 4px 14px rgba(0, 0, 0, 0.08);
+  }
+  body[data-dsh-bg-glass] [class*="_newSession"]:hover,
+  body[data-dsh-bg-glass] [data-composer-card] [class*="_add"]:hover:not(:disabled),
+  body[data-dsh-bg-glass] [class*="_toBottom"]:hover {
+    background-color: rgba(255, 255, 255, 0.8);
+  }
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_newSession"],
+  body[data-ds-dark-theme][data-dsh-bg-glass] [data-composer-card] [class*="_add"],
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_toBottom"] {
+    background-color: rgba(28, 28, 32, 0.55);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.01));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+      0 4px 14px rgba(0, 0, 0, 0.28);
+  }
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_newSession"]:hover,
+  body[data-ds-dark-theme][data-dsh-bg-glass] [data-composer-card] [class*="_add"]:hover:not(:disabled),
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_toBottom"]:hover {
+    background-color: rgba(46, 46, 52, 0.72);
+  }
+  /* Collapsed rail renders the new-session control as a bare icon — keep the
+     official transparent paint (and its official translucent hover). */
+  body[data-dsh-bg-glass] [class*="_collapsed"] [class*="_newSession"],
+  body[data-dsh-bg-glass] [class*="_collapsed"] [class*="_newSession"]:hover {
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+  }
+
+  /* ---- Subagent lineage popover (title-bar expanded list) --------------
+     Its official fill rides the menu token shared with every dropdown; glass
+     THIS popover explicitly via its role="tree" + _menu combination so real
+     menus stay officially opaque and legible. */
+  body[data-dsh-bg-glass] [role="tree"][class*="_menu"] {
+    background-color: rgba(255, 255, 255, 0.9);
+    -webkit-backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 16px)) saturate(var(--bg-glass-saturate, 1.42));
+    backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 16px)) saturate(var(--bg-glass-saturate, 1.42));
+  }
+  body[data-ds-dark-theme][data-dsh-bg-glass] [role="tree"][class*="_menu"] {
+    background-color: rgba(28, 28, 32, 0.92);
+  }
+
+  /* ---- Home hero "preview" badge (top-right superscript pill) ----------
+     Officially the state-business-tertiary pastel; re-emit the same hue as
+     translucent glass so it sits on the wallpaper without turning into a
+     solid patch. */
+  body[data-dsh-bg-glass] [class*="_previewBadge"] {
+    background-color: rgba(228, 237, 253, 0.72);
+    -webkit-backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 6px)) saturate(var(--bg-glass-saturate, 1.42));
+    backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 6px)) saturate(var(--bg-glass-saturate, 1.42));
+  }
+  body[data-ds-dark-theme][data-dsh-bg-glass] [class*="_previewBadge"] {
+    background-color: rgba(52, 65, 91, 0.72);
   }
 `
 

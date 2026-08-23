@@ -3,19 +3,21 @@
  * ScrollNav structure, rebuilt on this plugin's frosted-glass system).
  *
  * Structure and metrics mirror the official chat.deepseek.com stylesheet
- * (module map extracted from the shipped bundle):
+ * (module map extracted from the shipped bundle; v0.1.4 of the reference port
+ * dsh-chat-timeline widens the panel to 260px and adds bookmarks):
  *   nav 34px-wide rail, fixed right edge, vertically centered; collapsed
- *   blurred capsule (height − 8px); expanding panel (max 240px, radius 16)
+ *   blurred capsule (height − 8px); expanding panel (max 260px, radius 16)
  *   whose scroll area holds 30px rows (tick indicator + fading-in title);
  *   32px gradient fade veils top/bottom shown while that side clips.
  *
- * Glass integration: fills come from the SAME `--dsw-*` surface tokens this
- * plugin overrides on body (`--dsw-alias-bg-overlay` capsule,
- * `--dsw-alias-bg-layer-1` panel), and blurs read the shared
- * `--bg-glass-*` knobs the painter writes — so the rail follows
- * panelOpacity/blur live and returns to the official opaque surfaces when
- * the glass is off. Class prefix `dsbt-` deliberately avoids every
- * `[class*="_xxx"]` anchor of the universal glass sheet (underscores only).
+ * Glass integration: the rail is SELF-CONTAINED frosted glass — it carries the
+ * official capsule/panel paints (light rgba(255,255,255,.8)/.94, dark
+ * rgba(21,21,23,.6)/rgba(28,28,32,.95)) and its own backdrop blur (5px
+ * collapsed / 16px expanded), exactly like chat.deepseek.com. It deliberately
+ * does NOT read the --dsw-* surface tokens: those stay official for every
+ * non-whitelisted surface, so the rail must not depend on them. Class prefix
+ * `dsbt-` deliberately avoids every `[class*="_xxx"]` anchor of the plugin's
+ * glass sheet (underscores only).
  */
 
 /** Unique id stamped on the injected style element (dedup key). */
@@ -43,13 +45,12 @@ export const TIMELINE_CSS = `
   }
   @media (max-width: 767px) { .dsbt-nav { display: none; } }
 
-  /* Collapsed capsule — frosted strip behind the tick marks. Fill rides the
-     overridden overlay token (white glass while active, official color when
-     the glass is off); blur reads the shared knob, capped for the tiny area. */
+  /* Collapsed capsule — frosted strip behind the tick marks. Official paint:
+     light rgba(255,255,255,.8), dark rgba(21,21,23,.6), 5px blur. */
   .dsbt-bg {
-    background-color: var(--dsw-alias-bg-overlay, rgba(255, 255, 255, .72));
-    -webkit-backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 8px)) saturate(var(--bg-glass-saturate, 1.42));
-    backdrop-filter: blur(min(var(--bg-glass-blur, 16px), 8px)) saturate(var(--bg-glass-saturate, 1.42));
+    background-color: rgba(255, 255, 255, .8);
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, .28),
       inset 0 0 0 .5px rgba(255, 255, 255, .1),
@@ -60,7 +61,7 @@ export const TIMELINE_CSS = `
     transition: opacity .2s ease; pointer-events: none;
   }
   body[data-ds-dark-theme] .dsbt-bg {
-    background-color: var(--dsw-alias-bg-overlay, rgba(22, 22, 26, .55));
+    background-color: rgba(21, 21, 23, .6);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, .09),
       inset 0 0 0 .5px rgba(255, 255, 255, .05),
@@ -69,7 +70,8 @@ export const TIMELINE_CSS = `
   .dsbt-bg.dsbt-bg-hide { opacity: 0; }
 
   /* Expanding panel — exactly the capsule's box (identical height in both
-     states), width animates 34px -> measured fit (max 240px). */
+     states), width animates 34px -> measured fit (max 260px). Official
+     hover-state paint: white/black frosted glass at ~94% alpha, 16px blur. */
   .dsbt-wrap {
     width: 34px;
     height: calc(var(--dsbt-h, 300px) - 8px); max-height: calc(var(--dsbt-h, 300px) - 8px);
@@ -84,32 +86,61 @@ export const TIMELINE_CSS = `
   }
   .dsbt-wrap.dsbt-show {
     pointer-events: auto;
-    width: min(var(--dsbt-w, 240px), 240px);
-    background-color: var(--dsw-alias-bg-layer-1, rgba(255, 255, 255, .92));
-    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1));
-    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1));
-    border-color: var(--dsw-alias-border-inverted, rgba(0, 0, 0, .06));
-    box-shadow: var(--dsw-shadow-lv3, 0 10px 30px rgba(0, 0, 0, .1), 0 2px 8px rgba(0, 0, 0, .05));
+    width: min(var(--dsbt-w, 260px), 260px);
+    background-color: rgba(255, 255, 255, .94);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border-color: rgba(0, 0, 0, .06);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .08), 0 2px 8px rgba(0, 0, 0, .04);
   }
   body[data-ds-dark-theme] .dsbt-wrap.dsbt-show {
-    border-color: var(--dsw-alias-border-inverted, rgba(255, 255, 255, .08));
-    box-shadow: var(--dsw-shadow-lv3, 0 10px 30px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .25));
+    background-color: rgba(28, 28, 32, .95);
+    border-color: rgba(255, 255, 255, .08);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .25);
   }
 
   /* Content fade veils — the official ::before/::after pair rebuilt as
      elements: a bar of the panel's OWN fill color masked to nothing over
      32px (solid -> mask == gradient-to-transparent, but works with the
-     translucent glass token). Shown only while that side actually clips. */
+     translucent fill). Shown only while that side actually clips. */
   .dsbt-fade {
     z-index: 2; pointer-events: none; opacity: 0;
-    background-color: var(--dsw-alias-bg-layer-1, rgba(255, 255, 255, .92));
+    background-color: rgba(255, 255, 255, .94);
     -webkit-mask-image: linear-gradient(#000 20.19%, transparent 100%);
     mask-image: linear-gradient(#000 20.19%, transparent 100%);
     width: 100%; height: 32px; transition: opacity .2s ease;
     position: absolute; left: 0; top: 0;
   }
+  body[data-ds-dark-theme] .dsbt-fade { background-color: rgba(28, 28, 32, .95); }
   .dsbt-fade.dsbt-fade-bot { top: auto; bottom: 0; transform: rotate(180deg); }
   .dsbt-fade.dsbt-fade-on { opacity: 1; }
+
+  /* Filter bar — "marked only" toggle pinned above the scroll area. */
+  .dsbt-filterbar {
+    padding: 8px 12px 4px; display: flex; justify-content: flex-end;
+    align-items: center; border-bottom: 1px solid rgba(0, 0, 0, .05);
+    box-sizing: border-box; flex: none;
+  }
+  body[data-ds-dark-theme] .dsbt-filterbar { border-bottom-color: rgba(255, 255, 255, .06); }
+  .dsbt-filterbtn {
+    font-size: 11px; line-height: 16px; padding: 2px 8px; border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, .1); background: rgba(0, 0, 0, .03);
+    color: rgba(0, 0, 0, .65); cursor: pointer; transition: all .15s ease;
+    display: inline-flex; align-items: center; gap: 3px; font-family: inherit;
+  }
+  .dsbt-filterbtn:hover { background: rgba(0, 0, 0, .07); color: rgba(0, 0, 0, .9); }
+  .dsbt-filterbtn.dsbt-filteron {
+    background: rgba(245, 158, 11, .12); border-color: #f59e0b;
+    color: #b45309; font-weight: 600;
+  }
+  body[data-ds-dark-theme] .dsbt-filterbtn {
+    border-color: rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05);
+    color: rgba(255, 255, 255, .7);
+  }
+  body[data-ds-dark-theme] .dsbt-filterbtn:hover { background: rgba(255, 255, 255, .1); color: rgba(255, 255, 255, .95); }
+  body[data-ds-dark-theme] .dsbt-filterbtn.dsbt-filteron {
+    background: rgba(251, 191, 36, .18); border-color: #fbbf24; color: #fbbf24;
+  }
 
   /* Scroll area — rows hug the right edge; scrolls only when overfull. */
   .dsbt-page {
@@ -128,29 +159,56 @@ export const TIMELINE_CSS = `
   .dsbt-page::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, .15); border-radius: 4px; }
   body[data-ds-dark-theme] .dsbt-page::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .25); }
 
-  /* One message row: 30px, tick indicator at the right, title fading in. */
+  /* Empty state (filtered list with no marks). */
+  .dsbt-empty {
+    font-size: 12px; line-height: 18px; padding: 16px 12px;
+    color: rgba(0, 0, 0, .45); text-align: center; width: 100%; box-sizing: border-box;
+  }
+  body[data-ds-dark-theme] .dsbt-empty { color: rgba(255, 255, 255, .45); }
+
+  /* One message row: 30px, star bookmark + tick indicator at the right,
+     title fading in. */
   .dsbt-item {
     cursor: pointer; height: 30px; min-height: 30px; flex-shrink: 0;
     justify-content: flex-end; align-items: center;
-    width: calc(100% - 6px); margin-right: 8px; line-height: 20px;
+    width: calc(100% - 4px); margin-right: 4px; line-height: 20px;
     display: flex; background: none; border: none; font: inherit;
     text-align: right; box-sizing: border-box; padding: 0;
-    color: var(--dsw-alias-label-tertiary, rgba(0, 0, 0, .45));
+    color: var(--dsw-alias-label-tertiary, rgba(0, 0, 0, .65));
     transition: color .15s ease;
   }
-  .dsbt-item:hover { color: var(--dsw-alias-label-primary, rgba(0, 0, 0, .9)); }
+  .dsbt-item:hover { color: var(--dsw-alias-label-primary, rgba(0, 0, 0, .95)); }
+  body[data-ds-dark-theme] .dsbt-item { color: rgba(255, 255, 255, .65); }
+  body[data-ds-dark-theme] .dsbt-item:hover { color: rgba(255, 255, 255, .95); }
   .dsbt-title {
     font-size: 13px; line-height: 20px; flex: 1 1 auto; min-width: 0;
     text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
-    margin-right: 12px; text-align: right; color: inherit;
+    margin-right: 6px; text-align: right; color: inherit;
     opacity: 0; transition: opacity .12s ease, color .15s ease;
   }
   .dsbt-show .dsbt-title { opacity: 1; }
+
+  /* Star bookmark — appears on row hover while the panel is expanded; gold
+     when marked. Keyboard-operable (span[role=button]). */
+  .dsbt-star {
+    font-size: 13px; line-height: 16px; width: 18px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    opacity: 0; cursor: pointer; transition: all .15s ease; margin-right: 6px;
+    flex-shrink: 0; color: rgba(0, 0, 0, .25); border-radius: 4px; user-select: none;
+    -webkit-user-select: none;
+  }
+  .dsbt-wrap.dsbt-show .dsbt-item:hover .dsbt-star { opacity: .75; }
+  .dsbt-wrap.dsbt-show .dsbt-star:hover { opacity: 1; transform: scale(1.2); color: #d97706; }
+  .dsbt-wrap.dsbt-show .dsbt-star.dsbt-staron { opacity: 1; color: #f59e0b; }
+  body[data-ds-dark-theme] .dsbt-star { color: rgba(255, 255, 255, .25); }
+  body[data-ds-dark-theme] .dsbt-wrap.dsbt-show .dsbt-star:hover { color: #fde047; }
+  body[data-ds-dark-theme] .dsbt-wrap.dsbt-show .dsbt-star.dsbt-staron { opacity: 1; color: #fbbf24; }
+
   .dsbt-ind { flex-shrink: 0; justify-content: center; align-items: center; width: 16px; height: 20px; display: flex; }
   .dsbt-line {
     background-color: var(--dsw-alias-border-l4, rgba(0, 0, 0, .16));
     border-radius: 4px; flex-shrink: 0; width: 8px; height: 2px;
-    transition: background-color .2s ease, transform .2s ease;
+    transition: background-color .2s ease, transform .2s ease, width .2s ease, height .2s ease;
   }
   .dsbt-item:hover .dsbt-line { background-color: var(--dsw-alias-label-primary, rgba(0, 0, 0, .9)); }
   .dsbt-item.dsbt-active { color: var(--dsw-alias-state-business-primary, #4d6bfe); }
@@ -159,8 +217,22 @@ export const TIMELINE_CSS = `
     background-color: var(--dsw-alias-state-business-primary, #4d6bfe);
     transform-origin: 50%; transform: scale(1.5);
   }
+  body[data-ds-dark-theme] .dsbt-item.dsbt-active { color: var(--dsw-alias-state-business-primary, #4d6bfe); }
+  body[data-ds-dark-theme] .dsbt-line { background-color: rgba(255, 255, 255, .2); }
+  body[data-ds-dark-theme] .dsbt-item:hover .dsbt-line { background-color: rgba(255, 255, 255, .9); }
+
+  /* Marked (key-point) rows: a wider golden tick in both themes; the active
+     state keeps its brand-blue scale so reading position always wins. */
+  .dsbt-item.dsbt-marked .dsbt-line { background-color: #d97706; width: 10px; height: 2.5px; }
+  .dsbt-item.dsbt-marked:hover .dsbt-line { background-color: #b45309; }
+  .dsbt-item.dsbt-marked.dsbt-active .dsbt-line {
+    background-color: var(--dsw-alias-state-business-primary, #4d6bfe);
+    transform-origin: 50%; transform: scale(1.5);
+  }
+  body[data-ds-dark-theme] .dsbt-item.dsbt-marked .dsbt-line { background-color: #fbbf24; width: 10px; height: 2.5px; }
+  body[data-ds-dark-theme] .dsbt-item.dsbt-marked:hover .dsbt-line { background-color: #fde047; }
 
   @media (prefers-reduced-motion: reduce) {
-    .dsbt-nav, .dsbt-bg, .dsbt-wrap, .dsbt-fade, .dsbt-title, .dsbt-line { transition: none; }
+    .dsbt-nav, .dsbt-bg, .dsbt-wrap, .dsbt-fade, .dsbt-title, .dsbt-line, .dsbt-star, .dsbt-filterbtn { transition: none; }
   }
 `

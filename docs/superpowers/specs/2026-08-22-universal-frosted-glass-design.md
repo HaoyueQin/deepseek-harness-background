@@ -1,5 +1,13 @@
 # Universal frosted glass — design
 
+> **SUPERSEDED (2026-08-23):** the universal scope proved too aggressive —
+> reading surfaces (settings UI, dialogs, menus, tooltips) turned washy. The
+> shipped design is a WHITELIST: glass only on surfaces that float as small
+> cards over the wallpaper (composer, bubbles, code/tool-IO/skill cards,
+> task strip, the three chrome buttons, subagent popover, hero preview badge)
+> plus the self-frosted timeline rail; every other surface keeps official
+> paints via the `data-dsh-bg-glass` gate. See src/client/background-css.ts.
+
 Date: 2026-08-22
 Scope: extend the existing wallpaper plugin so every opaque UI surface (not
 just the composer card and message bubbles) turns into the same frosted glass,

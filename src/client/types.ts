@@ -78,6 +78,10 @@ export type BackgroundCardLocaleKey =
   | 'timeline.railLabel'
   | 'timeline.roleUser'
   | 'timeline.noText'
+  | 'timeline.marksOnly'
+  | 'timeline.mark'
+  | 'timeline.unmark'
+  | 'timeline.noMarks'
 
 /** Cordis Context merges: the services this plugin injects. */
 declare module '@deepseek-ai/cordis' {

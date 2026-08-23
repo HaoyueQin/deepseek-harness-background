@@ -10,7 +10,7 @@
  * the `data-ds-dark-theme` observer is disconnected.
  */
 
-import { ACTIVE_ATTR, injectBackgroundCss } from './background-css.ts'
+import { ACTIVE_ATTR, GLASS_ATTR, injectBackgroundCss } from './background-css.ts'
 import { BACKGROUND_API_PREFIX, type BackgroundSettings } from '../settings.ts'
 
 /** Class names the layer and scrim elements carry. */
@@ -19,59 +19,26 @@ const IMAGE_CLASS = 'dsh-bg-image'
 const SCRIM_CLASS = 'dsh-bg-scrim'
 
 /**
- * White-glass tokens: every remaining opaque fill in the web UI flows through
- * these theme tokens (menus, dialog/settings layers, code surfaces, dock
- * cards, chrome buttons, hover-solid fills). `factor` scales the alpha
- * relative to the input surface. Anchors/coverage audited against the host
- * stylesheets — see docs/superpowers/specs/2026-08-22-universal-frosted-glass-design.md.
+ * White-glass tokens — the WHITELISTED surfaces only. Everything that floats
+ * as a small card over the wallpaper: the composer input stack, message
+ * bubbles, the markdown code surfaces (blocks + banner + inline code), and
+ * the agent task strip family (`--dsw-specific-tip`: TodoPanel + GoalBar +
+ * QueueDock share one dock column and one fill token). Menus, dialogs, the
+ * settings UI, tooltips, toasts, hover fills and every accent keep the
+ * OFFICIAL token values — they are reading surfaces and must stay legible.
+ * `factor` scales the alpha relative to the input surface.
  */
 const GLASS_SURFACE_TOKENS: readonly { token: string; factor: number }[] = [
   { token: '--dsw-specific-input-major', factor: 1 },
   { token: '--dsw-specific-bubble', factor: 0.8 },
-  { token: '--dsw-specific-menu', factor: 1 },
-  { token: '--dsw-alias-bg-layer-1', factor: 1 },
-  { token: '--dsw-alias-bg-layer-2', factor: 1 },
-  { token: '--dsw-alias-bg-layer-3', factor: 1 },
   { token: '--dsw-alias-markdown-code-block', factor: 1 },
   { token: '--dsw-alias-markdown-code-block-banner', factor: 1 },
   { token: '--dsw-alias-markdown-inline-code', factor: 0.9 },
-  { token: '--dsw-alias-bg-module-platform', factor: 1 },
-  { token: '--dsw-alias-bg-overlay', factor: 1 },
   { token: '--dsw-specific-tip', factor: 1 },
-  { token: '--dsw-specific-selector', factor: 0.9 },
-  { token: '--dsw-alias-button-elevated-fill', factor: 0.9 },
-  { token: '--dsw-alias-button-floating-fill', factor: 0.9 },
-  { token: '--dsw-alias-button-floating-hover', factor: 0.95 },
-  { token: '--dsw-alias-button-ghost-active-fill', factor: 0.9 },
-  { token: '--dsw-alias-button-tool-bar-fill', factor: 0.9 },
-  { token: '--dsw-alias-button-tool-bar-hover', factor: 0.95 },
-  { token: '--dsw-specific-sidebar-nav-item-hover', factor: 0.7 },
-  { token: '--dsw-specific-sidebar-nav-item-active', factor: 0.85 },
-  { token: '--dsw-alias-interactive-bg-hover-solid', factor: 0.9 },
-]
-
-/**
- * Accent tokens: small controls whose official hue must survive (send button
- * stays blue, tooltips stay ink). The rgb triplets mirror the light/dark
- * `--dsw-static-*` values each alias resolves to in the host theme.
- */
-const GLASS_ACCENT_TOKENS: readonly { token: string; light: string; dark: string }[] = [
-  { token: '--dsw-alias-button-info-fill', light: '65, 118, 230', dark: '103, 158, 254' },
-  { token: '--dsw-alias-button-info-hover', light: '103, 158, 254', dark: '65, 118, 230' },
-  { token: '--dsw-alias-button-primary-fill', light: '15, 17, 21', dark: '249, 250, 251' },
-  { token: '--dsw-alias-button-primary-hover', light: '67, 69, 74', dark: '235, 238, 242' },
-  { token: '--dsw-alias-button-contrast-fill', light: '97, 102, 107', dark: '249, 250, 251' },
-  { token: '--dsw-alias-tooltip-bg', light: '44, 44, 46', dark: '67, 69, 74' },
-  { token: '--dsw-alias-state-warn-tertiary', light: '254, 245, 231', dark: '39, 36, 31' },
-  { token: '--dsw-alias-state-business-tertiary', light: '228, 237, 253', dark: '52, 65, 91' },
-  { token: '--dsw-alias-state-success-tertiary', light: '230, 250, 237', dark: '35, 60, 44' },
 ]
 
 /** Every token the glass owns (save/restore key set). */
-const GLASS_TOKENS: readonly string[] = [...new Set([
-  ...GLASS_SURFACE_TOKENS.map(({ token }) => token),
-  ...GLASS_ACCENT_TOKENS.map(({ token }) => token),
-])]
+const GLASS_TOKENS: readonly string[] = GLASS_SURFACE_TOKENS.map(({ token }) => token)
 
 /** Fraction of the official white surface alpha kept at the most transparent panel setting. */
 const GLASS_MIN_ALPHA = 0.05
@@ -297,11 +264,14 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
 
     if (forceRestore || settings === undefined || settings.panelOpacity >= 1) {
       restore()
+      document.body.removeAttribute(GLASS_ATTR)
       // No blur and a neutral exposure when glass is off.
       this.setVar('--bg-glass-blur', '0px')
       this.setVar('--bg-glass-brightness', '1')
       return
     }
+
+    document.body.setAttribute(GLASS_ATTR, 'on')
 
     // Exposure calibration (theme-aware, mirrored by the preview surface).
     const exposure = glassExposure(inDark)
@@ -314,12 +284,6 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
     const base = glassAlpha(settings.panelOpacity) * (inDark ? 0.4 : 0.8)
     for (const { token, factor } of GLASS_SURFACE_TOKENS) {
       s.setProperty(token, `rgba(255, 255, 255, ${(base * factor).toFixed(3)})`)
-    }
-    // Accents keep their official hue but ride the same curve, lifted by a
-    // floor so small controls (send button, tooltips) stay legible.
-    const accent = Math.min(0.92, 0.45 + glassAlpha(settings.panelOpacity))
-    for (const { token, light, dark } of GLASS_ACCENT_TOKENS) {
-      s.setProperty(token, `rgba(${inDark ? dark : light}, ${accent.toFixed(3)})`)
     }
   }
 
@@ -336,6 +300,7 @@ setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: numb
     this.removeLayers()
     const s = document.body.style
     document.body.removeAttribute(ACTIVE_ATTR)
+    document.body.removeAttribute(GLASS_ATTR)
     for (const [prop, value] of this.savedTokens) s.setProperty(prop, value)
     for (const [prop, value] of this.savedVars) s.setProperty(prop, value)
     this.savedTokens.clear()

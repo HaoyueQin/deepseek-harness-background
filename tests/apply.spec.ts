@@ -198,43 +198,41 @@ describe('deepseek-harness-background apply', () => {
     expect(document.body.style.backgroundImage).toBe('url("previous.png")')
   })
 
-  it('paints the universal glass tokens for menus, code, panels and buttons', async () => {
+  it('paints ONLY the whitelisted glass tokens and leaves the rest official', async () => {
     mockFetch()
     await mount()
     const style = document.body.style
-    // Surface family: white-glass rgba on every token that feeds an opaque
-    // surface (menus, dialogs/layers, code blocks, inline code, dock cards,
-    // the plus button, the new-session button, hover-solid fills).
+    // Whitelist: composer input stack, message bubbles, the markdown code
+    // surfaces, and the agent task strip family (--dsw-specific-tip).
     for (const token of [
-      '--dsw-specific-menu',
-      '--dsw-alias-bg-layer-1', '--dsw-alias-bg-layer-2', '--dsw-alias-bg-layer-3',
+      '--dsw-specific-input-major', '--dsw-specific-bubble',
       '--dsw-alias-markdown-code-block', '--dsw-alias-markdown-code-block-banner',
-      '--dsw-alias-markdown-inline-code',
+      '--dsw-alias-markdown-inline-code', '--dsw-specific-tip',
+    ]) {
+      expect(style.getPropertyValue(token), token).toContain('rgba(')
+    }
+    // Rollback contract: menus, dialog/settings layers, generic layers,
+    // platform rows, overlays, selectors, buttons, sidebar items, hover
+    // fills and accents are NOT overridden — they keep official paints so
+    // reading surfaces (settings UI, tooltips, dropdowns) stay legible.
+    for (const token of [
+      '--dsw-specific-menu', '--dsw-specific-selector',
+      '--dsw-alias-bg-layer-1', '--dsw-alias-bg-layer-2', '--dsw-alias-bg-layer-3',
       '--dsw-alias-bg-module-platform', '--dsw-alias-bg-overlay',
-      '--dsw-specific-tip', '--dsw-specific-selector',
       '--dsw-alias-button-elevated-fill', '--dsw-alias-button-floating-fill',
       '--dsw-alias-button-floating-hover', '--dsw-alias-button-ghost-active-fill',
       '--dsw-alias-button-tool-bar-fill', '--dsw-alias-button-tool-bar-hover',
       '--dsw-specific-sidebar-nav-item-hover', '--dsw-specific-sidebar-nav-item-active',
       '--dsw-alias-interactive-bg-hover-solid',
+      '--dsw-alias-button-info-fill', '--dsw-alias-tooltip-bg',
+      '--dsw-alias-state-warn-tertiary', '--dsw-alias-state-business-tertiary',
+      '--dsw-alias-state-success-tertiary',
     ]) {
-      expect(style.getPropertyValue(token), token).toContain('rgba(')
-    }
-    // Accent family: official hue kept (send button stays blue in light).
-    expect(style.getPropertyValue('--dsw-alias-button-info-fill'))
-      .toMatch(/^rgba\(65, 118, 230, 0\.\d{3}\)$/)
-    expect(style.getPropertyValue('--dsw-alias-tooltip-bg')).toContain('rgba(')
-    expect(style.getPropertyValue('--dsw-alias-state-warn-tertiary')).toContain('rgba(')
-    // Second-wave accents: hover states and pale state bands keep their hue.
-    for (const token of [
-      '--dsw-alias-button-info-hover', '--dsw-alias-button-primary-hover',
-      '--dsw-alias-state-business-tertiary', '--dsw-alias-state-success-tertiary',
-    ]) {
-      expect(style.getPropertyValue(token), token).toContain('rgba(')
+      expect(style.getPropertyValue(token), token).toBe('')
     }
   })
 
-  it('clears every universal token when panelOpacity is at maximum', async () => {
+  it('clears every whitelisted token and the glass gate at maximum panel opacity', async () => {
     mockFetch()
     await mount()
     section = { ...SECTION, panelOpacity: 1 }
@@ -243,65 +241,73 @@ describe('deepseek-harness-background apply', () => {
       expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toBe('')
     })
     for (const token of [
-      '--dsw-specific-menu', '--dsw-alias-bg-layer-2',
-      '--dsw-alias-markdown-code-block', '--dsw-alias-markdown-inline-code',
-      '--dsw-alias-button-info-fill', '--dsw-alias-tooltip-bg',
+      '--dsw-specific-bubble', '--dsw-alias-markdown-code-block',
+      '--dsw-alias-markdown-inline-code', '--dsw-specific-tip',
     ]) {
       expect(document.body.style.getPropertyValue(token), token).toBe('')
     }
+    // The explicit-fill rules (chrome buttons, subagent popover, preview
+    // badge) key on this attribute — it must go with the glass.
+    expect(document.body.getAttribute('data-dsh-bg-glass')).toBeNull()
   })
 
-  it('repaints the accent tokens with the dark hue when the theme flips', async () => {
+  it('sets the glass gate while the glass is on and removes it on disable', async () => {
     mockFetch()
     await mount()
-    expect(document.body.style.getPropertyValue('--dsw-alias-button-info-fill'))
-      .toContain('65, 118, 230')
-    document.body.dataset.dsDarkTheme = ''
+    expect(document.body.getAttribute('data-dsh-bg-glass')).toBe('on')
+    section = { ...SECTION, enabled: false }
+    await settingsClient.load()
     await vi.waitFor(() => {
-      expect(document.body.style.getPropertyValue('--dsw-alias-button-info-fill'))
-        .toContain('103, 158, 254')
+      expect(document.body.getAttribute('data-dsh-bg-glass')).toBeNull()
     })
   })
 
-  it('restores a pre-existing universal token value on dispose', async () => {
-    document.body.style.setProperty('--dsw-specific-menu', 'rgb(1, 2, 3)')
+  it('restores a pre-existing whitelisted token value on dispose', async () => {
+    document.body.style.setProperty('--dsw-specific-tip', 'rgb(1, 2, 3)')
     mockFetch()
     await mount()
-    expect(document.body.style.getPropertyValue('--dsw-specific-menu')).toContain('rgba(')
+    expect(document.body.style.getPropertyValue('--dsw-specific-tip')).toContain('rgba(')
     await fiber?.dispose()
     fiber = undefined
-    expect(document.body.style.getPropertyValue('--dsw-specific-menu')).toBe('rgb(1, 2, 3)')
+    expect(document.body.style.getPropertyValue('--dsw-specific-tip')).toBe('rgb(1, 2, 3)')
   })
 
-  it('injects blur/sheen anchors for the universal surfaces', async () => {
+  it('injects blur/sheen anchors for exactly the whitelisted surfaces', async () => {
     mockFetch()
     await mount()
     const cssTag = document.querySelector('style[data-plugin-css="deepseek-harness-background/styles"]')
     const cssText = cssTag?.textContent ?? ''
-    // Code surfaces incl. inline code and the sticky banner wrap.
+    // Composer + bubbles (tooltip suffix excluded), code surfaces incl.
+    // inline code and the sticky banner wrap, tool IO + skill cards.
+    expect(cssText).toContain('[data-composer-card]')
+    expect(cssText).toContain('[class*="_bubble"]:not([role="tooltip"])')
     expect(cssText).toContain('.md-code-block')
     expect(cssText).toContain('[data-terminal]')
     expect(cssText).toContain('_ioCard')
+    expect(cssText).toContain('_instructionsCard')
     expect(cssText).toContain(':not(pre) > code')
     expect(cssText).toContain('_bannerWrap')
-    // Menus, dialogs/panels, cards.
-    expect(cssText).toContain('[role="menu"]')
-    expect(cssText).toContain('_dialog')
-    expect(cssText).toContain('_panel')
-    expect(cssText).toContain('_card')
-    // Buttons & chips: new session, plus, send, attachment rail, toasts,
-    // composer tool-row buttons.
+    // Whitelisted chrome buttons (explicit fills behind the glass gate).
     expect(cssText).toContain('_newSession')
-    expect(cssText).toContain('_add')
-    expect(cssText).toContain('_primary')
-    expect(cssText).toContain('_rail')
+    expect(cssText).toContain('[data-composer-card] [class*="_add"]')
     expect(cssText).toContain('_toBottom')
-    expect(cssText).toContain('_toast')
-    expect(cssText).toContain('_toolbar')
+    expect(cssText).toContain('data-dsh-bg-glass')
+    // Subagent lineage popover + home hero preview badge.
+    expect(cssText).toContain('[role="tree"][class*="_menu"]')
+    expect(cssText).toContain('_previewBadge')
     // Empty-state hero glow dims so the wallpaper stays visible.
     expect(cssText).toContain('_heroGlow')
-    // HoverCard's component-level ink is re-scoped to a translucent glass ink.
-    expect(cssText).toContain('--dsw-hovercard-bg')
+    // Rollback: no blanket anchors for menus/dialogs/panels/cards/toasts/
+    // toolbars/send/rail, and no HoverCard ink re-scope.
+    expect(cssText).not.toContain('[role="menu"]')
+    expect(cssText).not.toContain('_dialog')
+    expect(cssText).not.toContain('_panel')
+    expect(cssText).not.toContain('[class*="_card"]')
+    expect(cssText).not.toContain('_toast')
+    expect(cssText).not.toContain('_toolbar')
+    expect(cssText).not.toContain('_primary')
+    expect(cssText).not.toContain('class$="_rail"')
+    expect(cssText).not.toContain('--dsw-hovercard-bg')
   })
 
   it('calibrates the glass exposure: dimmed in light, lifted in dark', async () => {
