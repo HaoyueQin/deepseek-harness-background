@@ -10,6 +10,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { backgroundPainter, paintBackground } from './backdrop.ts'
+import { installGlassBridge } from './glass-registry.ts'
 import { en, zh } from './locales.ts'
 import { BackgroundSettingsRow } from './SettingsRow.tsx'
 import { settingsClient } from './settings-client.ts'
@@ -30,6 +31,10 @@ export const inject = ['slots', 'locale', 'sessions']
  * @param ctx - client cordis context (slots/locale/sessions injected).
  */
 export function apply(ctx: Context): void {
+  // Publish the third-party frosted-glass registry bridge FIRST so an
+  // eager consumer can register before the first snapshot repaints; the
+  // bridge lives for the whole fiber and dies with it (see the dispose below).
+  const glassBridge = installGlassBridge()
   // Paint from the plugin's own transport; repaint on every snapshot change.
   const paint = (): void => {
     const snapshot = settingsClient.getSnapshot()
@@ -68,6 +73,7 @@ export function apply(ctx: Context): void {
 
   ctx.effect(() => () => {
     unsubscribe()
+    glassBridge.dispose()
     backgroundPainter.dispose()
   }, 'deepseek-harness-background: background surface')
 }

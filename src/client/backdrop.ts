@@ -221,58 +221,58 @@ export class BackgroundPainter {
     }
   }
 
-/** Write one owned CSS variable onto body. */
-private setVar(name: string, value: string): void {
-  this.rememberOnce(name)
-  document.body.style.setProperty(name, value)
-}
-
-/**
- * Return the owned frame-transparency properties to their saved state (or
- * remove them when this session never overrode them). dispose() restores
- * everything wholesale; this targeted variant serves the sourceless path,
- * where the painter keeps running for a later source.
- */
-private restoreFrameTokens(): void {
-  for (const prop of FRAME_TOKENS) {
-    this.rememberOnce(prop)
-    const original = this.savedVars.get(prop)
-    if (original !== undefined && original !== '') document.body.style.setProperty(prop, original)
-    else document.body.style.removeProperty(prop)
+  /** Write one owned CSS variable onto body. */
+  private setVar(name: string, value: string): void {
+    this.rememberOnce(name)
+    document.body.style.setProperty(name, value)
   }
-}
 
-/**
- * Update one effect knob without re-running the full apply. This is the hot
- * path for slider drags (many events per second): only the single CSS
- * variable changes, the DOM layers are untouched.
- * @param key - the knob to update.
- * @param value - its new value in its canonical unit.
- */
-setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: number | BackgroundSettings['fit']): void {
-  if (this.settings === undefined || !this.settings.enabled) return
-  switch (key) {
-    case 'opacity':
-      this.setVar('--bg-opacity', String(value))
-      break
-    case 'scrim':
-      this.setVar('--bg-scrim', String(value))
-      break
-    case 'blur': {
-      this.setVar('--bg-glass-blur', `${value}px`)
-      this.setVar('--bg-glass-saturate', String(glassSaturate(Number(value))))
-      break
+  /**
+   * Return the owned frame-transparency properties to their saved state (or
+   * remove them when this session never overrode them). dispose() restores
+   * everything wholesale; this targeted variant serves the sourceless path,
+   * where the painter keeps running for a later source.
+   */
+  private restoreFrameTokens(): void {
+    for (const prop of FRAME_TOKENS) {
+      this.rememberOnce(prop)
+      const original = this.savedVars.get(prop)
+      if (original !== undefined && original !== '') document.body.style.setProperty(prop, original)
+      else document.body.style.removeProperty(prop)
     }
-    case 'wallpaperBlur': {
-      this.setVar('--bg-wallpaper-blur', `${value}px`)
-      this.setVar('--bg-wallpaper-scale', (1 + Number(value) * 0.006).toFixed(4))
-      break
-    }
-    case 'fit':
-      this.setVar('--bg-object-fit', String(value))
-      break
   }
-}
+
+  /**
+   * Update one effect knob without re-running the full apply. This is the hot
+   * path for slider drags (many events per second): only the single CSS
+   * variable changes, the DOM layers are untouched.
+   * @param key - the knob to update.
+   * @param value - its new value in its canonical unit.
+   */
+  setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: number | BackgroundSettings['fit']): void {
+    if (this.settings === undefined || !this.settings.enabled) return
+    switch (key) {
+      case 'opacity':
+        this.setVar('--bg-opacity', String(value))
+        break
+      case 'scrim':
+        this.setVar('--bg-scrim', String(value))
+        break
+      case 'blur': {
+        this.setVar('--bg-glass-blur', `${value}px`)
+        this.setVar('--bg-glass-saturate', String(glassSaturate(Number(value))))
+        break
+      }
+      case 'wallpaperBlur': {
+        this.setVar('--bg-wallpaper-blur', `${value}px`)
+        this.setVar('--bg-wallpaper-scale', (1 + Number(value) * 0.006).toFixed(4))
+        break
+      }
+      case 'fit':
+        this.setVar('--bg-object-fit', String(value))
+        break
+    }
+  }
 
   /**
    * Apply the translucent-glass surface tokens (or restore the official ones
