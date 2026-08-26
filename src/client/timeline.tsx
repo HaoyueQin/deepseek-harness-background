@@ -284,6 +284,22 @@ export function collectMessages(snapshot: unknown): TimelineMessage[] {
   return out
 }
 
+/**
+ * Count the user messages the loaded window holds WITHOUT collecting or
+ * sorting them — the fast gate railMessages uses to skip the merge path on
+ * the streaming hot path (see there).
+ * @param chat - the loaded chat snapshot.
+ */
+function countWindowUserMessages(chat: unknown): number {
+  const nodes = (chat as { nodes?: Map<string, ChatNodeLike> } | undefined)?.nodes
+  if (nodes === undefined || typeof nodes.values !== 'function') return 0
+  let count = 0
+  for (const node of nodes.values()) {
+    if (node !== null && typeof node === 'object' && node.kind === 'user') count += 1
+  }
+  return count
+}
+
 /** Resolve the DOM anchor key of one entry (direct key form only). */
 export function resolveAnchorKey(m: TimelineMessage): string | undefined {
   return typeof m.key === 'string' && m.key !== '' ? m.key : undefined
@@ -347,12 +363,29 @@ export function normalizeProjectedTimeline(value: unknown): TimelineMessage[] {
  */
 export function railMessages(snapshot: unknown, projected: unknown): TimelineMessage[] {
   const projectedMessages = normalizeProjectedTimeline(projected)
-  const windowMessages = collectMessages(snapshot)
   const chat = (snapshot as { chat?: { nodes?: Map<string, ChatNodeLike> } } | undefined)?.chat
   const hidden = rewindHiddenSeqsOfChat(chat)
   const spans = rewindSpansOfChat(chat)
   const isHidden = (seq: number): boolean =>
     hidden.has(seq) || spans.some((span) => seq >= span.start && seq <= span.end)
+
+  if (projectedMessages.length === 0) return collectMessages(snapshot)
+  // Fast gate: the loaded window is a subset of the whole log the projection
+  // indexes, so when the window holds no MORE user messages than the
+  // projection it cannot fill a gap. Skipping the collect+sort keeps the
+  // streaming hot path (one render per token) allocation-free — the merged
+  // path below runs only for a degraded projection (hot reload losing the
+  // baseline) or rewinds cutting projection entries the window still holds.
+  const windowUserCount = countWindowUserMessages(chat)
+  // A keyless projected entry (early events without a durable id) can borrow
+  // its anchor key from the window, so that case must reach the merge too.
+  const projectionLacksKeys = projectedMessages.some((m) => m.key === undefined)
+  if (windowUserCount <= projectedMessages.length && !projectionLacksKeys) {
+    return hidden.size === 0 && spans.length === 0
+      ? projectedMessages
+      : projectedMessages.filter((m) => !isHidden(m.seq))
+  }
+  const windowMessages = collectMessages(snapshot)
 
   const bySeq = new Map<number, TimelineMessage>()
   for (const m of projectedMessages) {

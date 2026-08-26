@@ -193,6 +193,24 @@ describe('projection data source', () => {
     expect(messages[0]?.key).toBe('13:input-messageold')
   })
 
+  it('fast path: a complete projection stays authoritative over the window (no per-token merge work)', () => {
+    // The window holds the SAME seqs as the projection; the projection's
+    // text/keys must win and the window must not replace anything (the gate
+    // returns the projection untouched — the streaming hot path).
+    const snapshot = {
+      chat: { nodes: new Map<string, object>([
+        ['a', { kind: 'user', key: 'k1', anchorSeq: 2, data: { time: 1, content: [{ type: 'text', text: 'window copy' }] } }],
+      ]) },
+    }
+    const projected = { messages: [
+      { seq: 2, time: 1, text: 'projection copy', id: 'a' },
+    ] }
+    const messages = railMessages(snapshot, projected)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.text).toBe('projection copy')
+    expect(messages[0]?.key).toBe('13:input-messagea')
+  })
+
   it('falls back to the node window when the projection is empty', () => {
     const snapshot = {
       chat: { nodes: new Map<string, object>([
