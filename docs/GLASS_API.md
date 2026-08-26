@@ -228,7 +228,7 @@ structurally before acceptance:
 
 | Constraint | Value |
 | --- | --- |
-| Forbidden characters | `{` `}` `;` `@` `<` `>` and backslashes (they could escape the rule context; anchors never need them) |
+| Forbidden characters | `{` `}` `;` `@` `<` `>` `,` and backslashes (they could escape the rule context or widen it — a comma would let one registration add ARBITRARY extra rule subjects; anchors never need them) |
 | Max length | 500 characters after trim |
 | Max per `register` call | 64 selectors |
 | Whitespace | leading/trailing trimmed automatically |
