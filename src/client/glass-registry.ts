@@ -99,8 +99,15 @@ export interface BackgroundGlassApi {
   register(spec: GlassSurfaceSpec): () => void
 }
 
-/** Characters whose presence would let a selector escape its rule context. */
-const FORBIDDEN_SELECTOR_CHARS = ['{', '}', ';', '@', '<', '>'] as const
+/**
+ * Characters whose presence would let a selector escape its rule context.
+ * ',' is refused too: inside the generated rule body
+ * (`body[gate] <selector> { … }`) a comma lets one registration broaden the
+ * rule to ARBITRARY extra subjects (`.x, html body`) — an unintended
+ * widening of the glass sheet beyond the registered surface. Multiple
+ * surfaces stay supported through the selectors ARRAY.
+ */
+const FORBIDDEN_SELECTOR_CHARS = ['{', '}', ';', '@', '<', '>', ','] as const
 
 /** Hard cap on one selector's length (diagnostics-friendly, abuse-proof). */
 const MAX_SELECTOR_LENGTH = 500

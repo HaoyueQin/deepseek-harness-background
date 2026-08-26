@@ -212,14 +212,11 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     const next = { ...draftRef.current, [key]: value }
     draftRef.current = next
     markEditing()
-    // Hot path: most knobs repaint through the painter's single-variable
-    // writer (no DOM layer churn). panelOpacity drives the glass surface
-    // tokens, which need the full apply.
-    if (key === 'panelOpacity') {
-      paintBackground(next)
-    } else {
-      paintBackgroundKnob(key, value)
-    }
+    // Hot path: every knob repaints through the painter's single-variable
+    // writer (no DOM layer churn); panelOpacity goes through the knob path
+    // too — it repaints only the glass surface tokens instead of re-running
+    // the full apply.
+    paintBackgroundKnob(key, value)
     if (previewRef.current) paintPreviewSurface(previewRef.current, next)
   }, [markEditing])
 
@@ -228,6 +225,11 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     dirtyRef.current = true
     const result = await settingsClient.save(next)
     if (result === 'failed') {
+      // A failed save has settled (no in-flight write left to flush), so the
+      // dirty flag must drop with it — keeping it would make the unmount
+      // flush wait for a long-settled promise and re-run saveNow on a draft
+      // the host already rejected.
+      dirtyRef.current = false
       setError(t('background.saveFailed'))
       return
     }

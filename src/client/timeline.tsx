@@ -463,13 +463,18 @@ const JUMP_ROW_WAIT_MS = 3000
  * @param timeoutMs - polling budget.
  */
 export async function waitForChatRow(key: string, timeoutMs: number): Promise<HTMLElement | null> {
-  const scrollport = document.querySelector('[data-conversation-scroll]')
-  if (scrollport === null) return null
+  // Multi-column layouts can mount more than one conversation scrollport;
+  // the target row may live in ANY of them (the first match is no longer
+  // assumed to own every session's rows).
+  const scrollports = Array.from(document.querySelectorAll<HTMLElement>('[data-conversation-scroll]'))
+  if (scrollports.length === 0) return null
   const selector = `[data-chat-anchor-key="${CSS.escape(key)}"]`
   const deadline = Date.now() + timeoutMs
   for (;;) {
-    const row = scrollport.querySelector<HTMLElement>(selector)
-    if (row !== null) return row
+    for (const scrollport of scrollports) {
+      const row = scrollport.querySelector<HTMLElement>(selector)
+      if (row !== null) return row
+    }
     if (Date.now() >= deadline) return null
     await delay(40)
   }
@@ -481,7 +486,7 @@ export async function waitForChatRow(key: string, timeoutMs: number): Promise<HT
  * of the old fixed 120-iteration guard (each in-flight page burned 50ms of
  * that guard, so slow history could exhaust it and silently fail).
  */
-export async function jumpToMessage(sessionsService: TimelineSessionsService, sessionId: string, key: string): Promise<boolean> {
+export async function jumpToMessage(sessionsService: TimelineSessionsService, sessionId: string, key: string, rowWaitMs: number = JUMP_ROW_WAIT_MS): Promise<boolean> {
   const session = sessionsService.binding(sessionId)?.session
   if (session === undefined) return false
   const deadline = Date.now() + JUMP_PAGE_DEADLINE_MS
@@ -507,7 +512,7 @@ export async function jumpToMessage(sessionsService: TimelineSessionsService, se
     }
     await session.loadOlder()
   }
-  const row = await waitForChatRow(key, JUMP_ROW_WAIT_MS)
+  const row = await waitForChatRow(key, rowWaitMs)
   if (row === null) {
     console.warn(`[deepseek-harness-background] timeline jump target never rendered: ${key}`)
     return false

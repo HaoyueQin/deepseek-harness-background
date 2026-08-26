@@ -45,7 +45,13 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  *
  * Selectors target authored attributes (`data-dsh-bg`, `data-composer-card`,
  * `data-terminal`…), the `:global` `.md-code-block` anchor, and CSS-module
- * SUFFIX conventions (`_bubble`, `_newSession`…) audited for collisions:
+ * SUFFIX conventions (`_bubble`, `_newSession`…) audited for collisions.
+ *
+ * MAINTENANCE NOTE: the suffix anchors are the host's only stable-enough
+ * integration surface today, but a host restyle that renames them silently
+ * drops the glass. Upgrade path: once the host ships stable data-* anchors
+ * for these surfaces, swap the selector lists below to them and delete the
+ * suffix entries.
  * `_bubble` excludes `role="tooltip"` (Tooltip.module.css shares the suffix),
  * `_add` is scoped under `[data-composer-card]` (DiffBlock line markers share
  * it), `_newSession` excludes `Label` (the button's inner label span) and

@@ -233,6 +233,29 @@ describe('BackgroundSettingsRow', () => {
     }
   })
 
+  it('drops the dirty flag when a save fails (no stale flush on unmount)', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    settingsClient.save = vi.fn(async (): Promise<SaveResult> => 'failed')
+    settingsClient.flush = vi.fn(async () => {})
+    const view = renderRow()
+    await screen.findByText('background.opacity')
+    vi.useFakeTimers()
+    try {
+      const slider = document.querySelector('input[type="range"]') as HTMLInputElement
+      fireEvent.input(slider, { target: { value: '0.5' } })
+      fireEvent.pointerUp(slider)
+      await vi.advanceTimersByTimeAsync(200)
+      expect(screen.queryByRole('alert')).not.toBeNull()
+      // The failed save settled: unmount must not treat it as an in-flight
+      // write and flush (regression: dirtyRef stayed set on failure).
+      view.unmount()
+      await vi.advanceTimersByTimeAsync(100)
+      expect(settingsClient.flush).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not re-save on unmount when the debounced commit already ran', async () => {
     paintBackground({ ...persisted, enabled: true })
     const view = renderRow()

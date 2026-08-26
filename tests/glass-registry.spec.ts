@@ -225,13 +225,15 @@ describe('selector validation', () => {
         '',
         'x'.repeat(501),
         '.back' + String.fromCharCode(92) + 'slash-row',
+        '.x, html body',
       ],
     })
-    expect(warn).toHaveBeenCalledTimes(6)
+    expect(warn).toHaveBeenCalledTimes(7)
     const css = registryStyle()?.textContent ?? ''
     expect(css).toContain('.valid-row')
     expect(css).not.toContain('injected')
     expect(css).not.toContain('@media')
+    expect(css).not.toContain('html body')
   });
 
   it('caps a spec at 64 selectors and reports the overflow once', () => {

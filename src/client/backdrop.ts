@@ -122,6 +122,8 @@ export class BackgroundPainter {
   private observer: MutationObserver | undefined
   private active = false
   private settings: BackgroundSettings | undefined
+  /** Whether the current section resolves to an actual image source. */
+  private hasSource = false
   private readonly savedTokens = new Map<string, string>()
   private readonly savedVars = new Map<string, string>()
 
@@ -161,6 +163,7 @@ export class BackgroundPainter {
       this.restoreFrameTokens()
       this.applySurfaceGlass(settings, true)
       this.active = false
+      this.hasSource = false
       this.removeLayers()
       document.body.removeAttribute(ACTIVE_ATTR)
       return
@@ -181,6 +184,16 @@ export class BackgroundPainter {
       this.img.alt = ''
       // Remote-url sources must not leak the local origin via Referer.
       this.img.referrerPolicy = 'no-referrer'
+      // A dead source (404 / network error / revoked upload) must not leave a
+      // blank frozen backdrop: hide the broken image once (the scrim and
+      // glass still paint) and say so once on the console. Switching to a
+      // different URL below clears the failure state and retries.
+      this.img.onerror = () => {
+        if (this.img === null || this.img.dataset.failed === '1') return
+        this.img.dataset.failed = '1'
+        this.img.style.visibility = 'hidden'
+        console.warn('[deepseek-harness-background] wallpaper image failed to load:', this.img.getAttribute('src'))
+      }
       this.layer.appendChild(this.img)
       document.body.appendChild(this.layer)
     }
@@ -188,7 +201,11 @@ export class BackgroundPainter {
     // property, which resolves to an absolute URL and would make this check
     // always-true for relative urls. Same-value writes are no-ops in the DOM,
     // so this is a clarity fix, not a behavior fix.
-    if (this.img && this.img.getAttribute('src') !== url) this.img.src = url
+    if (this.img && this.img.getAttribute('src') !== url) {
+      delete this.img.dataset.failed
+      this.img.style.visibility = ''
+      this.img.src = url
+    }
 
     if (!this.scrim) {
       this.scrim = document.createElement('div')
@@ -197,6 +214,7 @@ export class BackgroundPainter {
     }
     document.body.setAttribute(ACTIVE_ATTR, 'on')
     this.active = true
+    this.hasSource = true
 
     // Push the knobs into CSS variables.
     const s = document.body.style
@@ -249,7 +267,7 @@ export class BackgroundPainter {
    * @param key - the knob to update.
    * @param value - its new value in its canonical unit.
    */
-  setKnob(key: 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit', value: number | BackgroundSettings['fit']): void {
+  setKnob(key: 'opacity' | 'scrim' | 'panelOpacity' | 'blur' | 'wallpaperBlur' | 'fit', value: number | BackgroundSettings['fit']): void {
     if (this.settings === undefined || !this.settings.enabled) return
     switch (key) {
       case 'opacity':
@@ -258,6 +276,17 @@ export class BackgroundPainter {
       case 'scrim':
         this.setVar('--bg-scrim', String(value))
         break
+      case 'panelOpacity': {
+        // The glass surface tokens depend on the panel opacity; repaint ONLY
+        // them (the slider hot path — no layer churn, no full apply). The
+        // stored section adopts the value so a later theme flip repaints with
+        // the fresh opacity, and a sourceless section keeps the official
+        // opaque surfaces (forceRestore) exactly like the full apply does.
+        const next = { ...this.settings, panelOpacity: Number(value) }
+        this.settings = next
+        this.applySurfaceGlass(next, !this.hasSource)
+        break
+      }
       case 'blur': {
         this.setVar('--bg-glass-blur', `${value}px`)
         this.setVar('--bg-glass-saturate', String(glassSaturate(Number(value))))
@@ -371,7 +400,7 @@ export function paintBackground(settings: BackgroundSettings): void {
 }
 
 /** Numeric effect knobs the slider drag path repaints. */
-export type BackgroundKnob = 'opacity' | 'scrim' | 'blur' | 'wallpaperBlur' | 'fit'
+export type BackgroundKnob = 'opacity' | 'scrim' | 'panelOpacity' | 'blur' | 'wallpaperBlur' | 'fit'
 
 /**
  * Update one effect knob on the live backdrop without re-running the full

@@ -115,6 +115,18 @@ describe('waitForChatRow', () => {
   it('returns null when no conversation scrollport exists', async () => {
     expect(await waitForChatRow('13:x', 100)).toBeNull()
   })
+
+  it('finds the row in a SECOND conversation scrollport (multi-column layouts)', async () => {
+    const sp1 = mountScrollport()
+    const sp2 = document.createElement('div')
+    sp2.setAttribute('data-conversation-scroll', '')
+    document.body.appendChild(sp2)
+    const key = '13:input-messagecol2'
+    const row = addRow(sp2, key)
+    expect(await waitForChatRow(key, 1000)).toBe(row)
+    // The first scrollport never held it and must stay untouched.
+    expect(sp1.querySelector('[data-chat-anchor-key]')).toBeNull()
+  })
 })
 
 describe('jumpToMessage', () => {
@@ -162,8 +174,9 @@ describe('jumpToMessage', () => {
     mountScrollport()
     const key = '13:input-messageghost'
     const session = fakeSession({ nodes: new Map([[key, {}]]), hasMore: false })
-    // Node exists but the DOM row never appears.
-    expect(await jumpToMessage(serviceFor(session), 's1', key)).toBe(false)
+    // Node exists but the DOM row never appears. The injectable row-wait
+    // budget keeps the test fast (production default is 3s).
+    expect(await jumpToMessage(serviceFor(session), 's1', key, 150)).toBe(false)
     expect(scrollIntoViewCalls).toHaveLength(0)
   })
 

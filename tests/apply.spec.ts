@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { apply, inject } from '../src/client/index.ts'
-import { paintPreviewSurface } from '../src/client/backdrop.ts'
+import { paintBackgroundKnob, paintPreviewSurface } from '../src/client/backdrop.ts'
 import { settingsClient } from '../src/client/settings-client.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
 
@@ -404,6 +404,64 @@ describe('deepseek-harness-background apply', () => {
     paintPreviewSurface(el, { ...SECTION, panelOpacity: 1 })
     expect(el.style.getPropertyValue('--bg-glass-brightness')).toBe('1')
     expect(el.style.getPropertyValue('--bg-glass-blur')).toBe('0px')
+  })
+
+  it('hides a broken wallpaper image once and recovers when the source changes', async () => {
+    mockFetch()
+    await mount()
+    const image = img()
+    expect(image).not.toBeNull()
+    // jsdom never loads images — simulate the network failure the onerror
+    // handler is registered for.
+    image?.dispatchEvent(new Event('error'))
+    expect(image?.dataset.failed).toBe('1')
+    expect(image?.style.visibility).toBe('hidden')
+    // A repeated error event must not re-warn or re-hide (idempotent).
+    image?.dispatchEvent(new Event('error'))
+    expect(image?.dataset.failed).toBe('1')
+    // Switching to another source clears the failure state and retries.
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/b.jpg' }
+    await settingsClient.load()
+    await vi.waitFor(() => {
+      expect(img()?.getAttribute('src')).toBe('https://example.com/b.jpg')
+    })
+    expect(img()?.dataset.failed).toBeUndefined()
+    expect(img()?.style.visibility).toBe('')
+  })
+
+  it('updates ONLY the glass surface tokens when the panel-opacity knob moves', async () => {
+    mockFetch()
+    await mount()
+    const before = document.body.style.getPropertyValue('--dsw-specific-input-major')
+    paintBackgroundKnob('panelOpacity', 0.8)
+    const after = document.body.style.getPropertyValue('--dsw-specific-input-major')
+    expect(after).not.toBe('')
+    expect(after).not.toBe(before)
+    // The knob adopted into the stored section: a later theme flip repaints
+    // with the NEW opacity (dark alpha for 0.8 differs from dark alpha for
+    // 0.15), not the stale mounted one.
+    const knobLight = after
+    document.body.dataset.dsDarkTheme = ''
+    await vi.waitFor(() => {
+      const dark = document.body.style.getPropertyValue('--dsw-specific-input-major')
+      expect(dark).not.toBe('')
+      expect(dark).not.toBe(knobLight)
+    })
+    delete document.body.dataset.dsDarkTheme
+    // Maxing the slider still restores the official opaque surfaces.
+    paintBackgroundKnob('panelOpacity', 1)
+    expect(document.body.getAttribute('data-dsh-bg-glass')).toBeNull()
+    expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toBe('')
+  })
+
+  it('keeps official opaque surfaces when the panel-opacity knob moves without a wallpaper source', async () => {
+    section = { ...SECTION, uploadId: '', url: '' }
+    mockFetch()
+    await mount()
+    expect(document.body.getAttribute('data-dsh-bg-glass')).toBeNull()
+    paintBackgroundKnob('panelOpacity', 0.2)
+    expect(document.body.getAttribute('data-dsh-bg-glass')).toBeNull()
+    expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).toBe('')
   })
 
   it('is a no-op while the transport has not loaded', async () => {
