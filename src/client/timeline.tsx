@@ -14,9 +14,15 @@
  * - Key-point bookmarks: star a question in the expanded panel, persisted per
  *   session in localStorage; marked rows show a golden tick in the capsule
  *   and a "marked only" filter narrows the list.
- * - Jump stabilization: the reading-position tracker freezes while a smooth
- *   jump animates (cleared 150ms after the last scroll event, plus an 800ms
- *   fallback), so the panel cannot jitter mid-jump.
+ * - Jump stabilization: the reading-position tracker freezes while a jump
+ *   glide animates (cleared 150ms after the last scroll event, plus a 2s
+ *   fallback), so the panel cannot jitter mid-jump. The glide itself is a
+ *   rAF ease-in-out on the conversation scrollport: a ~26px bottom-follow
+ *   detach first settles the official at-bottom flag outside its 25px zone
+ *   (so a tip-moved re-render cannot yank the slide back to the floor — the
+ *   earlier instant+smooth double pass kept the jump working but made the
+ *   slide invisible), and wheel/touch/keyboard input cancels it so the
+ *   reader takes over instantly.
  * - Rewind integration: messages withdrawn by a rewind command node are
  *   filtered out of the rail.
  *
@@ -158,17 +164,78 @@ export function writeMarks(sessionId: string | undefined, marks: string[]): void
 
 /* ---- Rewind integration (ported from dsh-chat-timeline v0.1.4) ---------- */
 
+/** Parse digits into a finite number (undefined otherwise). */
+function parseSeqDigits(digits: string | undefined): number | undefined {
+  if (digits === undefined) return undefined
+  const n = Number.parseInt(digits, 10)
+  return Number.isFinite(n) ? n : undefined
+}
+
+/** Extract a seq from a string-ish field ('@42', 'seq 42', '#42', bare 42). */
+function seqFromStringish(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return undefined
+  const m = /(?:@|seq\s*|#)?(\d+)/i.exec(value)
+  return m === null ? undefined : parseSeqDigits(m[1])
+}
+
 /**
- * Extract the rewind target seq from a rewind outcome text.
+ * Extract the rewind target seq from a rewind outcome text. Multi-pattern
+ * (ported from dsh-chat-timeline v0.1.5): an explicit `seq 42` declaration
+ * wins, then `#42`, then the broad english/chinese verb forms — the old
+ * single "rewound" regex silently missed real success texts like "已撤回
+ * seq 42" / "Withdrawn seq 42" (upstream issue #6).
  * @param text - the command outcome text.
  */
 export function rewindTargetOfOutcome(text: unknown): number | undefined {
   if (typeof text !== 'string') return undefined
-  const match = /rewound.*?(?:target\s+)?(\d+)/i.exec(text) ?? /#(\d+)/.exec(text)
-  const digits = match?.[1]
-  if (digits === undefined) return undefined
-  const n = Number.parseInt(digits, 10)
-  return Number.isFinite(n) ? n : undefined
+  const seqMatch = /seq\s*(\d+)/i.exec(text)
+  if (seqMatch !== null) return parseSeqDigits(seqMatch[1])
+  const hashMatch = /#(\d+)/.exec(text)
+  if (hashMatch !== null) return parseSeqDigits(hashMatch[1])
+  const broadMatch = /(?:rewound|withdrawn|已撤回).*?(?:target\s+)?(\d+)/i.exec(text)
+  if (broadMatch !== null) return parseSeqDigits(broadMatch[1])
+  return undefined
+}
+
+/**
+ * Resolve the target of a rewind command: structured fields first
+ * (outcome.targetSeq / outcome.target / args.targetSeq / args.target /
+ * args.seq / args.raw / args[0]), then the outcome text — mirrors upstream
+ * v0.1.5 so locale-independent producers keep parsing without text
+ * heuristics (the args.seq guard skips the command's own seq).
+ * @param command - the command payload.
+ */
+export function rewindTargetOfCommand(command: unknown): number | undefined {
+  if (command === null || typeof command !== 'object') return undefined
+  const rec = command as { outcome?: unknown; args?: unknown; seq?: unknown }
+  const outcome = rec.outcome
+  if (outcome !== null && typeof outcome === 'object') {
+    const o = outcome as { targetSeq?: unknown; target?: unknown }
+    if (typeof o.targetSeq === 'number' && Number.isFinite(o.targetSeq)) return o.targetSeq
+    if (typeof o.target === 'number' && Number.isFinite(o.target)) return o.target
+  }
+  const args = rec.args
+  if (args !== null && typeof args === 'object') {
+    const record = args as { targetSeq?: unknown; target?: unknown; seq?: unknown; raw?: unknown; '0'?: unknown }
+    if (typeof record.targetSeq === 'number' && Number.isFinite(record.targetSeq)) return record.targetSeq
+    if (typeof record.target === 'number' && Number.isFinite(record.target)) return record.target
+    if (typeof record.seq === 'number' && Number.isFinite(record.seq) && record.seq !== rec.seq) return record.seq
+    const rawish = record.raw ?? record['0'] ?? (Array.isArray(args) ? args[0] : undefined)
+    if (rawish !== undefined) {
+      const n = seqFromStringish(rawish)
+      if (n !== undefined) return n
+    }
+    if (typeof record.target === 'string') {
+      const n = seqFromStringish(record.target)
+      if (n !== undefined) return n
+    }
+  }
+  if (outcome !== null && typeof outcome === 'object') {
+    const text = (outcome as { text?: unknown }).text
+    if (typeof text === 'string') return rewindTargetOfOutcome(text)
+  }
+  return undefined
 }
 
 /**
@@ -190,6 +257,7 @@ function isRewindPreviewCommand(command: { args?: unknown }): boolean {
  */
 export function hiddenSeqsOfChat(chat: unknown): Set<number> {
   const hidden = rewindHiddenSeqsOfChat(chat)
+  for (const seq of rewindMarkedSeqsOfChat(chat)) hidden.add(seq)
   const spans = rewindSpansOfChat(chat)
   if (spans.length === 0) return hidden
   const nodes = (chat as { nodes?: Map<string, ChatNodeLike> }).nodes
@@ -201,6 +269,35 @@ export function hiddenSeqsOfChat(chat: unknown): Set<number> {
     if (spans.some((span) => anchor >= span.start && anchor <= span.end)) hidden.add(anchor)
   }
   return hidden
+}
+
+/**
+ * Seq numbers of nodes carrying a rewind-hidden marker (upstream v0.1.5):
+ * host/plugin producers can tag the node record itself (rewindHidden), its
+ * data payload, or the payload's attributes map.
+ * @param chat - a chat snapshot (loosely typed on purpose).
+ */
+export function rewindMarkedSeqsOfChat(chat: unknown): Set<number> {
+  const marked = new Set<number>()
+  const nodes = (chat as { nodes?: Map<string, ChatNodeLike> }).nodes
+  if (nodes === undefined || typeof nodes.values !== 'function') return marked
+  for (const node of nodes.values()) {
+    if (node === null || typeof node !== 'object') continue
+    const data = node.data
+    if (data === null || typeof data !== 'object') continue
+    const record = data as { attributes?: unknown; [k: string]: unknown }
+    const attrs = record.attributes
+    if (attrs !== null && typeof attrs === 'object'
+      && (attrs as Record<string, unknown>)['data-dsh-rewind-hidden'] === true) {
+      if (typeof node.anchorSeq === 'number') marked.add(node.anchorSeq)
+      continue
+    }
+    if (record['data-dsh-rewind-hidden'] === true
+      || (node as { rewindHidden?: unknown }).rewindHidden === true) {
+      if (typeof node.anchorSeq === 'number') marked.add(node.anchorSeq)
+    }
+  }
+  return marked
 }
 
 /**
@@ -252,7 +349,7 @@ export function rewindSpansOfChat(chat: unknown): { start: number; end: number }
     if (outcome === null || typeof outcome !== 'object' || outcome.kind !== 'success') continue
     const marker = outcome.sourceEventSeq
     if (typeof marker !== 'number') continue
-    const target = rewindTargetOfOutcome(outcome.text)
+    const target = rewindTargetOfCommand(command)
     if (target !== undefined) spans.push({ start: target, end: marker })
   }
   return spans
@@ -365,9 +462,10 @@ export function railMessages(snapshot: unknown, projected: unknown): TimelineMes
   const projectedMessages = normalizeProjectedTimeline(projected)
   const chat = (snapshot as { chat?: { nodes?: Map<string, ChatNodeLike> } } | undefined)?.chat
   const hidden = rewindHiddenSeqsOfChat(chat)
+  const marked = rewindMarkedSeqsOfChat(chat)
   const spans = rewindSpansOfChat(chat)
   const isHidden = (seq: number): boolean =>
-    hidden.has(seq) || spans.some((span) => seq >= span.start && seq <= span.end)
+    hidden.has(seq) || marked.has(seq) || spans.some((span) => seq >= span.start && seq <= span.end)
 
   if (projectedMessages.length === 0) return collectMessages(snapshot)
   // Fast gate: the loaded window is a subset of the whole log the projection
@@ -381,7 +479,7 @@ export function railMessages(snapshot: unknown, projected: unknown): TimelineMes
   // its anchor key from the window, so that case must reach the merge too.
   const projectionLacksKeys = projectedMessages.some((m) => m.key === undefined)
   if (windowUserCount <= projectedMessages.length && !projectionLacksKeys) {
-    return hidden.size === 0 && spans.length === 0
+    return marked.size === 0 && hidden.size === 0 && spans.length === 0
       ? projectedMessages
       : projectedMessages.filter((m) => !isHidden(m.seq))
   }
@@ -452,6 +550,8 @@ export function railWidthFor(texts: string[]): number {
 const JUMP_PAGE_DEADLINE_MS = 30000
 /** How long to wait for the chat view to commit the target row. */
 const JUMP_ROW_WAIT_MS = 3000
+/** How long the jump-stabilization lock may stay engaged without settling. */
+const JUMP_LOCK_FALLBACK_MS = 2000
 
 /**
  * Poll the conversation DOM until the target row is committed. The session
@@ -480,15 +580,169 @@ export async function waitForChatRow(key: string, timeoutMs: number): Promise<HT
   }
 }
 
+/** Official conversation follow threshold: the view keeps bottom-following while within this distance of the floor (dsh-client-ui-conversation, 25px). */
+const CONVERSATION_FOLLOW_ZONE_PX = 25
+
+/** Distances under this snap instead of animating. */
+const MIN_GLIDE_DISTANCE_PX = 8
+
+/** Glide duration floor / cap — a far-boundary rail click stays a tangible slide. */
+const MIN_GLIDE_MS = 280
+const MAX_GLIDE_MS = 900
+
+/** Maximum scrollable offset of a conversation scrollport. */
+export function scrollFloorOf(el: HTMLElement): number {
+  return Math.max(0, el.scrollHeight - el.clientHeight)
+}
+
+/**
+ * Destination scrollTop that centers `row` inside `el` — the same geometry
+ * as scrollIntoView({ block: 'center' }), computed directly so the glide owns
+ * the scroll position instead of the browser.
+ * @param el - the conversation scrollport.
+ * @param row - the target chat row.
+ */
+export function centeredScrollTopFor(el: HTMLElement, row: HTMLElement): number {
+  const floor = scrollFloorOf(el)
+  const target = el.scrollTop
+    + (row.getBoundingClientRect().top - el.getBoundingClientRect().top)
+    - (el.clientHeight - row.offsetHeight) / 2
+  if (!Number.isFinite(target)) return el.scrollTop
+  return Math.max(0, Math.min(floor, target))
+}
+
+/**
+ * Glide duration for a distance: longer slides take longer, bounded to
+ * [MIN_GLIDE_MS, MAX_GLIDE_MS] (a deep-history rail click reads as a
+ * deliberate glide, not a sluggish race).
+ * @param distance - px to travel.
+ */
+export function glideDurationFor(distance: number): number {
+  if (!Number.isFinite(distance)) return MIN_GLIDE_MS
+  return Math.round(Math.max(MIN_GLIDE_MS, Math.min(MAX_GLIDE_MS, 240 + Math.abs(distance) * 0.14)))
+}
+
+/**
+ * Detach the official bottom-follow state when the reader currently sits
+ * inside its follow zone: assign the scroll position just outside the 25px
+ * boundary. That one synchronous scroll event settles at-bottom to false
+ * (moved-by-reader + outside the zone) so a tip-moved re-render cannot yank
+ * the glide back to the floor. No-op when already above the zone or when
+ * the assignment cannot move (content shorter than the viewport).
+ * @param el - the conversation scrollport.
+ */
+export function detachBottomFollow(el: HTMLElement): boolean {
+  const floor = scrollFloorOf(el)
+  // Only the bottom zone can still hold the follow flag: anywhere above it
+  // the official scroll handler already settled at-bottom to false, and
+  // dragging the viewport down to the zone would be a visible jump.
+  if (el.scrollTop < floor - CONVERSATION_FOLLOW_ZONE_PX) return false
+  const detached = Math.max(0, floor - CONVERSATION_FOLLOW_ZONE_PX - 1)
+  if (Math.abs(el.scrollTop - detached) < 1) return false
+  el.scrollTop = detached
+  return true
+}
+
+/**
+ * Wait until a detach assignment's scroll event has been dispatched AND
+ * consumed by the official scroll handler: scroll events fire on a later
+ * frame than the assignment, and a paging commit's layout effect runs
+ * before that dispatch — it would re-run the follow logic while the
+ * at-bottom flag is still true and drag the viewport to the growing floor,
+ * undoing the detach (two rAFs + a macrotask bracket the dispatch window).
+ */
+export function settleScrollEvents(): Promise<void> {
+  if (typeof requestAnimationFrame !== 'function') return Promise.resolve()
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(resolve, 0)))
+  })
+}
+
+/**
+ * Animate el.scrollTop toward target with an ease-in-out cubic profile.
+ * Wheel / touch / keyboard-scroll input cancels the glide so the reader
+ * takes over immediately. Resolves true when the glide completed, false
+ * when the reader cancelled it.
+ * @param el - the conversation scrollport.
+ * @param target - destination scrollTop.
+ * @param durationMs - animation budget.
+ */
+export function animateScrollTop(el: HTMLElement, target: number, durationMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const start = el.scrollTop
+    const delta = target - start
+    let done = false
+    let frame = 0
+    const finish = (completed: boolean): void => {
+      if (done) return
+      done = true
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchstart', onTouch)
+      window.removeEventListener('keydown', onKey)
+      if (frame !== 0) cancelAnimationFrame(frame)
+      resolve(completed)
+    }
+    const onWheel = (): void => finish(false)
+    const onTouch = (): void => finish(false)
+    const onKey = (e: KeyboardEvent): void => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) finish(false)
+    }
+    el.addEventListener('wheel', onWheel, { passive: true })
+    el.addEventListener('touchstart', onTouch, { passive: true })
+    window.addEventListener('keydown', onKey)
+    if (Math.abs(delta) < 0.5 || durationMs <= 0) {
+      el.scrollTop = target
+      finish(true)
+      return
+    }
+    const t0 = performance.now()
+    const ease = (x: number): number => x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2
+    const step = (now: number): void => {
+      if (done) return
+      const t = Math.min(1, (now - t0) / durationMs)
+      el.scrollTop = start + delta * ease(t)
+      if (t < 1) frame = requestAnimationFrame(step)
+      else finish(true)
+    }
+    frame = requestAnimationFrame(step)
+  })
+}
+
 /**
  * Ensure the target node is loaded, wait for the chat view to commit its row
- * into the DOM, then scroll it into view. Paging uses a time budget instead
+ * into the DOM, then glide it into view. Paging uses a time budget instead
  * of the old fixed 120-iteration guard (each in-flight page burned 50ms of
  * that guard, so slow history could exhaust it and silently fail).
  */
 export async function jumpToMessage(sessionsService: TimelineSessionsService, sessionId: string, key: string, rowWaitMs: number = JUMP_ROW_WAIT_MS): Promise<boolean> {
   const session = sessionsService.binding(sessionId)?.session
   if (session === undefined) return false
+  // Detach the official bottom-follow flag BEFORE paging: while a multi-page
+  // loadOlder is in flight, every prepend commit re-runs the follow layout
+  // effect (tip-moved + at-bottom) and toBottom() drags the viewport to the
+  // (growing) floor — the rail click would read as "surf to the newest floor,
+  // then slide back to the target". One synchronous assignment just outside
+  // the 25px zone settles the flag for the whole paging phase, but the flag
+  // only flips when the assignment's scroll event reaches the official
+  // handler, which happens a frame later — so the paging phase waits for it
+  // first. The post-wait detach below stays idempotent for the already-loaded
+  // case. Multi-column layouts cannot pin the target session's scrollport
+  // before the row exists, so every mounted scrollport is detached (a 26px
+  // nudge elsewhere is the whole cost; the reader's next scroll re-engages
+  // follow there).
+  let detachedAny = false
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-conversation-scroll]'))) {
+    if (detachBottomFollow(el)) {
+      // The official scroll handler flips its at-bottom flag on a scroll
+      // event, and the real one only dispatches on a later frame — a paging
+      // commit's layout effect runs before it and re-runs the follow logic.
+      // A synthetic event notifies the handler synchronously, so the flag
+      // settles before any prepend commit can observe it.
+      el.dispatchEvent(new Event('scroll'))
+      detachedAny = true
+    }
+  }
+  if (detachedAny) await settleScrollEvents()
   const deadline = Date.now() + JUMP_PAGE_DEADLINE_MS
   for (;;) {
     const snapshot = session.getSnapshot() as {
@@ -510,7 +764,15 @@ export async function jumpToMessage(sessionsService: TimelineSessionsService, se
       await delay(100)
       continue
     }
-    await session.loadOlder()
+    // A failing page must not reject the whole jump (or leave the rail lock
+    // to the fallback timer): log and stop paging — the row may still render
+    // from an earlier page, so waitForChatRow below gets its chance anyway.
+    try {
+      await session.loadOlder()
+    } catch (error) {
+      console.warn('[deepseek-harness-background] timeline jump paging failed:', error)
+      break
+    }
   }
   const row = await waitForChatRow(key, rowWaitMs)
   if (row === null) {
@@ -519,13 +781,38 @@ export async function jumpToMessage(sessionsService: TimelineSessionsService, se
   }
   const reducedMotion = typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  // Instant placement first: the scroll event it fires flips the chat view's
-  // bottom-follow state so its own follow logic cannot yank a smooth
-  // animation back to the floor mid-jump (streaming growth / turn-end
-  // re-renders were doing exactly that).
-  row.scrollIntoView({ behavior: 'auto', block: 'center' })
-  if (!reducedMotion) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  return true
+  const scroller = row.closest<HTMLElement>('[data-conversation-scroll]')
+  // No addressable scrollport (defensive): keep the platform path — the
+  // instant placement flips the official bottom-follow state through its
+  // scroll event, the smooth pass afterwards is a no-op when already
+  // centered (and a graceful glide when the row moved since).
+  if (scroller === null) {
+    row.scrollIntoView({ behavior: 'auto', block: 'center' })
+    if (!reducedMotion) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return true
+  }
+  const target = centeredScrollTopFor(scroller, row)
+  // Reduced motion or a hairline distance: one placement (its scroll event
+  // still flips the bottom-follow state when it lands outside the zone).
+  if (reducedMotion || Math.abs(target - scroller.scrollTop) < MIN_GLIDE_DISTANCE_PX) {
+    scroller.scrollTop = target
+    return true
+  }
+  // Bottom-follow detach BEFORE the glide: a pure slide starting at the floor
+  // leaves the official at-bottom flag true for its first frames, so a
+  // tip-moved re-render (turn end / commit) yanks it back to the floor.
+  // The previous fix scrolled instantly to the target and ran a zero-distance
+  // smooth pass — functional, but the visible slide was gone. The detach moves
+  // at most ~26px to just outside the follow zone (reads as a nudge, not a
+  // jump); the flag settles once the dispatch frame passes, so the glide
+  // waits for it first.
+  if (detachBottomFollow(scroller)) {
+    // Synchronous flag flip, then the glide (see the pre-paging detach above).
+    scroller.dispatchEvent(new Event('scroll'))
+    await settleScrollEvents()
+  }
+  const completed = await animateScrollTop(scroller, target, glideDurationFor(Math.abs(target - scroller.scrollTop)))
+  return completed
 }
 
 /**
@@ -607,9 +894,10 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
   const pageRef = react.useRef<HTMLDivElement | null>(null)
   const activeItemRef = react.useRef<HTMLButtonElement | null>(null)
   // Jump-stabilization lock: freezes the reading-position tracker while a
-  // click-triggered smooth jump animates (cleared by the settle timer below
-  // or the 800ms fallback in the click handler). The fallback timeout is
-  // tracked so the settle path can cancel it and unmount cannot leak it.
+  // click-triggered jump glide animates (cleared by the settle timer below
+  // or the JUMP_LOCK_FALLBACK_MS fallback in the click handler). The fallback
+  // timeout is tracked so the settle path can cancel it and unmount cannot
+  // leak it.
   const jumpPendingRef = react.useRef(false)
   const jumpFallbackRef = react.useRef<number | undefined>(undefined)
 
@@ -896,8 +1184,19 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
                       jumpFallbackRef.current = window.setTimeout(() => {
                         jumpFallbackRef.current = undefined
                         jumpPendingRef.current = false
-                      }, 800)
-                      void jumpToMessage(sessionsService, sessionId, key).catch(() => {})
+                      }, JUMP_LOCK_FALLBACK_MS)
+                      // The glide resolves on completion OR reader takeover —
+                      // release the lock right then; the settle timer path
+                      // stays idempotent either way.
+                      void jumpToMessage(sessionsService, sessionId, key)
+                        .catch(() => {})
+                        .finally(() => {
+                          if (jumpFallbackRef.current !== undefined) {
+                            clearTimeout(jumpFallbackRef.current)
+                            jumpFallbackRef.current = undefined
+                          }
+                          jumpPendingRef.current = false
+                        })
                     }}
                   >
                     <span className="dsbt-title">{m.text === '' ? t('timeline.noText') : m.text}</span>

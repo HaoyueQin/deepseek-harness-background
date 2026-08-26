@@ -271,7 +271,7 @@ export function validateSectionBody(body: Record<string, unknown>, home?: string
   const timeline = body.timeline
   if (timeline !== undefined && typeof timeline !== 'boolean') return 'invalid-timeline'
   const fit = body.fit
-  if (fit !== undefined && fit !== '' && !FIT_MODES.includes(fit as BackgroundFit)) {
+  if (fit !== undefined && !FIT_MODES.includes(fit as BackgroundFit)) {
     return 'invalid-fit'
   }
   return null
@@ -467,9 +467,17 @@ export function makeBackgroundRoutes(settings: SettingsProvider, opts: { home?: 
         }
         if (!requireMethod(req, res, 'GET')) return
         const rawPath = new URL(req.url ?? '/', 'http://x').pathname
-        const id = rawPath.startsWith(`${BACKGROUND_API_PREFIX}/image/`)
-          ? decodeURIComponent(rawPath.slice(`${BACKGROUND_API_PREFIX}/image/`.length))
-          : ''
+        // decodeURIComponent throws URIError on malformed escapes (e.g. '%zz');
+        // answer 404 instead of an unhandled rejection.
+        let id = ''
+        try {
+          id = rawPath.startsWith(`${BACKGROUND_API_PREFIX}/image/`)
+            ? decodeURIComponent(rawPath.slice(`${BACKGROUND_API_PREFIX}/image/`.length))
+            : ''
+        } catch {
+          json(res, 404, { ok: false, error: 'not-found' })
+          return
+        }
         const abs = uploadPath(id, opts.home)
         if (abs === '') {
           json(res, 404, { ok: false, error: 'not-found' })

@@ -451,6 +451,9 @@ describe('image route (serve stored uploads)', () => {
     await withServer(async (base) => {
       expect((await fetch(`${base}/api/bg-wallpaper/image/up-${'a'.repeat(24)}`)).status).toBe(404)
       expect((await fetch(`${base}/api/bg-wallpaper/image/..%2Fetc%2Fpasswd`)).status).toBe(404)
+      // Malformed percent-escapes must not surface as an unhandled rejection.
+      expect((await fetch(`${base}/api/bg-wallpaper/image/%zz`)).status).toBe(404)
+      expect((await fetch(`${base}/api/bg-wallpaper/image/%2`)).status).toBe(404)
     })
   })
 })
@@ -467,9 +470,11 @@ describe('validateSectionBody field pre-checks', () => {
     expect(validateSectionBody({ timeline: false })).toBeNull()
   })
 
-  it('rejects an out-of-enum fit', () => {
+  it('rejects an out-of-enum fit incl. the empty string', () => {
     expect(validateSectionBody({ fit: 'fill' })).toBe('invalid-fit')
     expect(validateSectionBody({ fit: 1 })).toBe('invalid-fit')
+    // '' must not slip past the pre-check into the persisted document.
+    expect(validateSectionBody({ fit: '' })).toBe('invalid-fit')
   })
 
   it('still accepts valid enabled/fit values', () => {

@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   collectMessages, hiddenSeqsOfChat, inputAnchorKeyOf, markKeyOf,
   normalizeProjectedTimeline, railHeightFor, railMessages, railWidthFor,
-  readMarks, resolveAnchorKey, rewindTargetOfOutcome,
+  readMarks, resolveAnchorKey, rewindMarkedSeqsOfChat, rewindTargetOfCommand, rewindTargetOfOutcome,
   writeMarks, MARKS_STORAGE_PREFIX, TIMELINE_PROJECTION_KEY,
 } from '../src/client/timeline.tsx'
 import { timelineProjectionDefinition, type TimelineProjectionState } from '../src/projection.ts'
@@ -254,6 +254,53 @@ describe('rewind filtering helpers', () => {
     expect(hidden.has(7)).toBe(true) // the command row itself
     expect(hidden.has(20)).toBe(true) // preview target
     expect(hidden.has(30)).toBe(false)
+  })
+})
+
+describe('rewind target resolution (v0.1.5 hardening)', () => {
+  it('parses rewind targets from the multi-pattern outcome forms', () => {
+    expect(rewindTargetOfOutcome('已撤回 seq 42 及之后的内容')).toBe(42)
+    expect(rewindTargetOfOutcome('Withdrawn seq 42 ...')).toBe(42)
+    expect(rewindTargetOfOutcome('session rewound to seq 36')).toBe(36)
+    expect(rewindTargetOfOutcome('rewound to target 4 of 9')).toBe(4)
+    expect(rewindTargetOfOutcome('session rewound #12')).toBe(12)
+    expect(rewindTargetOfOutcome('nothing here')).toBeUndefined()
+    expect(rewindTargetOfOutcome(undefined)).toBeUndefined()
+  })
+
+  it('prefers structured fields over outcome text (rewindTargetOfCommand)', () => {
+    expect(rewindTargetOfCommand({ outcome: { targetSeq: 5 } })).toBe(5)
+    expect(rewindTargetOfCommand({ outcome: { target: 6 } })).toBe(6)
+    expect(rewindTargetOfCommand({ args: { targetSeq: 7 } })).toBe(7)
+    expect(rewindTargetOfCommand({ seq: 9, args: { seq: 8 } })).toBe(8)
+    // args.seq equal to the command's own seq is ignored.
+    expect(rewindTargetOfCommand({ seq: 9, args: { seq: 9 } })).toBeUndefined()
+    expect(rewindTargetOfCommand({ args: { raw: '@42' } })).toBe(42)
+    expect(rewindTargetOfCommand({ args: { '0': '#33' } })).toBe(33)
+    expect(rewindTargetOfCommand({ args: ['27'] })).toBe(27)
+    expect(rewindTargetOfCommand({ args: { target: 'seq 11' } })).toBe(11)
+    // Falls back to the outcome text when nothing structured exists.
+    expect(rewindTargetOfCommand({ outcome: { text: '已撤回 seq 10' } })).toBe(10)
+    expect(rewindTargetOfCommand(null)).toBeUndefined()
+    expect(rewindTargetOfCommand(undefined)).toBeUndefined()
+  })
+
+  it('collects node-level rewind-hidden markers from all three producer positions', () => {
+    const chat = {
+      nodes: new Map<string, object>([
+        ['a', { kind: 'user', anchorSeq: 1, data: { attributes: { 'data-dsh-rewind-hidden': true } } }],
+        ['b', { kind: 'user', anchorSeq: 2, data: { 'data-dsh-rewind-hidden': true } }],
+        ['c', { kind: 'user', anchorSeq: 3, rewindHidden: true, data: {} }],
+        ['d', { kind: 'user', anchorSeq: 4, data: {} }],
+      ]),
+    }
+    const marked = rewindMarkedSeqsOfChat(chat)
+    expect(marked.has(1)).toBe(true)
+    expect(marked.has(2)).toBe(true)
+    expect(marked.has(3)).toBe(true)
+    expect(marked.has(4)).toBe(false)
+    // The aggregate hidden set includes marked nodes too.
+    expect(hiddenSeqsOfChat(chat).has(2)).toBe(true)
   })
 })
 
