@@ -334,29 +334,48 @@ export function normalizeProjectedTimeline(value: unknown): TimelineMessage[] {
 }
 
 /**
- * Rail messages with the fastest source first: the host projection covers the
- * WHOLE session (and already excludes rewind cuts), so it wins whenever it
- * has anything; otherwise fall back to the loaded chat-node window. The
- * projection path still applies locally-known rewind hiding so a cut lands
- * instantly even before the next projection push arrives.
- * @param snapshot - the session conversation snapshot (node fallback).
+ * Rail messages: the host projection (whole-session index) MERGED with the
+ * loaded chat-node window. The projection normally wins outright, but a
+ * projection that lost its baseline (e.g. the plugin was hot-reloaded after
+ * the session's tail page seeded the client store) can miss early entries —
+ * the window fills those gaps whenever it holds them, and window entries
+ * lend their real anchor key to projected entries whose durable id was
+ * absent (early events without one). Locally-known rewind hiding applies to
+ * the merged list so a cut lands instantly, before the next projection push.
+ * @param snapshot - the session conversation snapshot (node window).
  * @param projected - the raw bgTimeline projection value.
  */
 export function railMessages(snapshot: unknown, projected: unknown): TimelineMessage[] {
   const projectedMessages = normalizeProjectedTimeline(projected)
-  if (projectedMessages.length > 0) {
-    // The host projection already drops rewind cuts authoritatively; this
-    // locally-known hiding (command rows, preview targets and cut spans read
-    // off the loaded window) makes a rewind land instantly, before the next
-    // projection push arrives.
-    const chat = (snapshot as { chat?: { nodes?: Map<string, ChatNodeLike> } } | undefined)?.chat
-    const hidden = rewindHiddenSeqsOfChat(chat)
-    const spans = rewindSpansOfChat(chat)
-    if (hidden.size === 0 && spans.length === 0) return projectedMessages
-    return projectedMessages.filter((m) =>
-      !hidden.has(m.seq) && !spans.some((span) => m.seq >= span.start && m.seq <= span.end))
+  const windowMessages = collectMessages(snapshot)
+  const chat = (snapshot as { chat?: { nodes?: Map<string, ChatNodeLike> } } | undefined)?.chat
+  const hidden = rewindHiddenSeqsOfChat(chat)
+  const spans = rewindSpansOfChat(chat)
+  const isHidden = (seq: number): boolean =>
+    hidden.has(seq) || spans.some((span) => seq >= span.start && seq <= span.end)
+
+  const bySeq = new Map<number, TimelineMessage>()
+  for (const m of projectedMessages) {
+    if (!isHidden(m.seq)) bySeq.set(m.seq, m)
   }
-  return collectMessages(snapshot)
+  for (const m of windowMessages) {
+    if (isHidden(m.seq)) continue
+    const existing = bySeq.get(m.seq)
+    if (existing === undefined) {
+      bySeq.set(m.seq, m)
+      continue
+    }
+    // A projected entry missing its anchor key (early events without a
+    // durable id) borrows the window entry's real key so the row can jump.
+    if (existing.key === undefined && m.key !== undefined) {
+      bySeq.set(m.seq, {
+        ...existing,
+        key: m.key,
+        ...(existing.text === '' && m.text !== '' ? { text: m.text } : {}),
+      })
+    }
+  }
+  return [...bySeq.values()].sort((a, b) => a.seq - b.seq)
 }
 
 /**
@@ -396,26 +415,78 @@ export function railWidthFor(texts: string[]): number {
   return Math.round(Math.max(RAIL_MIN_WIDTH, Math.min(RAIL_MAX_WIDTH, widest + 6 + 24 + 16 + 12)))
 }
 
-/** Ensure the target node is loaded, then scroll its row into view. */
-async function jumpToMessage(sessionsService: TimelineSessionsService, sessionId: string, key: string): Promise<boolean> {
+/** How long one jump may keep paging older history before giving up. */
+const JUMP_PAGE_DEADLINE_MS = 30000
+/** How long to wait for the chat view to commit the target row. */
+const JUMP_ROW_WAIT_MS = 3000
+
+/**
+ * Poll the conversation DOM until the target row is committed. The session
+ * store updates BEFORE React renders the prepended page, so the old one-shot
+ * query right after loadOlder() resolved could miss the row and silently
+ * give up — the reported "click does nothing until the conversation is
+ * nudged (scroll/click)" behavior.
+ * @param key - chat anchor key to look for.
+ * @param timeoutMs - polling budget.
+ */
+export async function waitForChatRow(key: string, timeoutMs: number): Promise<HTMLElement | null> {
+  const scrollport = document.querySelector('[data-conversation-scroll]')
+  if (scrollport === null) return null
+  const selector = `[data-chat-anchor-key="${CSS.escape(key)}"]`
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const row = scrollport.querySelector<HTMLElement>(selector)
+    if (row !== null) return row
+    if (Date.now() >= deadline) return null
+    await delay(40)
+  }
+}
+
+/**
+ * Ensure the target node is loaded, wait for the chat view to commit its row
+ * into the DOM, then scroll it into view. Paging uses a time budget instead
+ * of the old fixed 120-iteration guard (each in-flight page burned 50ms of
+ * that guard, so slow history could exhaust it and silently fail).
+ */
+export async function jumpToMessage(sessionsService: TimelineSessionsService, sessionId: string, key: string): Promise<boolean> {
   const session = sessionsService.binding(sessionId)?.session
   if (session === undefined) return false
-  let guard = 0
-  while (guard++ < 120) {
-    const snapshot = session.getSnapshot() as { chat?: { nodes?: Map<string, unknown> }; hasMore?: boolean; loadingOlder?: boolean }
+  const deadline = Date.now() + JUMP_PAGE_DEADLINE_MS
+  for (;;) {
+    const snapshot = session.getSnapshot() as {
+      chat?: { nodes?: Map<string, unknown> }
+      hasMore?: boolean
+      loadingOlder?: boolean
+      openState?: unknown
+    }
     if (snapshot?.chat?.nodes?.get(key) !== undefined) break
-    if (snapshot?.hasMore !== true) return false
+    if (snapshot?.hasMore !== true) break
+    if (Date.now() >= deadline) break
     if (snapshot.loadingOlder === true) {
       await delay(50)
       continue
     }
+    // A session that is not open yet cannot page; give it a moment instead
+    // of spinning the full budget on no-op calls.
+    if (snapshot.openState !== undefined && snapshot.openState !== 'open') {
+      await delay(100)
+      continue
+    }
     await session.loadOlder()
   }
-  const scrollport = document.querySelector('[data-conversation-scroll]')
-  const row = scrollport?.querySelector(`[data-chat-anchor-key="${CSS.escape(key)}"]`) ?? null
-  if (row === null) return false
-  const reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  row.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' })
+  const row = await waitForChatRow(key, JUMP_ROW_WAIT_MS)
+  if (row === null) {
+    console.warn(`[deepseek-harness-background] timeline jump target never rendered: ${key}`)
+    return false
+  }
+  const reducedMotion = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  // Instant placement first: the scroll event it fires flips the chat view's
+  // bottom-follow state so its own follow logic cannot yank a smooth
+  // animation back to the floor mid-jump (streaming growth / turn-end
+  // re-renders were doing exactly that).
+  row.scrollIntoView({ behavior: 'auto', block: 'center' })
+  if (!reducedMotion) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
   return true
 }
 
@@ -760,13 +831,21 @@ export function TimelineRail(props: TimelineRailProps): react.ReactElement | nul
                   {/* Jump target and star bookmark are SIBLING real buttons —
                       the previous span[role=button] nested inside the row
                       button was invalid interactive-in-interactive markup,
-                      while native buttons keep Enter/Space for both roles. */}
+                      while native buttons keep Enter/Space for both roles.
+                      Entries without an anchor key (early events lacking a
+                      durable id) render disabled instead of silently eating
+                      the click. */}
                   <button
                     type="button"
                     className="dsbt-jump"
                     ref={isActive ? activeItemRef : undefined}
-                    title={`${marked ? '★ ' : ''}${m.text === '' ? t('timeline.noText') : m.text}`}
-                    aria-label={`${marked ? '★ ' : ''}${t('timeline.roleUser')}: ${m.text.slice(0, 60) || t('timeline.noText')}`}
+                    disabled={key === undefined}
+                    title={key === undefined
+                      ? t('timeline.cannotJump')
+                      : `${marked ? '★ ' : ''}${m.text === '' ? t('timeline.noText') : m.text}`}
+                    aria-label={key === undefined
+                      ? `${marked ? '★ ' : ''}${t('timeline.roleUser')}: ${t('timeline.cannotJump')}`
+                      : `${marked ? '★ ' : ''}${t('timeline.roleUser')}: ${m.text.slice(0, 60) || t('timeline.noText')}`}
                     aria-current={isActive ? 'location' : undefined}
                     onClick={() => {
                       if (key === undefined) return

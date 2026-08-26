@@ -82,6 +82,7 @@ export type BackgroundCardLocaleKey =
   | 'timeline.mark'
   | 'timeline.unmark'
   | 'timeline.noMarks'
+  | 'timeline.cannotJump'
 
 /** Cordis Context merges: the services this plugin injects. */
 declare module '@deepseek-ai/cordis' {

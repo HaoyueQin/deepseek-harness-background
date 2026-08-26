@@ -40,6 +40,7 @@ export const zh: BackgroundCardDict = {
   'timeline.mark': '标记为重点',
   'timeline.unmark': '取消重点标记',
   'timeline.noMarks': '还没有标记的重点',
+  'timeline.cannotJump': '无法跳转：这条历史消息缺少定位信息',
 }
 
 /** English copy. */
@@ -77,4 +78,5 @@ export const en: BackgroundCardDict = {
   'timeline.mark': 'Mark as key point',
   'timeline.unmark': 'Unmark key point',
   'timeline.noMarks': 'No marked key points',
+  'timeline.cannotJump': 'Cannot jump: this history message lacks position info',
 }

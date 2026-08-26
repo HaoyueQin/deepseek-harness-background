@@ -228,6 +228,8 @@ export const TIMELINE_CSS = `
     display: flex; align-items: center; justify-content: flex-end;
   }
   .dsbt-jump:focus-visible { outline: 1px solid currentColor; outline-offset: -1px; border-radius: 6px; }
+  .dsbt-jump:disabled { cursor: default; opacity: .55; }
+  .dsbt-jump:disabled .dsbt-title { text-decoration: line-through; text-decoration-color: currentColor; }
   .dsbt-item:hover { color: var(--dsw-alias-label-primary, rgba(0, 0, 0, .95)); }
   body[data-ds-dark-theme] .dsbt-item { color: rgba(255, 255, 255, .65); }
   body[data-ds-dark-theme] .dsbt-item:hover { color: rgba(255, 255, 255, .95); }

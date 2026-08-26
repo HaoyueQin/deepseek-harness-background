@@ -155,6 +155,44 @@ describe('projection data source', () => {
     expect(messages[1]?.key).toBe('13:input-messagez')
   })
 
+  it('merges: the window fills early entries a degraded projection lost', () => {
+    // Regression: the rail used the projection ALONE whenever it was
+    // non-empty, so a projection that lost its baseline (plugin hot-reloaded
+    // after the session tail page seeded the client) silently hid the early
+    // questions the loaded window still held.
+    const snapshot = {
+      chat: { nodes: new Map<string, object>([
+        ['a', { kind: 'user', key: 'k-early', anchorSeq: 2, data: { time: 1, content: [{ type: 'text', text: 'early' }] } }],
+        ['b', { kind: 'user', key: 'k-late', anchorSeq: 9, data: { time: 2, content: [{ type: 'text', text: 'late' }] } }],
+      ]) },
+    }
+    const projected = { messages: [
+      // Early entry missing from the degraded projection; the late one present.
+      { seq: 9, time: 2, text: 'late', id: 'b' },
+    ] }
+    const messages = railMessages(snapshot, projected)
+    expect(messages.map((m) => m.seq)).toEqual([2, 9])
+    expect(messages.map((m) => m.text)).toEqual(['early', 'late'])
+    expect(messages[0]?.key).toBe('k-early')
+  })
+
+  it('merges: window entries lend their real anchor key to projected entries without a durable id', () => {
+    // Early events without an id produce projection entries with no key and
+    // can never jump; the same question loaded in the window carries its real
+    // key — borrow it so the row stays clickable.
+    const snapshot = {
+      chat: { nodes: new Map<string, object>([
+        ['a', { kind: 'user', key: '13:input-messageold', anchorSeq: 2, data: { time: 1, content: [{ type: 'text', text: 'old question' }] } }],
+      ]) },
+    }
+    const projected = { messages: [
+      { seq: 2, time: 1, text: 'old question' }, // no id -> no key
+    ] }
+    const messages = railMessages(snapshot, projected)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.key).toBe('13:input-messageold')
+  })
+
   it('falls back to the node window when the projection is empty', () => {
     const snapshot = {
       chat: { nodes: new Map<string, object>([
