@@ -95,7 +95,7 @@ dsh --profile web
 ## 原理
 
 - **设置行**位于官方「通用」设置分区的 `settings.general.item` 槽中，紧挨「外观」行。控件样式全部使用 `--dsw-alias-*` 设计 token（按钮 / 胶囊 / 分段控件 / 滑块轨道与官方 chrome 一致），滑块为原生 `input[type=range]` 的 5% / 1–2px 步进 + 松手提交。
-- **会话时间线**注册进 `conversation.input.dock` 槽位（绑定每会话生命周期）。模式判定是对槽位 props 的能力探测，而不是比较版本号： 官方导航轨正是由 `ui-chat` 以会话 hook 形式发布的同一份索引渲染的（`useChat(s => s.navigation.items())`，dsh ≥ 0.1.2）， 所以这个 hook 存在**就是**官方导航轨存在 —— 而且它能扛住预发布版、fork 以及挂载了其它会话目标的部署。 hook 存在时插件什么都不渲染，只在**捕获阶段**拦截官方导航轨的点击（React 18 在冒泡阶段由根容器派发 `onClick`， 所以导航轨上的捕获监听先执行，`stopImmediatePropagation()` 让官方处理器根本收不到事件）；hook 不存在时插件渲染自己移植的导航轨，portal 到 `body`。 两者跑同一个跳转引擎。数据最快的来源是宿主侧会话投影（`bgTimeline`，注册于 `src/projection.ts`）， 它枚举整个会话的每一条用户消息（含会话视图尚未分页载人的轮次），已加载的 chat 节点窗口作为兜底； 该窗口以鸭子类型同时兼容两代内核，因为 0.1.2 把 Chat 快照从 `session.getSnapshot().chat` 迁到了 `useChat()` —— 这是本插件唯一一处破坏性变更。 历史预热只在读者把手伸向导航轨时运行，并停在导航轨不压缩的刻度上限（`floor((高度 - 12) / 10) + 1`）； 每一页都补偿前置内容的高度，因为宿主的 prepend 锚点在插件侧无法触及。移植版导航轨保留**官方配色且不做毛玻璃** —— 复用官方 UI 就意味着要长得像官方 UI，而且导航轨是 chrome，不是阅读表面。
+- **会话时间线**注册进 `conversation.input.dock` 槽位（绑定每会话生命周期）。模式判定是对槽位 props 的能力探测，而不是比较版本号： 官方导航轨正是由 `ui-chat` 以会话 hook 形式发布的同一份索引渲染的（`useChat(s => s.navigation.items())`，dsh ≥ 0.1.2）， 所以这个 hook 存在**就是**官方导航轨存在 —— 而且它能扛住预发布版、fork 以及挂载了其它会话目标的部署。 hook 存在时插件什么都不渲染，只在**捕获阶段**拦截官方导航轨的点击（React 18 在冒泡阶段由根容器派发 `onClick`， 所以导航轨上的捕获监听先执行，`stopImmediatePropagation()` 让官方处理器根本收不到事件）；hook 不存在时插件渲染自己移植的导航轨，portal 到 `body`。 两者跑同一个跳转引擎。数据最快的来源是宿主侧会话投影（`bgTimeline`，注册于 `src/projection.ts`）， 它枚举整个会话的每一条用户消息（含会话视图尚未分页载人的轮次），已加载的 chat 节点窗口作为兜底； 该窗口以鸭子类型同时兼容两代内核，因为 0.1.2 把 Chat 快照从 `session.getSnapshot().chat` 迁到了 `useChat()` —— 这是本插件唯一一处破坏性变更。 历史预热只在读者把手伸向导航轨时运行，并停在导航轨不压缩的刻度上限（`floor((高度 - 12) / 10) + 1`）； 每一页都补偿前置内容的高度，因为宿主的 prepend 锚点在插件侧无法触及。移植版导航轨与增强后的官方轨采用完全一致的**玻璃 + 上下渐隐处理** —— 悬浮预览在壁纸门控下加入毛玻璃配方（与输入卡片同一显式填充配方），刻度列带 DeepSeek 网页版式上下渐隐，两个前端对读者的视觉完全一致。
 - 插件自有的 host 路由（`/api/bg-wallpaper/*`：`settings`、`upload`、`image/<id>`）负责读写设置与提供上传图片，带同源校验、大小上限、MIME/签名校验与路径穿越防护。使用自定义路由族，是因为 api-proxy 的 settings 白名单不向第三方命名空间开放 settings RPC。
 - 背景以 `body` 上一张固定的 `z-index:-2` 壁纸层 + `z-index:-1` 遮罩绘制，由 `data-dsh-bg` 属性开关；遮罩在注入样式表里按 `data-ds-dark-theme` 切换白/黑纱帘。毛玻璃为白名单制：仅对输入/气泡/代码/任务条等白名单表面覆盖 `--dsw-*` surface token，其余表面通过 `data-dsh-bg-glass` 门控的显式规则补齐整套配方（填充 + 高光 + 模糊滤镜链）：三个 chrome 按钮、「加载更早」历史按钮、composer 坞列家族——agent 任务条（TodoPanel / GoalBar / QueueDock）与接管面板（审批 / 提问 / 计划评审，token 变半透明后由这里补上模糊）、子代理列表弹出层、首页「预览版」徽标、侧栏构建徽章——全部官方 token 与阅读型界面（菜单/对话框/tooltip/toast）保持原样。
 - **第三方玻璃注册表**（`src/client/glass-registry.ts`）：客户端 apply 时即在 `window.__DSH_BACKGROUND_GLASS__` 发布注册 api 并派发 `dsh-background-glass:ready`；`register({ plugin, selectors, mode })` 按 `(plugin, mode, selector)` 三元组幂等登记，把 `body[data-dsh-bg-glass]` 门控的显式配方规则合成进独立的 `<style data-plugin-css>` 标签；选择器先做结构性校验（禁 `{} ; @ < > ,` 与反斜杠、500 字符上限），违规条目逐条警告并丢弃、不影响兄弟条目；fiber dispose 时整桥拆除（样式表、条目、window 键全清）。契约文档见 `docs/GLASS_API.md` / `GLASS_API.zh.md`，行为由 `tests/glass-registry.spec.ts` 锁定。
@@ -137,7 +137,6 @@ deepseek-harness-background/          # 插件仓库（包名保留 npm 风格 i
 │       │   ├── rail-pointer.ts      # 刻度几何与容量（官方尺寸）
 │       │   ├── mode-store.ts        # 探测到的模式，供设置行读取
 │       │   └── types.ts             # 共享类型
-│       ├── timeline-css.ts   # 时间线样式（dsbt- 前缀，官方度量）
 │       ├── SettingsRow.tsx   # 通用设置中的设置行（预览卡 + 阻尼滑块）
 │       ├── SettingsRow.module.css # 设置行样式（官方 token）
 │       ├── settings-client.ts# fetch 传输层（读/写/上传）
