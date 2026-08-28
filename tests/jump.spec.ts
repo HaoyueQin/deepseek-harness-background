@@ -426,7 +426,29 @@ describe('jumpToMessage', () => {
     expect(g.scrollTop()).toBe(1500 - (600 - 40) / 2)
   })
 
-  it('pages repeatedly until the target node enters the window', async () => {
+  it('skips paging entirely when the target row is already rendered (DOM ground truth, 0.1.2+)', async () => {
+    // Regression: on 0.1.2+ `session.getSnapshot()` exposes no node table
+    // (the useChat ChatSnapshot store is unreachable from the jump engine),
+    // so the old snapshot-only probe saw "not loaded" forever and paged the
+    // WHOLE history — even though the row was in the DOM all along. The
+    // rendered DOM is the ground truth for both kernel generations.
+    const sp = mountScrollport()
+    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 0 })
+    const key = '13:input-messagefar'
+    const session = fakeSession({ hasMore: true })
+    session.loadOlder = async () => {
+      session.loadOlderCalls += 1
+      throw new Error('should not page')
+    }
+    mockRow(addRow(sp, key), 1500, 40)
+    const pending = jumpToMessage(serviceFor(session), 's1', key)
+    await pumpUntil(pending)
+    expect(await pending).toBe(true)
+    expect(session.loadOlderCalls).toBe(0)
+    expect(g.scrollTop()).toBe(1500 - (600 - 40) / 2)
+  })
+
+  it('pages repeatedly until the target row renders, not merely until the node store knows it', async () => {
     const sp = mountScrollport()
     const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 0 })
     const key = '13:input-messagefar'
@@ -434,9 +456,11 @@ describe('jumpToMessage', () => {
     session.loadOlder = async () => {
       session.loadOlderCalls += 1
       session.hasMore = session.loadOlderCalls < 3
-      if (session.loadOlderCalls >= 3) session.nodes.set(key, {})
+      if (session.loadOlderCalls >= 3) {
+        session.nodes.set(key, {})
+        mockRow(addRow(sp, key), 1500, 40)
+      }
     }
-    mockRow(addRow(sp, key), 1500, 40) // row already present (previously loaded history scenario)
     const pending = jumpToMessage(serviceFor(session), 's1', key)
     await pumpUntil(pending)
     expect(await pending).toBe(true)
@@ -450,14 +474,17 @@ describe('jumpToMessage', () => {
     const session = fakeSession({ hasMore: true })
     session.loadOlder = async () => {
       session.loadOlderCalls += 1
-      // The page call fails, but an earlier page already loaded the row.
-      if (session.loadOlderCalls === 1) session.nodes.set(key, {})
+      // The page call fails, but it still loaded the row that renders later.
+      if (session.loadOlderCalls === 1) {
+        session.nodes.set(key, {})
+        window.setTimeout(() => mockRow(addRow(sp, key), 1500, 40), 100)
+      }
       throw new Error('boom')
     }
-    mockRow(addRow(sp, key), 1500, 40)
     const pending = jumpToMessage(serviceFor(session), 's1', key)
     await pumpUntil(pending)
     await expect(pending).resolves.toBe(true)
+    expect(session.loadOlderCalls).toBe(1)
     expect(g.scrollTop()).toBe(1500 - (600 - 40) / 2)
   })
 

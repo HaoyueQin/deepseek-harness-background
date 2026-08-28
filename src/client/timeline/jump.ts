@@ -83,6 +83,23 @@ export function conversationScrollports(): HTMLElement[] {
 }
 
 /**
+ * Whether the target chat row is committed in ANY mounted conversation
+ * scrollport. Kernel generations disagree on where the node table lives
+ * (0.1.1: `SessionSnapshot.chat.nodes`; 0.1.2+: the `useChat` ChatSnapshot
+ * node store, unreachable from `session.getSnapshot()` — its SessionSnapshot
+ * faces no node table at all), but the rendered DOM is the ground truth both
+ * share, so a jump probes it FIRST before deciding whether paging is needed.
+ * @param anchorKey - chat anchor key of the target row.
+ */
+export function rowRenderedInDom(anchorKey: string): boolean {
+  const selector = `[data-chat-anchor-key="${CSS.escape(anchorKey)}"]`
+  for (const scrollport of conversationScrollports()) {
+    if (scrollport.querySelector(selector) !== null) return true
+  }
+  return false
+}
+
+/**
  * Poll the conversation DOM until the target row is committed. The session
  * store updates BEFORE React renders the prepended page, so the old one-shot
  * query right after loadOlder() resolved could miss the row and silently
@@ -412,6 +429,14 @@ export async function jumpToMessage(
   if (detachedAny) await settleScrollEvents()
   const deadline = Date.now() + pageDeadlineMs
   for (;;) {
+    // DOM ground truth FIRST: the row may already be committed in some
+    // scrollport while the snapshot's node table — whatever generation it is
+    // — does not host it. On 0.1.2+ `session.getSnapshot()` exposes no node
+    // table at all (the `useChat` ChatSnapshot store is unreachable from
+    // here), so without this probe every jump would page the WHOLE history
+    // to the end (or burn the 30s deadline) even when the target row is on
+    // screen behind the "load earlier" button.
+    if (rowRenderedInDom(anchorKey)) break
     const snapshot = session.getSnapshot() as {
       chat?: { nodes?: { get(key: string): unknown } }
       nodes?: { get(key: string): unknown }
@@ -419,8 +444,9 @@ export async function jumpToMessage(
       loadingOlder?: boolean
       openState?: unknown
     }
-    // Both kernel generations expose a keyed node reader: the legacy session
-    // snapshot's `chat.nodes` Map, and the current Chat snapshot's node store.
+    // Legacy (<= 0.1.1) fast path: both kernel generations expose a keyed
+    // node reader where one exists — the legacy session snapshot's
+    // `chat.nodes` Map, and the current Chat snapshot's node store.
     const loaded = snapshot?.chat?.nodes?.get(anchorKey) ?? snapshot?.nodes?.get(anchorKey)
     if (loaded !== undefined) break
     if (snapshot?.hasMore !== true) break
