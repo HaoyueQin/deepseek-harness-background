@@ -35,7 +35,8 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * dock family (agent task strips: TodoPanel / GoalBar / QueueDock) and its
  * takeover panels (approval, question, plan review), the subagent lineage
  * popover, the home hero "preview" badge, the sidebar build badge, and the
- * timeline rail (timeline-css.ts). Every glassed surface shares ONE recipe:
+ * timeline rail (timeline/legacy-rail-css.ts + the official-rail rules below).
+ * Every glassed surface shares ONE recipe:
  * fill from the painter's --dsw-specific-input-major token (same alpha
  * curve + theme dimming), the full shared blur/saturate/brightness chain
  * driven by the glass-blur slider, and the shared sheen vars — so no

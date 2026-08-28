@@ -67,7 +67,7 @@ export const DEFAULT_TIMELINE = true
 /**
  * Session-projection key this plugin owns in the client-visible value map —
  * the host fold registers it (src/projection.ts) and the rail reads it
- * (src/client/timeline.tsx); one shared constant so the two can never drift.
+ * (src/client/timeline/source.ts); one shared constant so the two can never drift.
  */
 export const TIMELINE_PROJECTION_KEY = 'bgTimeline'
 
