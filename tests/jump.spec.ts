@@ -518,14 +518,19 @@ describe('jumpToMessage', () => {
   it('waits out a session that is not open yet instead of burning the page budget', async () => {
     // A cold session cannot page; the loop must wait rather than call
     // loadOlder (which cannot succeed), and still break at the deadline.
+    const budget = 350
+    const rowWait = 80
     const sp = mountScrollport()
     const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 0 })
     const session = fakeSession({ hasMore: true, openState: 'cold' })
     const pending = jumpToMessage(serviceFor(session), 's1', '13:input-messagecold', {
-      pageDeadlineMs: 350,
-      rowWaitMs: 80,
+      pageDeadlineMs: budget,
+      rowWaitMs: rowWait,
     })
-    await pumpUntil(pending)
+    // The deadline runs on the real Date.now() (not the fake clock), so a
+    // pumpUntil round budget can exhaust before the 350ms wall time passes
+    // on fast CI runners — wait on real time instead.
+    await new Promise((resolve) => setTimeout(resolve, budget + rowWait + 250))
     expect(await pending).toBe(false)
     expect(session.loadOlderCalls).toBe(0)
     expect(g.scrollTop()).toBe(0)
