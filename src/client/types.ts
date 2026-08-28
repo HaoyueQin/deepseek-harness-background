@@ -21,10 +21,35 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * One row in the conversation input dock (above the composer card).
      * Declared by `ui-conversation` at runtime; re-declared here (interface
      * merge) so this package can mount the timeline rail without importing
-     * that package. The rail portals to body, so the owner share is unused —
-     * declared as an empty marker to satisfy the merge shape only.
+     * that package. The rail portals to body, so the OWNER share is unused —
+     * an empty marker satisfies the merge shape only. Everything the
+     * timeline actually reads arrives through the framework standard kit
+     * (see the SessionStandardProps merge below), not through the owner.
      */
     'conversation.input.dock': { kind: 'list'; scope: 'session'; owner: TimelineInputZoneProps }
+  }
+
+  /**
+   * Duck-typed framework standard kit for session-scoped slots. The real
+   * members are merged at runtime by `ui-session` (sessionId,
+   * useProjection, useSession) and `ui-chat` (useChat, dsh >= 0.1.2); this
+   * package never imports those packages, but re-declaring the members it
+   * consumes keeps the capability detection a VISIBLE compile-time contract
+   * (the tools would have to be absent before this bridge silently degrades
+   * to the legacy port only if the declaration drifts from what the host
+   * merges).
+   */
+  interface SessionStandardProps {
+    /** Current Session identity (ui-session merge). */
+    sessionId: string
+    /** Key-addressed host-side projection reader (ui-session merge). */
+    useProjection?: (key: string) => unknown
+    /**
+     * Selector hook over the current Conversation binding's Chat target
+     * (ui-chat merge; absent before 0.1.2). Its presence IS the presence of
+     * the official turn rail.
+     */
+    useChat?: (selector: (snapshot: unknown) => unknown) => unknown
   }
 }
 

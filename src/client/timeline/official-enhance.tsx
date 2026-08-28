@@ -49,6 +49,18 @@ import type { OfficialNavigationItem, TimelineSessionsService } from './types.ts
 /** Structural anchor of the official rail (its inline style carries the rail's own metrics). */
 export const OFFICIAL_RAIL_SELECTOR = '[data-conversation-scroll] nav[style*="--turn-natural-height"]'
 
+/**
+ * Rails claimed by an enhancer instance, keyed by the owning instance's
+ * claim token. One session-scoped enhancer mounts per session; without a
+ * claim two instances would both attach capture listeners to the FIRST rail
+ * in the document (multi-column layouts) and one of them — not necessarily
+ * the one owning the reader's column — would win the click. The token
+ * distinguishes "already mine" (the poll keeps it) from "someone else's"
+ * (this instance must stand down). Weak: a replaced rail element disappears
+ * as soon as the browser collects it, so remounts need no bookkeeping.
+ */
+const claimedRails = new WeakMap<HTMLElement, symbol>()
+
 /** How often the official rail is looked for (it mounts with the chat view). */
 const RAIL_POLL_MS = 400
 
@@ -86,10 +98,15 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
 
   // Mirrors so the listeners below stay identity-stable: `items` changes
   // identity on every turn change, and re-attaching a listener each time
-  // would be pure churn.
+  // would be pure churn. `railRef` mirrors the claimed rail so the poll
+  // effect can release its claim on unmount without re-subscribing.
   const itemsRef = react.useRef(items)
   itemsRef.current = items
+  const railRef = react.useRef<HTMLElement | null>(rail)
+  railRef.current = rail
   const aliveRef = react.useRef(true)
+  const enabledRef = react.useRef(enabled)
+  enabledRef.current = enabled
   const warmingRef = react.useRef(false)
 
   react.useEffect(() => {
@@ -99,15 +116,42 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
 
   // Locate the official rail. It mounts with the chat view and is replaced
   // whenever the view remounts, so it is polled rather than observed once.
+  //
+  // Ownership guard: one enhancer instance mounts per SESSION (the dock slot
+  // is session-scoped), so a multi-column layout can run several instances
+  // against the same selector. Without a claim, the first instance's capture
+  // listener — the first registered on the shared rail — would swallow the
+  // clicks of every other instance, which then silently jump the WRONG
+  // session. The first instance to find the rail claims it for its
+  // registration lifetime; later instances stand down and the stock
+  // behaviour stays (no duplicate handlers, no mis-directed jumps). The
+  // poll re-runs on the SAME instance, so the claim check must recognise
+  // "already mine" instead of standing down against itself.
+  const claimToken = react.useMemo<symbol>(() => Symbol('dsh-bg-timeline-claim'), [])
   react.useEffect(() => {
     const check = (): void => {
       const found = document.querySelector<HTMLElement>(OFFICIAL_RAIL_SELECTOR)
-      setRail((prev) => (prev === found ? prev : found))
+      if (found === null) {
+        setRail(null)
+        return
+      }
+      const owner = claimedRails.get(found)
+      if (owner !== undefined && owner !== claimToken) {
+        setRail(null)
+        return
+      }
+      claimedRails.set(found, claimToken)
+      setRail(found)
     }
     check()
     const timer = window.setInterval(check, RAIL_POLL_MS)
-    return () => { window.clearInterval(timer) }
-  }, [])
+    return () => {
+      window.clearInterval(timer)
+      // Release the claim on unmount so a later instance (or a same-layout
+      // remount that reuses the element) can take over.
+      if (railRef.current !== null) claimedRails.delete(railRef.current)
+    }
+  }, [claimToken])
 
   const navigate = react.useCallback((item: OfficialNavigationItem): void => {
     if (sessionsService === undefined || sessionId === undefined) return
@@ -136,7 +180,10 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
     try {
       await warmHistory(session, scrollport, {
         followZonePx: CHATVIEW_FOLLOW_ZONE_PX,
-        alive: () => aliveRef.current,
+        // Stop also when the persisted toggle flipped off mid-run (the
+        // pointer/focus listeners are re-attached per enabled, but a run
+        // already in flight has no other checkpoint).
+        alive: () => aliveRef.current && enabledRef.current,
         countOf: () => itemsRef.current.length,
         capacity: railCapacityOf(rail),
       })

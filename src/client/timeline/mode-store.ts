@@ -15,6 +15,13 @@ import type { TimelineMode } from './types.ts'
 
 type Listener = () => void
 
+// The store cannot know the live mode before the first session-scoped dock
+// entry probes the kernel (the settings row is root-scoped and has no session
+// either). 'legacy' is the conservative pre-probe default: the settings row
+// briefly shows the plain "conversation timeline" label until the dock probes,
+// then switches to "…enhancement" when the kernel publishes useChat. The
+// flip is unavoidable — the information genuinely arrives later — and it
+// happens once, right after the first session mounts.
 let mode: TimelineMode = 'legacy'
 const listeners = new Set<Listener>()
 

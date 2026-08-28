@@ -10,7 +10,7 @@
  * no index — it is recovered from the button's position among its siblings.
  */
 
-import type { OfficialNavigationItem, TimelineEntry } from './types.ts'
+import type { OfficialNavigationItem } from './types.ts'
 
 /** Resting gap between neighbouring marks before the rail compresses to fit. */
 export const TICK_SPACING_PX = 10
@@ -71,6 +71,11 @@ export function indexAtPointer(count: number, rail: HTMLElement, clientY: number
  * position among the rail's buttons); a mouse click carries coordinates and
  * resolves through the rail geometry. Returns -1 when neither applies.
  *
+ * Assumption (both frontends): the mark ticks are the ONLY buttons under the
+ * rail — the official rail renders marks exclusively and its preview tooltip
+ * carries none, and the ported rail does the same. A future non-mark control
+ * added inside the rail would shift the button index and must revisit this.
+ *
  * @param rail - the rail element.
  * @param event - the click event.
  */
@@ -114,7 +119,3 @@ export function normalizeNavigationItems(value: unknown): OfficialNavigationItem
   return out
 }
 
-/** Extract the preview text of one entry, whatever produced it. */
-export function entryTextOf(entry: TimelineEntry | OfficialNavigationItem): string {
-  return 'text' in entry ? entry.text : entry.prompt
-}

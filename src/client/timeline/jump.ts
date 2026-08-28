@@ -109,15 +109,13 @@ export function rowRenderedInDom(anchorKey: string): boolean {
  * @param timeoutMs - polling budget.
  */
 export async function waitForChatRow(key: string, timeoutMs: number): Promise<HTMLElement | null> {
-  // Multi-column layouts can mount more than one conversation scrollport;
-  // the target row may live in ANY of them (the first match is no longer
-  // assumed to own every session's rows).
-  const scrollports = conversationScrollports()
-  if (scrollports.length === 0) return null
   const selector = `[data-chat-anchor-key="${CSS.escape(key)}"]`
   const deadline = Date.now() + timeoutMs
   for (;;) {
-    for (const scrollport of scrollports) {
+    // Re-scan on every round: a ChatView remount (or a second column coming
+    // up) repoints the row target, and the one-shot snapshot at entry would
+    // miss a row committed into the PORT that appeared mid-wait.
+    for (const scrollport of conversationScrollports()) {
       const row = scrollport.querySelector<HTMLElement>(selector)
       if (row !== null) return row
     }
