@@ -251,6 +251,31 @@ export const BACKGROUND_CSS = `
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
+
+  /* ---- Official turn rail (dsh >= 0.1.2, TurnNavigator) -----------------
+     The enhance mode borrows the kernel's rail untouched, so its hover
+     preview card keeps the OFFICIAL opaque fill (bg-layer-1, not mediated
+     by any overridden token) — the "悬浮反馈形态不透明" complaint. Glass it
+     explicitly with the same explicit-fill recipe as the chrome buttons
+     (fill = the painter's composer token + shared blur/sheen), and give the
+     marks column the DeepSeek-web edge dissolve: top and bottom ticks fade
+     into the band instead of hard-clipping. The fade is paint-only and
+     deliberately NOT gated (the rail reads differently from stock chrome on
+     purpose, wallpaper or not); hit-testing of the whole rail column is
+     untouched. Anchors are structural, never class names: the kernel's
+     module-CSS class hashes are not a stable contract, but
+     nav[style*="--turn-natural-height"] (its inline rail metrics) and the
+     preview's role="tooltip" are. */
+  body[data-dsh-bg-glass] nav[style*="--turn-natural-height"] [role="tooltip"] {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+  }
+  nav[style*="--turn-natural-height"] > div:not([role="tooltip"]) {
+    mask-image: linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  }
 `
 
 /**

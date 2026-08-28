@@ -203,11 +203,16 @@ describe('legacy rail rendering', () => {
 })
 
 describe('rail paint', () => {
-  it('is deliberately NOT glassed: every fill is an untouched official token', () => {
-    // Reusing the official UI means looking like the official UI. The rail is
-    // chrome, not a reading surface, so it takes no fill from the painter.
-    expect(TIMELINE_CSS).not.toContain('--dsw-specific-input-major')
-    expect(TIMELINE_CSS).not.toContain('data-dsh-bg-glass')
+  it('is glassed under the wallpapered gate: preview fill, blur chain and edge fade all ship', () => {
+    // The rail is background-plugin chrome over the user's art, so its hover
+    // preview joins the glass sheet (painter's composer token + shared
+    // blur/sheen) under body[data-dsh-bg-glass] — the same recipe and the
+    // same off-switch as the composer card — and the marks column carries
+    // the DeepSeek-web edge dissolve.
+    expect(TIMELINE_CSS).toContain('body[data-dsh-bg-glass] .dsbt-preview')
+    expect(TIMELINE_CSS).toContain('background-color: var(--dsw-specific-input-major)')
+    expect(TIMELINE_CSS).toContain('backdrop-filter: blur(var(--bg-glass-blur, 16px))')
+    expect(TIMELINE_CSS).toContain('mask-image: linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%)')
     expect(TIMELINE_CSS).toContain('var(--dsw-alias-border-l4)')
     expect(TIMELINE_CSS).toContain('var(--dsw-alias-bg-layer-1)')
   })

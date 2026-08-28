@@ -7,10 +7,14 @@
  * verbatim (28px column, 10px tick spacing, 6px end inset, 12/18/20px tick
  * widths, 420px height ceiling, 100px preview, 300px preview width).
  *
- * Deliberately NOT glassed: the whole point of reusing the official UI is to
- * look like the official UI, and the rail is chrome rather than a reading
- * surface. Every fill is the untouched official token, so both kernel
- * generations render an identical rail.
+ * Glass + edge fade (unlike stock chrome): the rail is background plugin
+ * chrome over the user's art, so the hover preview joins the shared glass
+ * recipe under body[data-dsh-bg-glass] (fill = the painter's composer token
+ * + the shared blur/sheen — the same strength as the composer card), and
+ * the marks column gets the DeepSeek-web edge dissolve (top/bottom ticks
+ * fade instead of hard-clipping). The fade is paint-only, always on; the
+ * glass follows the wallpaper/panel-opacity sliders exactly like every
+ * other glassed surface. Both kernel generations render identically.
  */
 
 /** Unique id stamped on the injected style element (dedup key). */
@@ -43,7 +47,13 @@ export const TIMELINE_CSS = `
     height: min(var(--dsbt-natural-h, 12px), var(--dsbt-band, 420px), 420px);
   }
 
-  .dsbt-marks { position: absolute; inset: var(--dsbt-inset, 6px) 0; }
+  .dsbt-marks {
+    position: absolute; inset: var(--dsbt-inset, 6px) 0;
+    /* DeepSeek-web edge dissolve: top and bottom ticks fade into the band.
+       Paint-only — the rail's own geometry and hit-testing are untouched. */
+    mask-image: linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  }
 
   .dsbt-markPosition {
     position: absolute; top: min(var(--dsbt-natural, 0px), var(--dsbt-ratio, 0%));
@@ -97,6 +107,22 @@ export const TIMELINE_CSS = `
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4;
     animation: dsbt-preview-enter 120ms ease-out;
     transition: top 140ms cubic-bezier(.2, .8, .2, 1);
+    /* Content dissolve: a clamped preview's last lines soften out instead of
+       hard-cutting, matching the rail's edge fade. No effect on short copy
+       (the mask's fade zone rides the empty tail). */
+    mask-image: linear-gradient(180deg, #000 86%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, #000 86%, transparent 100%);
+  }
+
+  /* Hover preview is glass chrome just like the composer card: its official
+     fill is the opaque bg-layer-1 token, so it needs the explicit-fill
+     recipe (painter's composer token + shared blur/sheen chain). Gated on
+     data-dsh-bg-glass like every other glassed surface. */
+  body[data-dsh-bg-glass] .dsbt-preview {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
 
   @keyframes dsbt-mark-enter { from { opacity: 0; } to { opacity: 1; } }

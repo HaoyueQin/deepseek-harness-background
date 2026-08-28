@@ -16,6 +16,17 @@
  *    a solid bar — with the scroll position compensated so the reader's view
  *    never moves.
  *
+ * State-ownership note (why intercepting the official click loses nothing):
+ * the kernel's scrollport (`data-conversation-scroll`, ChatView's
+ * `onScrollRef` handler) treats every unaccounted scrollTop assignment as a
+ * reader move and on each frame (a) flips its own at-bottom machinery,
+ * (b) `chatScroll.save(position)` for view-tab restore, and (c)
+ * `scheduleActiveTurn()` to re-derive the rail's active mark. The glide
+ * animates the real scrollport, so all three keep converging to the target
+ * row while it runs — the only thing the interception skips is the official
+ * handler's synchronous `setActiveTurn(item.turn)`, which its own
+ * scroll-driven active derivation re-settles by the time the glide lands.
+ *
  * Both go through the shared backend (jump.ts), which is why the legacy port
  * behaves identically.
  *
