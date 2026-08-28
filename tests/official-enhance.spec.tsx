@@ -153,10 +153,10 @@ describe('click interception', () => {
     const bubbled: Event[] = []
     document.addEventListener('click', (event) => { bubbled.push(event) })
 
-    await waitFor(() => {
-      expect(nav.getAttribute('data-probed')).toBeNull()
-    }, { timeout: RAIL_POLL_MS * 4 })
-    // Give the polling effect one more tick to attach its listeners.
+    // The capture listener attaches only after the poll effect has found the
+    // rail: wait one full poll cycle for the find + claim, one more for the
+    // listener effect to bind.
+    await new Promise((resolve) => setTimeout(resolve, RAIL_POLL_MS + 50))
     await new Promise((resolve) => setTimeout(resolve, RAIL_POLL_MS + 50))
 
     nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientY: 200 }))

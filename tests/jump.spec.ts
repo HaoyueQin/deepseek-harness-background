@@ -194,7 +194,9 @@ interface FakeSession {
   subscribe(): () => void
 }
 
-function fakeSession(initial: Partial<Pick<FakeSession, 'nodes' | 'hasMore'>> & object = {}): FakeSession {
+function fakeSession(
+  initial: Partial<Pick<FakeSession, 'nodes' | 'hasMore' | 'openState' | 'loadingOlder'>> & object = {},
+): FakeSession {
   const state = {
     nodes: new Map<string, unknown>(),
     hasMore: true,
@@ -499,6 +501,34 @@ describe('jumpToMessage', () => {
 
   it('returns false when the session binding is missing', async () => {
     expect(await jumpToMessage({ binding: () => undefined }, 's1', 'k')).toBe(false)
+  })
+
+  it('gives up paging when the row never renders and the deadline expires', async () => {
+    // hasMore stays true forever: only the page deadline can end the loop.
+    // The injectable budget keeps the test fast (production default is 30s).
+    const sp = mountScrollport()
+    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 0 })
+    expect(await jumpToMessage(serviceFor(fakeSession({ hasMore: true })), 's1', '13:input-messageghost-deadline', {
+      pageDeadlineMs: 60,
+      rowWaitMs: 80,
+    })).toBe(false)
+    expect(g.scrollTop()).toBe(0)
+  })
+
+  it('waits out a session that is not open yet instead of burning the page budget', async () => {
+    // A cold session cannot page; the loop must wait rather than call
+    // loadOlder (which cannot succeed), and still break at the deadline.
+    const sp = mountScrollport()
+    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 0 })
+    const session = fakeSession({ hasMore: true, openState: 'cold' })
+    const pending = jumpToMessage(serviceFor(session), 's1', '13:input-messagecold', {
+      pageDeadlineMs: 350,
+      rowWaitMs: 80,
+    })
+    await pumpUntil(pending)
+    expect(await pending).toBe(false)
+    expect(session.loadOlderCalls).toBe(0)
+    expect(g.scrollTop()).toBe(0)
   })
 
   it('reader wheel during a jump glide hands the scrollport back (jump resolves false)', async () => {
