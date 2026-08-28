@@ -14,7 +14,7 @@ import { installGlassBridge } from './glass-registry.ts'
 import { en, zh } from './locales.ts'
 import { BackgroundSettingsRow } from './SettingsRow.tsx'
 import { settingsClient } from './settings-client.ts'
-import { TimelineRail } from './timeline.tsx'
+import { TimelineBridge, clearLegacyMarks } from './timeline/index.tsx'
 import type {} from './types.ts'
 
 /**
@@ -35,6 +35,9 @@ export function apply(ctx: Context): void {
   // eager consumer can register before the first snapshot repaints; the
   // bridge lives for the whole fiber and dies with it (see the dispose below).
   const glassBridge = installGlassBridge()
+  // One-way sweep of the bookmark rows pre-0.5 versions left in localStorage
+  // (the rail reuses the official UI now, which has no bookmarks).
+  clearLegacyMarks()
   // Paint from the plugin's own transport; repaint on every snapshot change.
   const paint = (): void => {
     const snapshot = settingsClient.getSnapshot()
@@ -58,18 +61,19 @@ export function apply(ctx: Context): void {
     locale: 'ui-background',
   }, BackgroundSettingsRow))
 
-  // Conversation timeline rail: takes a per-session dock seat only to bind
-  // its lifecycle; the rail portals to body. The sessions service is handed
-  // to the component through the registration's inject face — resolved
-  // lazily inside the factory so a runtime-side service rebuild can never
-  // leave the rail holding a stale reference.
+  // Conversation timeline: takes a per-session dock seat only to bind its
+  // lifecycle — the frontend is chosen per running kernel (official rail
+  // enhanced in place, or this plugin's own port of it). The sessions service
+  // is handed to the component through the registration's inject face —
+  // resolved lazily inside the factory so a runtime-side service rebuild can
+  // never leave the rail holding a stale reference.
   ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
     name: 'conversation.input.dock',
     id: 'deepseek-harness-background.timeline',
     order: 45,
     locale: 'ui-background',
     inject: () => ({ sessionsService: ctx.sessions }),
-  }, TimelineRail))
+  }, TimelineBridge))
 
   ctx.effect(() => () => {
     unsubscribe()

@@ -30,6 +30,7 @@ import {
 } from '../settings.ts'
 import { clearPreviewSurface, paintBackground, paintBackgroundKnob, paintPreviewSurface } from './backdrop.ts'
 import { settingsClient, type SettingsSnapshot } from './settings-client.ts'
+import { subscribeTimelineMode, timelineMode } from './timeline/mode-store.ts'
 import css from './SettingsRow.module.css'
 
 /** Full component props: runtime share + locale seat. */
@@ -177,6 +178,15 @@ function syncTrackFill(el: HTMLInputElement): void {
  */
 export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   const snapshot = useSyncExternalStore(settingsClient.subscribe, readSnapshot)
+  // Which timeline frontend is live: this row has no session scope and cannot
+  // probe the kernel itself, so it reads what the dock entry detected.
+  const navMode = useSyncExternalStore(subscribeTimelineMode, timelineMode)
+  const timelineLabelKey = navMode === 'enhance'
+    ? 'background.timelineEnhance'
+    : 'background.timeline'
+  const timelineHintKey = navMode === 'enhance'
+    ? 'background.timelineEnhanceHint'
+    : 'background.timelineHint'
   const [draft, setDraft] = useState<BackgroundSettings>(DEFAULTS)
   const [uploading, setUploading] = useState(false)
   const [urlText, setUrlText] = useState('')
@@ -462,19 +472,19 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
           </div>
         </div>
         <div className={css.segRow}>
-          <span className={css.segLabel}>{t('background.timeline')}</span>
+          <span className={css.segLabel}>{t(timelineLabelKey)}</span>
           <button
             type="button"
             role="switch"
             aria-checked={draft.timeline}
-            aria-label={t('background.timeline')}
-            title={t('background.timelineHint')}
+            aria-label={t(timelineLabelKey)}
+            title={t(timelineHintKey)}
             className={css.switch}
             onClick={handleTimelineToggle}
           >
             <span className={css.switchKnob} />
           </button>
-          <span className={css.hint}>{t('background.timelineHint')}</span>
+          <span className={css.hint}>{t(timelineHintKey)}</span>
         </div>
       </div>
 

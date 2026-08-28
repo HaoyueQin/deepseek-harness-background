@@ -75,14 +75,11 @@ export type BackgroundCardLocaleKey =
   | 'background.saveFailed'
   | 'background.timeline'
   | 'background.timelineHint'
+  | 'background.timelineEnhance'
+  | 'background.timelineEnhanceHint'
   | 'timeline.railLabel'
-  | 'timeline.roleUser'
   | 'timeline.noText'
-  | 'timeline.marksOnly'
-  | 'timeline.mark'
-  | 'timeline.unmark'
-  | 'timeline.noMarks'
-  | 'timeline.cannotJump'
+  | 'timeline.jump'
 
 /** Cordis Context merges: the services this plugin injects. */
 declare module '@deepseek-ai/cordis' {
