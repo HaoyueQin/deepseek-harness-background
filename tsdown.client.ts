@@ -23,16 +23,21 @@ import { transform } from 'lightningcss'
 /**
  * Shared browser platform modules the shell seeds into the frozen module
  * table. Seeding, bundling externals, and Vite aliases consume this list so
- * their module identities cannot drift. Mirrors the official
- * `packages/client/web/src/platform.ts` in the deepseek-harness checkout.
+ * their module identities cannot drift. This is the UNION of the official
+ * `packages/client/web/src/platform.ts` across both supported kernel
+ * generations — rc.2 (`packages/client/web/src/platform.ts`: react family +
+ * cordis + ui-slots + ui-primitives) and 0.1.2-alpha.1 (adds
+ * dsh-client-store) — because a specifier listed here stays external to this
+ * plugin's bundle and must therefore be answerable by the kernel-side module
+ * table whichever generation hosts it. Specifiers absent from BOTH tables
+ * (older mirror leftovers) are deleted: declaring them is a runtime
+ * require() failure the moment such an import appears.
  */
 export const PLATFORM_MODULES = [
   'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis',
+  '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-ui-slots',
-  '@deepseek-ai/dsh-client-web-react',
   '@deepseek-ai/dsh-client-ui-primitives',
-  '@deepseek-ai/dsh-client-ui-attachment',
-  '@deepseek-ai/dsh-client-schema-form',
 ] as const
 
 /**
@@ -69,14 +74,14 @@ const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
 const SKIP_WORKSPACE_BUILD: UserConfig = { entry: '' }
 
 /**
- * Documented TEMPORARY exemption, not a platform module (hence not in
- * platform.ts): the snapshot-store engine (createSnapshotStore/defineStore/
- * shallowEqual) lives in runtime pending its promotion-time rehoming, and
- * five importers (locale, ui-layout, ui-conversation ×3) ride this single
- * exemption. At runtime the lazy CJS table answers the require natively:
- * runtime is an immediately-tier row, its factory is registered before any
- * dependent bundle materializes. TODO(webload/store-rehome): remove with the
- * store-engine relocation follow-up.
+ * rc.2-only module-table exemption (the kernel's own documented TEMPORARY
+ * exemption in packages/client/web/src/platform.ts PRELOADED_CLIENT_EXTERNALS,
+ * dropped by 0.1.2-alpha.1): the snapshot-store engine lives under
+ * dsh-client-runtime/client pending its rehoming. This plugin imports nothing
+ * from it today, but the externals list must keep the specifier because a
+ * rc.2 host would answer it, whereas a 0.1.2-alpha.1 host would not — the
+ * union policy above keeps runtime behavior faithful per generation. Do NOT
+ * start importing dsh-client-runtime/client from this plugin.
  */
 const RUNTIME_STORE_EXEMPTION = '@deepseek-ai/dsh-client-runtime/client'
 
