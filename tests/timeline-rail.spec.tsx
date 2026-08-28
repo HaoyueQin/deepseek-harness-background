@@ -1,20 +1,25 @@
 // @vitest-environment jsdom
 /**
- * Timeline rail component contract. Mounts the rail against a session-store
- * double whose subscribe/getSnapshot are UNBOUND prototype methods — exactly
- * like the real runtime Session — so a regression to passing the methods bare
- * into useSyncExternalStore (which drops the receiver and throws "Cannot read
- * properties of undefined") fails this suite. Also pins the visibility gates:
- * no rail while the persisted timeline toggle is still loading or switched
- * off, and no full-history paging when the rail is off. Also pins the
- * projection-first data source: entries from the host bgTimeline projection
- * render even when their chat nodes were never loaded into the client
- * window.
+ * Timeline dock entry: the mode dispatch and the legacy rail it mounts.
+ *
+ * Pins the contracts that matter across the 0.1.2 split:
+ * - A kernel that publishes the official turn-navigation index (`useChat`)
+ *   gets the behaviour-only enhancer (this plugin renders NO rail of its own).
+ * - A kernel that does not gets the ported official rail, fed by the shared
+ *   backend — including turns the chat view never loaded.
+ * - The session store is a double whose subscribe/getSnapshot are UNBOUND
+ *   prototype methods, exactly like the real runtime Session: a regression to
+ *   passing those methods bare into useSyncExternalStore (which drops the
+ *   receiver and throws "Cannot read properties of undefined") fails here.
+ * - Visibility gates: no rail while the persisted toggle is still loading or
+ *   switched off, and no history paging while it is off.
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import React from 'react'
-import { MARKS_STORAGE_PREFIX, TimelineRail } from '../src/client/timeline.tsx'
+import {
+  TimelineBridge, TIMELINE_CSS, LEGACY_FOLLOW_ZONE_PX, CHATVIEW_FOLLOW_ZONE_PX,
+} from '../src/client/timeline/index.tsx'
 import { settingsClient } from '../src/client/settings-client.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
 
@@ -54,11 +59,14 @@ class SessionLike {
   }
 }
 
-function snapshotWith(nodes: Map<string, object>, hasMore = false): { chat: { nodes: Map<string, object> }; hasMore: boolean } {
+function snapshotWith(
+  nodes: Map<string, object>,
+  hasMore = false,
+): { chat: { nodes: Map<string, object> }; hasMore: boolean } {
   return { chat: { nodes }, hasMore }
 }
 
-/** Write the shared settings snapshot (the rail reads it via uSES). */
+/** Write the shared settings snapshot (the dock entry reads it via uSES). */
 function setSettings(status: 'loading' | 'ready' | 'error', timeline: boolean): void {
   ;(settingsClient as unknown as { snapshot: unknown }).snapshot = {
     status,
@@ -66,49 +74,82 @@ function setSettings(status: 'loading' | 'ready' | 'error', timeline: boolean): 
   }
 }
 
-function renderRail(sessionId: string, store: SessionLike, projected?: unknown): void {
-  const extra = projected === undefined ? {} : { useProjection: (): unknown => projected }
-  render(React.createElement(TimelineRail as never, {
+interface RenderExtra {
+  useChat?: (selector: (snapshot: unknown) => unknown) => unknown
+  useProjection?: (key: string) => unknown
+}
+
+function renderTimeline(sessionId: string, store: SessionLike, extra: RenderExtra = {}): void {
+  render(React.createElement(TimelineBridge as never, {
     sessionId,
     sessionsService: { binding: (id: string) => id === sessionId ? { session: store } : undefined },
-    ...extra,
     t,
+    ...extra,
   }))
+}
+
+/** A selector hook shaped like the kernel's `useChat`, over an official index. */
+interface OfficialItem {
+  turn: number
+  anchorKey: string
+  prompt: string
+  response: string
+}
+
+function useChatStub(entries: readonly OfficialItem[]):
+  (selector: (snapshot: unknown) => unknown) => unknown {
+  return (selector) => selector({
+    navigation: { items: () => entries },
+    order: [], nodes: { get: () => undefined, values: () => [] },
+  })
 }
 
 afterEach(() => {
   cleanup()
   document.body.style.cssText = ''
-  for (const key of Object.keys(window.localStorage)) {
-    if (key.startsWith(MARKS_STORAGE_PREFIX)) window.localStorage.removeItem(key)
-  }
   setSettings('loading', true)
 })
 
-describe('TimelineRail component', () => {
-  it('renders one tick per user message from an unbound-method session store (P0 regression)', () => {
+describe('TimelineBridge mode dispatch', () => {
+  it('mounts the ported rail when the kernel publishes no turn index (legacy)', () => {
     setSettings('ready', true)
     const store = new SessionLike(snapshotWith(new Map<string, object>([
       ['a', userNode('13:input-messagea', 2, 'first')],
       ['b', userNode('13:input-messageb', 7, 'second')],
     ])))
-    // Before the receiver fix this call threw TypeError (undefined notifier).
-    expect(() => renderRail('s1', store)).not.toThrow()
-    const nav = document.querySelector('.dsbt-nav')
-    expect(nav).not.toBeNull()
-    expect(nav?.querySelectorAll('.dsbt-item')).toHaveLength(2)
+    expect(() => renderTimeline('s1', store)).not.toThrow()
+    expect(document.querySelector('.dsbt-slot')).not.toBeNull()
+    expect(document.querySelectorAll('.dsbt-mark')).toHaveLength(2)
     expect(store.loadOlderCalls).toHaveLength(0) // hasMore false: no paging
   })
 
-  it('renders the rail for a single-question session (official ScrollNav shows it too)', () => {
+  it('renders NOTHING of its own when the official index exists (enhance)', () => {
+    // The official rail is already on screen; this plugin only fixes its
+    // behaviour, so a second rail would be duplicate chrome.
+    setSettings('ready', true)
+    const store = new SessionLike(snapshotWith(new Map<string, object>([
+      ['a', userNode('13:input-messagea', 2, 'first')],
+      ['b', userNode('13:input-messageb', 7, 'second')],
+    ])))
+    renderTimeline('s1', store, {
+      useChat: useChatStub([
+        { turn: 1, anchorKey: 'k1', prompt: 'first', response: '' },
+        { turn: 2, anchorKey: 'k2', prompt: 'second', response: '' },
+      ]),
+    })
+    expect(document.querySelector('.dsbt-slot')).toBeNull()
+  })
+})
+
+describe('legacy rail rendering', () => {
+  it('matches the official rail: nothing to navigate between a lone question', () => {
     setSettings('ready', true)
     const store = new SessionLike(snapshotWith(new Map<string, object>([
       ['a', userNode('13:input-messagea', 2, 'only')],
     ])))
-    renderRail('s1', store)
-    const nav = document.querySelector('.dsbt-nav')
-    expect(nav).not.toBeNull()
-    expect(nav?.querySelectorAll('.dsbt-item')).toHaveLength(1)
+    renderTimeline('s1', store)
+    // The official TurnNavigator returns null below two items.
+    expect(document.querySelector('.dsbt-slot')).toBeNull()
   })
 
   it('hides the rail while the persisted toggle is still loading (no wrong-state flash)', () => {
@@ -117,8 +158,8 @@ describe('TimelineRail component', () => {
       ['a', userNode('13:input-messagea', 2, 'first')],
       ['b', userNode('13:input-messageb', 7, 'second')],
     ])))
-    renderRail('s1', store)
-    expect(document.querySelector('.dsbt-nav')).toBeNull()
+    renderTimeline('s1', store)
+    expect(document.querySelector('.dsbt-slot')).toBeNull()
   })
 
   it('does not page history while the timeline toggle is off (P1 regression)', () => {
@@ -127,9 +168,9 @@ describe('TimelineRail component', () => {
       ['a', userNode('13:input-messagea', 2, 'first')],
       ['b', userNode('13:input-messageb', 7, 'second')],
     ]), true))
-    renderRail('s1', store)
-    expect(document.querySelector('.dsbt-nav')).toBeNull()
-    // The full-history loader must not run when the rail is switched off.
+    renderTimeline('s1', store)
+    expect(document.querySelector('.dsbt-slot')).toBeNull()
+    // The history warm-up must not run when the rail is switched off.
     expect(store.loadOlderCalls).toHaveLength(0)
   })
 
@@ -138,17 +179,14 @@ describe('TimelineRail component', () => {
     const store = new SessionLike(snapshotWith(new Map<string, object>([
       ['a', userNode('13:input-messagea', 2, 'loaded question')],
     ])))
-    // Host projection: the whole session's user turns, loaded window or not.
     const projected = { messages: [
       { seq: 2, time: 1, text: 'loaded question', id: 'a' },
       { seq: 40, time: 2, text: 'tail question', id: 'z' },
     ] }
-    renderRail('s1', store, projected)
-    const nav = document.querySelector('.dsbt-nav')
-    expect(nav).not.toBeNull()
-    expect(nav?.querySelectorAll('.dsbt-item')).toHaveLength(2)
-    const titles = [...(nav?.querySelectorAll('.dsbt-title') ?? [])].map((el) => el.textContent)
-    expect(titles).toContain('tail question')
+    renderTimeline('s1', store, { useProjection: (): unknown => projected })
+    expect(document.querySelectorAll('.dsbt-mark')).toHaveLength(2)
+    // hovering is what reveals a preview; the entries themselves must exist.
+    expect(document.querySelector('.dsbt-rail')).not.toBeNull()
   })
 
   it('unmounts its body portal cleanly', () => {
@@ -157,22 +195,30 @@ describe('TimelineRail component', () => {
       ['a', userNode('13:input-messagea', 2, 'first')],
       ['b', userNode('13:input-messageb', 7, 'second')],
     ])))
-    renderRail('s1', store)
-    expect(document.querySelector('.dsbt-nav')).not.toBeNull()
+    renderTimeline('s1', store)
+    expect(document.querySelector('.dsbt-slot')).not.toBeNull()
     cleanup()
-    expect(document.querySelector('.dsbt-nav')).toBeNull()
+    expect(document.querySelector('.dsbt-slot')).toBeNull()
   })
+})
 
-  it('joins the unified glass recipe while the glass gate is on', () => {
-    const tag = document.querySelector('style[data-plugin-css="deepseek-harness-background/timeline"]')
-    const text = tag?.textContent ?? ''
-    // Under the glass gate the capsule + expanded panel take the composer's
-    // fill token and the shared blur chain (the glass-blur slider), instead
-    // of the fixed official 5/16px paints.
-    expect(text).toContain('body[data-dsh-bg-glass] .dsbt-bg')
-    expect(text).toContain('body[data-dsh-bg-glass] .dsbt-wrap.dsbt-show')
-    expect(text).toContain('var(--dsw-specific-input-major)')
-    expect(text).toContain('blur(var(--bg-glass-blur')
-    expect(text).toContain('saturate(var(--bg-glass-saturate')
+describe('rail paint', () => {
+  it('is deliberately NOT glassed: every fill is an untouched official token', () => {
+    // Reusing the official UI means looking like the official UI. The rail is
+    // chrome, not a reading surface, so it takes no fill from the painter.
+    expect(TIMELINE_CSS).not.toContain('--dsw-specific-input-major')
+    expect(TIMELINE_CSS).not.toContain('data-dsh-bg-glass')
+    expect(TIMELINE_CSS).toContain('var(--dsw-alias-border-l4)')
+    expect(TIMELINE_CSS).toContain('var(--dsw-alias-bg-layer-1)')
+  })
+})
+
+describe('follow zones', () => {
+  it('uses each conversation generation\'s own bottom-follow threshold', () => {
+    // The current ChatView follows within 24px of the floor; the legacy
+    // conversation view within 25px. A mismatch lets the host yank the glide
+    // back to the floor mid-animation.
+    expect(CHATVIEW_FOLLOW_ZONE_PX).toBe(24)
+    expect(LEGACY_FOLLOW_ZONE_PX).toBe(25)
   })
 })

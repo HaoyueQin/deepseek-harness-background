@@ -6,11 +6,11 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  collectMessages, hiddenSeqsOfChat, inputAnchorKeyOf, markKeyOf,
-  normalizeProjectedTimeline, railHeightFor, railMessages, railWidthFor,
-  readMarks, resolveAnchorKey, rewindMarkedSeqsOfChat, rewindTargetOfCommand, rewindTargetOfOutcome,
-  writeMarks, MARKS_STORAGE_PREFIX, TIMELINE_PROJECTION_KEY,
-} from '../src/client/timeline.tsx'
+  chatNodesOf, collectMessages, hiddenSeqsOfChat, inputAnchorKeyOf,
+  normalizeProjectedTimeline, railMessages,
+  rewindMarkedSeqsOfChat, rewindTargetOfCommand, rewindTargetOfOutcome,
+  TIMELINE_PROJECTION_KEY,
+} from '../src/client/timeline/index.tsx'
 import { timelineProjectionDefinition, type TimelineProjectionState } from '../src/projection.ts'
 
 describe('timeline data collection', () => {
@@ -27,7 +27,7 @@ describe('timeline data collection', () => {
     }
     const messages = collectMessages(snapshot)
     expect(messages.map((m) => m.text)).toEqual(['first', 'second'])
-    expect(messages.map((m) => m.key)).toEqual(['13:input-messagea', '13:input-messageb'])
+    expect(messages.map((m) => m.anchorKey)).toEqual(['13:input-messagea', '13:input-messageb'])
   })
 
   it('returns an empty list for shapeless snapshots', () => {
@@ -37,8 +37,10 @@ describe('timeline data collection', () => {
   })
 
   it('resolves anchor keys only from well-formed entries', () => {
-    expect(resolveAnchorKey({ seq: 1, time: 0, text: '', key: '13:input-messagez' })).toBe('13:input-messagez')
-    expect(resolveAnchorKey({ seq: 1, time: 0, text: '' })).toBeUndefined()
+    expect(normalizeProjectedTimeline({ messages: [{ seq: 1, id: 'z' }] })[0]?.anchorKey)
+      .toBe('13:input-messagez')
+    // No durable id -> no rebuilt anchor key, so the mark cannot jump.
+    expect(normalizeProjectedTimeline({ messages: [{ seq: 1 }] })[0]?.anchorKey).toBeUndefined()
   })
 
   it('drops user messages hidden by a rewind command node', () => {
@@ -73,39 +75,36 @@ describe('timeline data collection', () => {
   })
 })
 
-describe('timeline bookmarks', () => {
-  afterEach(() => {
-    for (const key of Object.keys(window.localStorage)) {
-      if (key.startsWith(MARKS_STORAGE_PREFIX)) window.localStorage.removeItem(key)
+describe('node window enumeration (both kernel generations)', () => {
+  it('reads the legacy session snapshot (chat.nodes Map)', () => {
+    const nodes = new Map<string, object>([['a', { kind: 'user' }]])
+    expect(chatNodesOf({ chat: { nodes } })).toHaveLength(1)
+  })
+
+  it('reads the 0.1.2 Chat snapshot (nodes.values() store)', () => {
+    // Regression: 0.1.2 dropped `session.getSnapshot().chat` entirely and
+    // moved the Chat view to `{ order, nodes: { values() } }`, so the old
+    // reader returned nothing and the rail silently disappeared.
+    const snapshot = {
+      order: ['a', 'b'],
+      nodes: { values: () => [{ kind: 'user', key: 'a' }, { kind: 'assistant-step', key: 'b' }] },
     }
+    expect(chatNodesOf(snapshot).map((n) => n.key)).toEqual(['a', 'b'])
   })
 
-  it('builds stable bookmark keys (message key, then anchor seq)', () => {
-    expect(markKeyOf({ key: '13:x' })).toBe('key:13:x')
-    expect(markKeyOf({ seq: 7 })).toBe('seq:7')
-    // Entries with neither key nor numeric seq are not markable.
-    expect(markKeyOf({ id: 'a' })).toBe('')
-    expect(markKeyOf(null)).toBe('')
-    expect(markKeyOf(undefined)).toBe('')
+  it('returns empty for shapeless snapshots', () => {
+    expect(chatNodesOf(undefined)).toEqual([])
+    expect(chatNodesOf({})).toEqual([])
+    expect(chatNodesOf({ chat: {} })).toEqual([])
+    expect(chatNodesOf({ nodes: { values: 'nope' } })).toEqual([])
   })
 
-  it('persists and reads marks per session in localStorage', () => {
-    writeMarks('sess-1', ['key:a', 'seq:3'])
-    expect(readMarks('sess-1')).toEqual(['key:a', 'seq:3'])
-    expect(window.localStorage.getItem(MARKS_STORAGE_PREFIX + 'sess-1')).toBe(JSON.stringify(['key:a', 'seq:3']))
-    // Another session has its own namespace.
-    expect(readMarks('sess-2')).toEqual([])
-    // Writing an empty list clears the storage entry.
-    writeMarks('sess-1', [])
-    expect(readMarks('sess-1')).toEqual([])
-    expect(window.localStorage.getItem(MARKS_STORAGE_PREFIX + 'sess-1')).toBeNull()
-  })
-
-  it('tolerates corrupt stored marks', () => {
-    window.localStorage.setItem(MARKS_STORAGE_PREFIX + 'bad', '{oops')
-    expect(readMarks('bad')).toEqual([])
-    window.localStorage.setItem(MARKS_STORAGE_PREFIX + 'bad', JSON.stringify({ nope: 1 }))
-    expect(readMarks('bad')).toEqual([])
+  it('drops nodes the conversation hid (0.1.2 visibility flag)', () => {
+    const nodes = new Map<string, object>([
+      ['a', { kind: 'user', key: 'a', anchorSeq: 1, data: { time: 1, content: [{ type: 'text', text: 'shown' }] } }],
+      ['b', { kind: 'user', key: 'b', anchorSeq: 2, visibility: 'hidden', data: { time: 2, content: [{ type: 'text', text: 'hidden' }] } }],
+    ])
+    expect(collectMessages({ chat: { nodes } }).map((m) => m.text)).toEqual(['shown'])
   })
 })
 
@@ -128,9 +127,9 @@ describe('projection data source', () => {
     }
     const messages = normalizeProjectedTimeline(value)
     expect(messages.map((m) => m.seq)).toEqual([2, 7])
-    expect(messages[0]).toMatchObject({ seq: 2, key: '13:input-messagea' })
+    expect(messages[0]).toMatchObject({ seq: 2, anchorKey: '13:input-messagea' })
     expect(messages[0]?.text?.length ?? 0).toBeLessThanOrEqual(80)
-    expect(messages[1]).toMatchObject({ seq: 7, key: '13:input-messageb' })
+    expect(messages[1]).toMatchObject({ seq: 7, anchorKey: '13:input-messageb' })
   })
 
   it('returns empty for absent or malformed projection values', () => {
@@ -152,7 +151,7 @@ describe('projection data source', () => {
     ] }
     const messages = railMessages(snapshot, projected)
     expect(messages.map((m) => m.text)).toEqual(['loaded', 'unloaded tail question'])
-    expect(messages[1]?.key).toBe('13:input-messagez')
+    expect(messages[1]?.anchorKey).toBe('13:input-messagez')
   })
 
   it('merges: the window fills early entries a degraded projection lost', () => {
@@ -173,7 +172,7 @@ describe('projection data source', () => {
     const messages = railMessages(snapshot, projected)
     expect(messages.map((m) => m.seq)).toEqual([2, 9])
     expect(messages.map((m) => m.text)).toEqual(['early', 'late'])
-    expect(messages[0]?.key).toBe('k-early')
+    expect(messages[0]?.anchorKey).toBe('k-early')
   })
 
   it('merges: window entries lend their real anchor key to projected entries without a durable id', () => {
@@ -190,7 +189,7 @@ describe('projection data source', () => {
     ] }
     const messages = railMessages(snapshot, projected)
     expect(messages).toHaveLength(1)
-    expect(messages[0]?.key).toBe('13:input-messageold')
+    expect(messages[0]?.anchorKey).toBe('13:input-messageold')
   })
 
   it('fast path: a complete projection stays authoritative over the window (no per-token merge work)', () => {
@@ -208,7 +207,7 @@ describe('projection data source', () => {
     const messages = railMessages(snapshot, projected)
     expect(messages).toHaveLength(1)
     expect(messages[0]?.text).toBe('projection copy')
-    expect(messages[0]?.key).toBe('13:input-messagea')
+    expect(messages[0]?.anchorKey).toBe('13:input-messagea')
   })
 
   it('falls back to the node window when the projection is empty', () => {
@@ -301,21 +300,6 @@ describe('rewind target resolution (v0.1.5 hardening)', () => {
     expect(marked.has(4)).toBe(false)
     // The aggregate hidden set includes marked nodes too.
     expect(hiddenSeqsOfChat(chat).has(2)).toBe(true)
-  })
-})
-
-describe('timeline geometry contract', () => {
-  it('gives both states one identical, clamped outer height (no expand jump)', () => {
-    expect(railHeightFor(2)).toBe(140)
-    expect(railHeightFor(4)).toBe(158)
-    expect(railHeightFor(9)).toBe(300)
-    expect(railHeightFor(50)).toBe(300)
-  })
-
-  it('widens past 260 only for long sessions, else fits the measured title', () => {
-    expect(railWidthFor(Array.from({ length: 9 }, (_, i) => `question ${i}`))).toBe(260)
-    // jsdom has no 2d context: measurement falls back to the minimum width.
-    expect(railWidthFor(['hi'])).toBe(96)
   })
 })
 

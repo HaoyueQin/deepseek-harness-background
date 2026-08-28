@@ -10,9 +10,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   animateScrollTop, centeredScrollTopFor, detachBottomFollow, glideDurationFor,
-  jumpToMessage, scrollFloorOf, waitForChatRow,
-} from '../src/client/timeline.tsx'
-import type { TimelineSessionsService } from '../src/client/timeline.tsx'
+  compensatedLoadOlder, jumpToMessage, officialTargetTopFor, scrollFloorOf,
+  waitForChatRow, warmHistory,
+} from '../src/client/timeline/index.tsx'
+import type { TimelineSessionsService } from '../src/client/timeline/index.tsx'
 
 /** jsdom has no CSS.escape / scrollIntoView — stub the former, record the latter. */
 let scrollIntoViewCalls: { el: Element; behavior?: unknown; block?: unknown }[] = []
@@ -87,6 +88,20 @@ async function pumpUntil(pending: Promise<unknown>): Promise<void> {
   await driveUntil(() => settled)
 }
 
+/**
+ * Pump rAF rounds and macrotasks until `pending` settles — for the paging
+ * helpers, which bracket their DOM waits with settleScrollEvents() rather
+ * than running a glide.
+ */
+async function pumpSettles(pending: Promise<unknown>): Promise<void> {
+  let settled = false
+  void pending.then(() => { settled = true })
+  for (let round = 0; round < 200 && !settled; round += 1) {
+    stepFrames(0)
+    await tick()
+  }
+}
+
 function mountScrollport(): HTMLElement {
   const sp = document.createElement('div')
   sp.setAttribute('data-conversation-scroll', '')
@@ -113,7 +128,10 @@ interface ScrollGeometry {
  * scrollTop assignment, so tests can assert both the detach and the glide's
  * intermediate frames.
  */
-function mockScrollport(sp: HTMLElement, g: ScrollGeometry = {}): { setHistory: number[]; scrollTop: () => number } {
+function mockScrollport(
+  sp: HTMLElement,
+  g: ScrollGeometry = {},
+): { setHistory: number[]; scrollTop: () => number; grow: (px: number) => void } {
   const state = {
     scrollHeight: g.scrollHeight ?? 3000,
     clientHeight: g.clientHeight ?? 600,
@@ -134,7 +152,13 @@ function mockScrollport(sp: HTMLElement, g: ScrollGeometry = {}): { setHistory: 
     top: g.top ?? 0, height: state.clientHeight, bottom: state.clientHeight,
     left: 0, right: 0, width: 0, x: 0, y: 0, toJSON: () => ({}),
   }) as DOMRect
-  return { setHistory, scrollTop: () => state.scrollTop }
+  return {
+    setHistory,
+    scrollTop: () => state.scrollTop,
+    // A prepend grows the transcript above the viewport; the browser keeps
+    // scrollTop constant, so the reader's content shifts down by this much.
+    grow: (px) => { state.scrollHeight += px },
+  }
 }
 
 /** Give a row a deterministic rect/height for centeredScrollTopFor. */
@@ -443,7 +467,7 @@ describe('jumpToMessage', () => {
     const session = fakeSession({ nodes: new Map([[key, {}]]), hasMore: false })
     // Node exists but the DOM row never appears. The injectable row-wait
     // budget keeps the test fast (production default is 3s).
-    expect(await jumpToMessage(serviceFor(session), 's1', key, 150)).toBe(false)
+    expect(await jumpToMessage(serviceFor(session), 's1', key, { rowWaitMs: 150 })).toBe(false)
   })
 
   it('returns false when the session binding is missing', async () => {
@@ -466,5 +490,102 @@ describe('jumpToMessage', () => {
     const frozen = g.scrollTop()
     stepFrames(400)
     expect(g.scrollTop()).toBe(frozen)
+  })
+})
+
+describe('official landing geometry', () => {
+  it('lands a row 24px below the scrollport top, exactly where the official jump puts it', () => {
+    const sp = mountScrollport()
+    mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
+    const row = addRow(sp, 'k')
+    mockRow(row, 0, 40) // row top flush with the scrollport top
+    expect(officialTargetTopFor(sp, row)).toBe(1000 - 24)
+    // Above the very top: clamped to 0 (1000 + (-1000) - 24 underflows).
+    mockRow(row, -1000, 40)
+    expect(officialTargetTopFor(sp, row)).toBe(0)
+    // Past the floor: clamped to the floor.
+    mockRow(row, 2900, 40)
+    expect(officialTargetTopFor(sp, row)).toBe(2400)
+  })
+})
+
+describe('compensatedLoadOlder (plugin-driven paging)', () => {
+  it('restores the reader position by the prepended height', async () => {
+    // Regression: the host compensates a prepend through an internal anchor
+    // ref only its own "load earlier" button arms, so a plugin-driven page
+    // pushed the reader's content down.
+    const sp = mountScrollport()
+    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
+    const session = fakeSession({ hasMore: true })
+    session.loadOlder = async () => { g.grow(400) }
+    const pending = compensatedLoadOlder(session, sp, 24)
+    await pumpSettles(pending)
+    expect(await pending).toBe(true)
+    expect(g.scrollTop()).toBe(1400)
+  })
+
+  it('leaves a reader pinned to the floor alone (the host re-pins by itself)', async () => {
+    const sp = mountScrollport()
+    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 2400 })
+    const session = fakeSession({ hasMore: true })
+    session.loadOlder = async () => { g.grow(400) }
+    const pending = compensatedLoadOlder(session, sp, 24)
+    await pumpSettles(pending)
+    expect(await pending).toBe(true)
+    // No compensation: fighting the host's own follow logic would overshoot.
+    expect(g.scrollTop()).toBe(2400)
+  })
+
+  it('stops on a failed page instead of retrying', async () => {
+    const sp = mountScrollport()
+    mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
+    const session = fakeSession({ hasMore: true })
+    session.loadOlder = async () => {
+      session.loadOlderCalls += 1
+      throw new Error('boom')
+    }
+    const pending = compensatedLoadOlder(session, sp, 24)
+    await pumpSettles(pending)
+    expect(await pending).toBe(false)
+    expect(session.loadOlderCalls).toBe(1)
+  })
+})
+
+describe('warmHistory', () => {
+  it('pages until the rail capacity is reached, then stops', async () => {
+    const sp = mountScrollport()
+    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
+    const session = fakeSession({ hasMore: true })
+    let count = 2
+    session.loadOlder = async () => {
+      session.loadOlderCalls += 1
+      g.grow(200)
+      count += 1
+    }
+    const pending = warmHistory(session, sp, { countOf: () => count, capacity: 4, followZonePx: 24 })
+    await pumpSettles(pending)
+    expect(session.loadOlderCalls).toBe(2)
+    expect(count).toBe(4)
+  })
+
+  it('pages nothing when the log is already exhausted', async () => {
+    const sp = mountScrollport()
+    mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
+    const session = fakeSession({ hasMore: false })
+    session.loadOlder = async () => { throw new Error('should not page') }
+    const pending = warmHistory(session, sp, { countOf: () => 2, capacity: 41, followZonePx: 24 })
+    await pumpSettles(pending)
+    expect(session.loadOlderCalls).toBe(0)
+  })
+
+  it('stops as soon as a page stops growing the transcript', async () => {
+    const sp = mountScrollport()
+    mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
+    const session = fakeSession({ hasMore: true })
+    // A page that loads nothing must not spin the whole budget.
+    session.loadOlder = async () => { session.loadOlderCalls += 1 }
+    const pending = warmHistory(session, sp, { countOf: () => 2, capacity: 41, followZonePx: 24 })
+    await pumpSettles(pending)
+    expect(session.loadOlderCalls).toBe(1)
   })
 })
