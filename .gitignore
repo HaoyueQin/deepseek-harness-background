@@ -25,3 +25,4 @@ Thumbs.db
 
 # CodeBuddy working-memory directory (local IDE state, not part of the plugin)
 .codebuddy/
+*.tgz

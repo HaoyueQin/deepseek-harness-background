@@ -19,6 +19,11 @@ export const RAIL_INSET_PX = 6
 /** Fallback capacity when the rail has not been measured yet. */
 export const DEFAULT_RAIL_CAPACITY = 41
 
+/** The official stylesheet's rail height cap (TurnNavigator.module.css). */
+const RAIL_HEIGHT_CAP_PX = 420
+/** Band clearance the official stylesheet reserves around the rail. */
+const RAIL_BAND_CLEARANCE_PX = 64
+
 /**
  * The rail's own inset, read off the custom property the official component
  * publishes (`--turn-rail-inset`). Falls back to the official constant.
@@ -28,6 +33,31 @@ export function railInsetOf(rail: HTMLElement | null): number {
   if (rail === null) return RAIL_INSET_PX
   const px = Number.parseFloat(rail.style.getPropertyValue('--turn-rail-inset'))
   return Number.isFinite(px) && px >= 0 ? px : RAIL_INSET_PX
+}
+
+/**
+ * The tallest the rail can render. The official stylesheet clamps the rail's
+ * height with `min(natural, band - 64px, 420px)` and the band measurements
+ * are published inline on the scroll host (ConversationRoot's
+ * `--dsh-conversation-viewport-height` / `--dsh-composer-height`). Outside
+ * the official layout — the ported rail portals itself to body, and its own
+ * stylesheet carries the same 420px cap — only the cap applies.
+ *
+ * The rendered `clientHeight` must NOT be used here: with few loaded turns
+ * the height IS the natural (count-driven) height, so a measured capacity
+ * would equal the count and a "rail full" gate could never open — the
+ * warm-up fixed point that left early turns unreachable.
+ */
+function railMaxHeightOf(rail: HTMLElement): number {
+  const scrollport = rail.closest<HTMLElement>('[data-conversation-scroll]')
+  if (scrollport !== null) {
+    const viewport = Number.parseFloat(scrollport.style.getPropertyValue('--dsh-conversation-viewport-height'))
+    const composer = Number.parseFloat(scrollport.style.getPropertyValue('--dsh-composer-height'))
+    if (Number.isFinite(viewport) && Number.isFinite(composer)) {
+      return Math.min(RAIL_HEIGHT_CAP_PX, Math.max(0, viewport - composer - RAIL_BAND_CLEARANCE_PX))
+    }
+  }
+  return RAIL_HEIGHT_CAP_PX
 }
 
 /**
@@ -43,8 +73,8 @@ export function railInsetOf(rail: HTMLElement | null): number {
  */
 export function railCapacityOf(rail: HTMLElement | null): number {
   if (rail === null) return DEFAULT_RAIL_CAPACITY
-  const usable = rail.clientHeight - 2 * railInsetOf(rail)
-  if (!Number.isFinite(usable) || usable <= 0) return DEFAULT_RAIL_CAPACITY
+  const usable = railMaxHeightOf(rail) - 2 * railInsetOf(rail)
+  if (!Number.isFinite(usable)) return DEFAULT_RAIL_CAPACITY
   return Math.max(2, Math.floor(usable / TICK_SPACING_PX) + 1)
 }
 

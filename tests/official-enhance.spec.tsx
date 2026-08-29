@@ -133,13 +133,37 @@ describe('official rail discovery', () => {
     expect(document.querySelector(OFFICIAL_RAIL_SELECTOR)).toBe(nav)
   })
 
-  it('computes the uncompressed tick capacity from the rendered height', () => {
-    // 412px rail, 6px end insets -> 400px usable -> 41 ticks at 10px spacing.
+  it('computes the uncompressed tick capacity from the band clamp, not the current height', () => {
+    // Regression: with few loaded turns the rail's rendered height IS its
+    // natural height (count-driven, e.g. 3 turns -> 32px), so measuring the
+    // rendered height made capacity equal the count and the warm-up gate
+    // could never open. The official stylesheet caps the height with
+    // min(natural, band - 64px, 420px); capacity must come from that clamp.
+    // 412px cap, 6px end insets -> 400px usable -> 41 ticks at 10px spacing.
     // Past this the official stylesheet switches marks to percentage
     // positions and the column degrades into a solid bar.
     expect(railCapacityOf(mountOfficialRail(3, 412))).toBe(41)
-    expect(railCapacityOf(mountOfficialRail(3, 300))).toBe(29)
     expect(railCapacityOf(null)).toBe(41)
+  })
+
+  it('reads the band clamp off the scrollport measurements', () => {
+    // Published inline by ConversationRoot on the scroll host; a tall window
+    // clamps at the 420px cap while a short one shrinks the rail.
+    const tall = mountOfficialRail(3, 32)
+    tall.parentElement!.style.setProperty('--dsh-conversation-viewport-height', '700px')
+    tall.parentElement!.style.setProperty('--dsh-composer-height', '140px')
+    expect(railCapacityOf(tall)).toBe(41) // min(700-140-64, 420) = 420
+
+    const short = mountOfficialRail(3, 32)
+    short.parentElement!.style.setProperty('--dsh-conversation-viewport-height', '300px')
+    short.parentElement!.style.setProperty('--dsh-composer-height', '150px')
+    expect(railCapacityOf(short)).toBe(8) // min(300-150-64, 420) = 86
+  })
+
+  it('falls back to the 420px cap without published band measurements', () => {
+    // The ported rail portals itself to body: no scroll host, and its own
+    // stylesheet carries the same 420px clamp.
+    expect(railCapacityOf(mountOfficialRail(3, 32))).toBe(41)
   })
 })
 
@@ -199,9 +223,12 @@ describe('history warm-up', () => {
   })
 
   it('pages nothing when the rail is already at capacity', async () => {
-    // A short rail has room for 2 ticks and already shows 3: warming up would
-    // only compress the marks into an unaimable bar.
+    // A short band clamps the rail below the loaded count (90px band - 64px
+    // clearance -> 26px rail -> room for 2 ticks) and it already shows 3:
+    // warming up would only compress the marks into an unaimable bar.
     const nav = mountOfficialRail(3, 26)
+    nav.parentElement!.style.setProperty('--dsh-conversation-viewport-height', '200px')
+    nav.parentElement!.style.setProperty('--dsh-composer-height', '110px')
     const session = fakeSession({ hasMore: true })
     renderEnhancer(session, 3, true)
     await new Promise((resolve) => setTimeout(resolve, RAIL_POLL_MS + 50))
