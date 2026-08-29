@@ -49,10 +49,10 @@ export const TIMELINE_CSS = `
 
   .dsbt-marks {
     position: absolute; inset: var(--dsbt-inset, 6px) 0;
-    /* DeepSeek-web edge dissolve: top and bottom ticks fade into the band.
-       Paint-only — the rail's own geometry and hit-testing are untouched. */
-    mask-image: linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
-    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+    /* No edge dissolve here: the first and last tick dashes straddle the
+       marks box edges by 1px, so any fade zone sized off the box height
+       swallows them (at a 10-turn rail the 8% recipe rendered the ends at
+       ~14% opacity). The end ticks must stay fully painted. */
   }
 
   .dsbt-markPosition {
@@ -108,8 +108,8 @@ export const TIMELINE_CSS = `
     animation: dsbt-preview-enter 120ms ease-out;
     transition: top 140ms cubic-bezier(.2, .8, .2, 1);
     /* Content dissolve: a clamped preview's last lines soften out instead of
-       hard-cutting, matching the rail's edge fade. No effect on short copy
-       (the mask's fade zone rides the empty tail). */
+       hard-cutting. No effect on short copy (the mask's fade zone rides the
+       empty tail) and no effect on ticks — it lives on the preview only. */
     mask-image: linear-gradient(180deg, #000 86%, transparent 100%);
     -webkit-mask-image: linear-gradient(180deg, #000 86%, transparent 100%);
   }

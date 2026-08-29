@@ -203,18 +203,26 @@ describe('legacy rail rendering', () => {
 })
 
 describe('rail paint', () => {
-  it('is glassed under the wallpapered gate: preview fill, blur chain and edge fade all ship', () => {
+  it('is glassed under the wallpapered gate: preview fill and blur chain ship, the marks edge fade does not', () => {
     // The rail is background-plugin chrome over the user's art, so its hover
     // preview joins the glass sheet (painter's composer token + shared
     // blur/sheen) under body[data-dsh-bg-glass] — the same recipe and the
-    // same off-switch as the composer card — and the marks column carries
-    // the DeepSeek-web edge dissolve.
+    // same off-switch as the composer card.
     expect(TIMELINE_CSS).toContain('body[data-dsh-bg-glass] .dsbt-preview')
     expect(TIMELINE_CSS).toContain('background-color: var(--dsw-specific-input-major)')
     expect(TIMELINE_CSS).toContain('backdrop-filter: blur(var(--bg-glass-blur, 16px))')
-    expect(TIMELINE_CSS).toContain('mask-image: linear-gradient(180deg, transparent 0%, #000 8%, #000 92%, transparent 100%)')
     expect(TIMELINE_CSS).toContain('var(--dsw-alias-border-l4)')
     expect(TIMELINE_CSS).toContain('var(--dsw-alias-bg-layer-1)')
+  })
+
+  it('does not fade the marks column at its edges', () => {
+    // The DeepSeek-web edge dissolve is removed on purpose: the first and
+    // last tick dashes straddle the marks box edges by 1px, and the 8% fade
+    // zone rides exactly that edge — at a 10-turn rail it rendered the end
+    // ticks at ~14% opacity, i.e. invisible ("the first and last ticks
+    // vanished"). The preview's own content fade stays: it rides the empty
+    // tail of the tooltip copy and never touches a tick.
+    expect(TIMELINE_CSS).not.toContain('transparent 0%, #000 8%')
   })
 })
 
