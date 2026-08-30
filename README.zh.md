@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/banner-zh-dark.svg">
+    <img src="docs/banner-zh.svg" alt="DeepSeek Harness Background" width="720">
+  </picture>
+</p>
+
 # DeepSeek Harness Background
 
 [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
@@ -18,6 +25,10 @@
 一个 **DeepSeek Harness Web GUI**（`dsh web`）的**自定义背景图片插件**：上传一张本地图片，或粘贴一个图片链接，把它绘制在整个应用界面背后，并可调节**不透明度**、**可读性遮罩**、**面板透明**与**毛玻璃模糊** —— 全部在设置面板内实时预览、松手自动保存。
 
 外观（固定壁纸层 + 主题自适应遮罩 + 由 `--dsw-*` 设计 token 驱动的半透明玻璃面板）借鉴了社区 `dsh-wallpaper-engine` 的实现。
+
+<p align="center">
+  <img src="docs/demo-zh.svg" alt="演示：上传壁纸后全站变毛玻璃，并在会话时间线的轮次之间平滑跳转">
+</p>
 
 ## 截图
 

@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.svg">
+    <img src="docs/banner.svg" alt="DeepSeek Harness Background" width="720">
+  </picture>
+</p>
+
 # DeepSeek Harness Background
 
 [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
@@ -18,6 +25,10 @@
 A custom **background image plugin** for the DeepSeek Harness Web GUI (`dsh web`): upload a local picture, or paste an image URL, and render it behind the whole app surface with adjustable **opacity**, **readability scrim**, **panel transparency** and **frosted-glass blur** — everything live-previewed inside the settings panel and committed automatically on release.
 
 The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels driven by `--dsw-*` design tokens) is modeled on the community `dsh-wallpaper-engine` implementation.
+
+<p align="center">
+  <img src="docs/demo.svg" alt="demo: upload a wallpaper, the whole app turns to frosted glass, then jump between turns on the timeline">
+</p>
 
 ## Screenshots
 

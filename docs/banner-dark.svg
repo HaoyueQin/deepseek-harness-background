@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif">
+<defs>
+<linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0e1217"/><stop offset="1" stop-color="#131922"/></linearGradient>
+<linearGradient id="w" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#231723"/><stop offset="1" stop-color="#16202f"/></linearGradient>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".16"/><stop offset="1" stop-color="#ffffff" stop-opacity=".09"/></linearGradient>
+<linearGradient id="s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<radialGradient id="p"><stop offset="0" stop-color="#a04f66" stop-opacity=".5"/><stop offset="1" stop-color="#a04f66" stop-opacity="0"/></radialGradient>
+<radialGradient id="h"><stop offset="0" stop-color="#5d6d8d" stop-opacity=".5"/><stop offset="1" stop-color="#5d6d8d" stop-opacity="0"/></radialGradient>
+<radialGradient id="u"><stop offset="0" stop-color="#263750" stop-opacity=".65"/><stop offset="1" stop-color="#263750" stop-opacity="0"/></radialGradient>
+<filter id="f" x="-20%" y="-70%" width="140%" height="260%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity=".5"/></filter>
+<clipPath id="c"><rect x="680" y="150" width="440" height="64" rx="16"/></clipPath>
+<linearGradient id="m" x1="0" y1="0" x2="1" y2="0"><stop offset="0"/><stop offset=".46" stop-color="#fff"/></linearGradient>
+<mask id="mk"><rect x="420" width="780" height="260" fill="url(#m)"/></mask>
+</defs>
+<rect width="1200" height="260" fill="url(#b)"/>
+<g mask="url(#mk)">
+<rect x="420" width="780" height="260" fill="url(#w)"/>
+<circle cx="772" cy="62" r="74" fill="url(#p)"><animateTransform attributeName="transform" type="translate" values="0 0;10 -6;0 0" keyTimes="0;.5;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines=".42 0 .58 1;.42 0 .58 1"/></circle>
+<circle cx="908" cy="178" r="94" fill="url(#h)"><animateTransform attributeName="transform" type="translate" values="0 0;-9 6;0 0" keyTimes="0;.5;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines=".42 0 .58 1;.42 0 .58 1"/></circle>
+<circle cx="1032" cy="50" r="58" fill="url(#u)"><animateTransform attributeName="transform" type="translate" values="0 0;7 8;0 0" keyTimes="0;.5;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines=".42 0 .58 1;.42 0 .58 1"/></circle>
+<circle cx="1138" cy="198" r="86" fill="url(#p)"><animateTransform attributeName="transform" type="translate" values="0 0;-8 -5;0 0" keyTimes="0;.5;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines=".42 0 .58 1;.42 0 .58 1"/></circle>
+<circle cx="688" cy="212" r="48" fill="url(#u)"><animateTransform attributeName="transform" type="translate" values="0 0;6 -7;0 0" keyTimes="0;.5;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines=".42 0 .58 1;.42 0 .58 1"/></circle>
+<circle cx="1190" cy="110" r="60" fill="url(#u)"/>
+</g>
+<rect x="952" y="54" width="168" height="46" rx="13" fill="url(#g)" stroke="#ffffff" stroke-opacity=".36"/>
+<rect x="976" y="73" width="120" height="8" rx="4" fill="#4a525e"/>
+<rect x="680" y="150" width="440" height="64" rx="16" fill="url(#g)" stroke="#ffffff" stroke-opacity=".36" filter="url(#f)"/>
+<g clip-path="url(#c)"><rect x="-90" y="150" width="70" height="64" fill="url(#s)"><animateTransform attributeName="transform" type="translate" values="-90 0;-90 0;560 0;560 0" keyTimes="0;.5;.66;1" dur="6s" repeatCount="indefinite"/></rect></g>
+<rect x="706" y="171" width="190" height="8" rx="4" fill="#4a525e"/>
+<rect x="706" y="189" width="124" height="8" rx="4" fill="#3c434e"/>
+<circle cx="1084" cy="182" r="14" fill="#4d6bfe"/>
+<path d="M1078 182h11m-4-4 4 4-4 4" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="#68717d"><rect x="1170" y="64" width="8" height="3" rx="1.5"/><rect x="1170" y="86" width="8" height="3" rx="1.5"/><rect x="1170" y="108" width="8" height="3" rx="1.5"/><rect x="1170" y="130" width="8" height="3" rx="1.5"/><rect x="1170" y="152" width="8" height="3" rx="1.5"/></g>
+<rect x="1164" y="64" width="14" height="3" rx="1.5" fill="#e8ecf1"><animate attributeName="y" values="64;64;86;86;108;108;130;130;152;152;64;64" keyTimes="0;.16;.2;.36;.4;.56;.6;.76;.8;.96;.98;1" dur="6s" repeatCount="indefinite"/></rect>
+<text x="64" y="97" font-size="38" font-weight="650" fill="#f2f4f8">DeepSeek Harness Background</text>
+<text x="64" y="139" font-size="18" fill="#a7b0bc">One wallpaper behind the whole app —</text>
+<text x="64" y="164" font-size="18" fill="#a7b0bc">frosted glass keeps every word readable.</text>
+<g font-size="13.5" fill="#ccd2da" text-anchor="middle">
+<rect x="64" y="192" width="112" height="32" rx="16" fill="#ffffff" fill-opacity=".06" stroke="#ffffff" stroke-opacity=".16"/>
+<text x="120" y="213">Live preview</text>
+<rect x="190" y="192" width="122" height="32" rx="16" fill="#ffffff" fill-opacity=".06" stroke="#ffffff" stroke-opacity=".16"/>
+<text x="251" y="213">Frosted glass</text>
+<rect x="326" y="192" width="86" height="32" rx="16" fill="#ffffff" fill-opacity=".06" stroke="#ffffff" stroke-opacity=".16"/>
+<text x="369" y="213">Timeline</text>
+</g>
+</svg>

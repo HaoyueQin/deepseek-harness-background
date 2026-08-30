@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif">
+<defs>
+<linearGradient id="cw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3dfe7"/><stop offset="1" stop-color="#e2eaf6"/></linearGradient>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".68"/><stop offset="1" stop-color="#ffffff" stop-opacity=".4"/></linearGradient>
+<linearGradient id="s2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<radialGradient id="p"><stop offset="0" stop-color="#f0b2c1" stop-opacity=".95"/><stop offset="1" stop-color="#f0b2c1" stop-opacity="0"/></radialGradient>
+<radialGradient id="h"><stop offset="0" stop-color="#ffffff" stop-opacity=".95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+<radialGradient id="u"><stop offset="0" stop-color="#a9bcd6" stop-opacity=".85"/><stop offset="1" stop-color="#a9bcd6" stop-opacity="0"/></radialGradient>
+<filter id="ds" x="-15%" y="-25%" width="130%" height="155%"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#2a2438" flood-opacity=".25"/></filter>
+<clipPath id="c1"><rect x="10" y="46" width="700" height="254"/></clipPath>
+<clipPath id="c2"><rect x="148" y="312" width="524" height="72" rx="16"/></clipPath>
+</defs>
+<rect width="720" height="420" fill="#f7f8fa"/>
+<rect x="10" y="10" width="700" height="400" rx="16" fill="#ffffff" filter="url(#ds)"/>
+<g><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;.2;.343;.943;.97;1" dur="7s" repeatCount="indefinite"/>
+<rect x="10" y="10" width="700" height="400" rx="16" fill="url(#cw)"/>
+<circle cx="150" cy="90" r="80" fill="url(#p)"/>
+<circle cx="330" cy="330" r="110" fill="url(#h)"/>
+<circle cx="520" cy="70" r="66" fill="url(#u)"/>
+<circle cx="640" cy="290" r="90" fill="url(#p)"/>
+<circle cx="60" cy="380" r="54" fill="url(#u)"/>
+<rect x="10" y="10" width="700" height="400" rx="16" fill="#ffffff" opacity=".3"/>
+</g>
+<g><animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;.2;.343;.943;.97;1" dur="7s" repeatCount="indefinite"/>
+<rect x="10" y="10" width="120" height="400" rx="16" fill="#f2f3f5"/>
+</g>
+<rect x="22" y="58" width="96" height="28" rx="14" fill="url(#g)" stroke="#ffffff" stroke-opacity=".9"/>
+<rect x="22" y="58" width="96" height="28" rx="14" fill="#ffffff" stroke="#dfe3e9"><animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;.2;.343;.943;.97;1" dur="7s" repeatCount="indefinite"/></rect>
+<text x="70" y="76" font-size="11.5" fill="#333944" text-anchor="middle">新会话</text>
+<g fill="#d7dbe1"><rect x="22" y="102" width="86" height="6" rx="3"/><rect x="22" y="122" width="78" height="6" rx="3"/><rect x="22" y="142" width="88" height="6" rx="3"/><rect x="22" y="162" width="70" height="6" rx="3"/></g>
+<text x="22" y="392" font-size="11.5" fill="#5a6270">设置</text>
+<text x="28" y="33" font-size="12" font-weight="600" fill="#454b55">deepseek harness</text>
+<g fill="none" stroke="#7a828c" stroke-width="1.4" stroke-linecap="round"><path d="M644 28h10"/><rect x="662.5" y="23.5" width="9" height="9" rx="1.5"/><path d="M682 24.5l8 8m0-8-8 8"/></g>
+<g clip-path="url(#c1)"><animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 -36;0 -36;0 0" keyTimes="0;.743;.843;.943;1" dur="7s" repeatCount="indefinite" calcMode="spline" keySplines="0 0 1 1;.42 0 .58 1;0 0 1 1;.42 0 .58 1"/>
+<rect x="522" y="86" width="150" height="44" rx="12" fill="url(#g)" stroke="#ffffff" stroke-opacity=".9"/>
+<rect x="522" y="86" width="150" height="44" rx="12" fill="#ffffff" stroke="#dfe3e9"><animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;.2;.343;.943;.97;1" dur="7s" repeatCount="indefinite"/></rect>
+<text x="597" y="112" font-size="13" fill="#262b33" text-anchor="middle">你好呀</text>
+<g fill="#d0d6dd"><rect x="150" y="156" width="340" height="7" rx="3.5"/><rect x="150" y="173" width="296" height="7" rx="3.5"/><rect x="150" y="190" width="210" height="7" rx="3.5"/></g>
+</g>
+<rect x="148" y="312" width="524" height="72" rx="16" fill="url(#g)" stroke="#ffffff" stroke-opacity=".9"/>
+<rect x="148" y="312" width="524" height="72" rx="16" fill="#ffffff" stroke="#dfe3e9"><animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;.2;.343;.943;.97;1" dur="7s" repeatCount="indefinite"/></rect>
+<rect x="172" y="334" width="240" height="8" rx="4" fill="#d0d6dd"/>
+<circle cx="636" cy="348" r="13" fill="#4d6bfe"/>
+<path d="M630 348h11m-4-4 4 4-4 4" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<g clip-path="url(#c2)"><rect x="90" y="312" width="70" height="72" fill="url(#s2)"><animateTransform attributeName="transform" type="translate" values="0 0;0 0;590 0;590 0" keyTimes="0;.4;.55;1" dur="7s" repeatCount="indefinite"/></rect></g>
+<g fill="#9aa1ab"><rect x="692" y="110" width="6" height="3" rx="1.5"/><rect x="692" y="130" width="6" height="3" rx="1.5"/><rect x="692" y="150" width="6" height="3" rx="1.5"/><rect x="692" y="170" width="6" height="3" rx="1.5"/><rect x="692" y="190" width="6" height="3" rx="1.5"/><rect x="692" y="210" width="6" height="3" rx="1.5"/></g>
+<rect x="686" y="130" width="12" height="3" rx="1.5" fill="#3a4048"><animate attributeName="y" values="130;130;190;190;130;130" keyTimes="0;.78;.8;.93;.95;1" dur="7s" repeatCount="indefinite"/></rect>
+<g><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;.657;.714;.9;.943;1" dur="7s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="10 0;10 0;0 0;0 0" keyTimes="0;.657;.714;.9;1" dur="7s" repeatCount="indefinite"/>
+<rect x="520" y="168" width="156" height="48" rx="10" fill="url(#g)" stroke="#ffffff" stroke-opacity=".9"/>
+<rect x="536" y="182" width="120" height="6" rx="3" fill="#c4cad3"/>
+<rect x="536" y="196" width="88" height="6" rx="3" fill="#cfd5dc"/>
+</g>
+<g><animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;.2;.23;.955;1" dur="7s" repeatCount="indefinite"/>
+<rect x="148" y="252" width="72" height="28" rx="14" fill="#ffffff" fill-opacity=".88" stroke="#dfe3e9"/>
+<text x="184" y="270" font-size="12" fill="#3a4048" text-anchor="middle">默认界面</text>
+</g>
+<g><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;.21;.24;.743;.77;1" dur="7s" repeatCount="indefinite"/>
+<rect x="148" y="252" width="147" height="28" rx="14" fill="url(#g)" stroke="#ffffff" stroke-opacity=".9"/>
+<text x="222" y="270" font-size="12" fill="#3a4048" text-anchor="middle">一张壁纸，全站成玻璃</text>
+</g>
+<g><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;.75;.78;.9;.93;1" dur="7s" repeatCount="indefinite"/>
+<rect x="148" y="252" width="122" height="28" rx="14" fill="url(#g)" stroke="#ffffff" stroke-opacity=".9"/>
+<text x="209" y="270" font-size="12" fill="#3a4048" text-anchor="middle">时间线，一键直达</text>
+</g>
+</svg>
