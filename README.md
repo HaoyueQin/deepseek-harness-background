@@ -8,6 +8,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/HaoyueQin/deepseek-harness-background/ci.yml?style=flat-square&logo=githubactions&logoColor=white)](https://github.com/HaoyueQin/deepseek-harness-background/actions)
 [![GitHub issues](https://img.shields.io/github/issues/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/issues)
 [![GitHub last commit](https://img.shields.io/github/last-commit/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/commits)
+[![Commit activity](https://img.shields.io/github/commit-activity/t/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background/graphs/commit-activity)
 [![Top language](https://img.shields.io/github/languages/top/HaoyueQin/deepseek-harness-background?style=flat-square&logo=typescript)](https://github.com/HaoyueQin/deepseek-harness-background)
 [![Repo size](https://img.shields.io/github/repo-size/HaoyueQin/deepseek-harness-background?style=flat-square&logo=github)](https://github.com/HaoyueQin/deepseek-harness-background)
 [![License](https://img.shields.io/github/license/HaoyueQin/deepseek-harness-background?style=flat-square)](LICENSE)
@@ -146,6 +147,10 @@ deepseek-harness-background/          # the plugin repo (package name stays the 
 │       └── locales.ts        # zh/en copy
 └── tests/                  # schema, routes, apply (painter), settings-row contracts
 ```
+
+## Activity
+
+[![HaoyueQin/deepseek-harness-background GitStock K-Line Chart](https://gitstock.org/HaoyueQin/deepseek-harness-background/stock.svg)](https://gitstock.org/HaoyueQin/deepseek-harness-background)
 
 ## License
 
