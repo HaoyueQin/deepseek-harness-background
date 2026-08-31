@@ -8,7 +8,6 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { BACKGROUND_SETTINGS_NAMESPACE, BackgroundSettingsSchema } from './schema.ts'
 import { makeBackgroundRoutes } from './routes.ts'
 import { registerTimelineProjection } from './projection.ts'
@@ -22,8 +21,6 @@ export {
 export { BACKGROUND_API_PREFIX, makeBackgroundRoutes } from './routes.ts'
 export { resolveHarnessHome, PLUGIN_HOME_REL } from './harness-home.ts'
 export { TIMELINE_PROJECTION_KEY, timelineProjectionDefinition } from './projection.ts'
-
-const BACKGROUND_NAMESPACE = settingsNamespace(BACKGROUND_SETTINGS_NAMESPACE)
 
 /**
  * Register the durable background section and its API routes when the Host
@@ -47,7 +44,7 @@ export function apply(ctx: Context): void {
       (descriptor) => descriptor.ns === BACKGROUND_SETTINGS_NAMESPACE,
     )
     if (!alreadyRegistered) {
-      hostCtx.settings.register(BACKGROUND_NAMESPACE, BackgroundSettingsSchema, {
+      hostCtx.settings.register(BACKGROUND_SETTINGS_NAMESPACE, BackgroundSettingsSchema, {
         applies: 'live',
       })
     }
