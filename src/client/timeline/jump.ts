@@ -442,10 +442,19 @@ export async function jumpToMessage(
       loadingOlder?: boolean
       openState?: unknown
     }
-    // Legacy (<= 0.1.1) fast path: both kernel generations expose a keyed
-    // node reader where one exists — the legacy session snapshot's
-    // `chat.nodes` Map, and the current Chat snapshot's node store.
-    const loaded = snapshot?.chat?.nodes?.get(anchorKey) ?? snapshot?.nodes?.get(anchorKey)
+    // Legacy (<= 0.1.1) fast path: read the keyed node reader where one
+    // EXISTS. The two kernel generations disagree on where the node table
+    // lives AND on its shape — 0.1.1's snapshot exposes the windowed
+    // ChatSnapshot node store at `chat.nodes` while its top-level `nodes`
+    // compatibility field is a PLAIN ARRAY (no .get) — so both reads are
+    // shape-guarded and a malformed store reads as absent (the DOM probe
+    // above and the paging loop below then take over).
+    const keyedNodeOf = (store: unknown): unknown =>
+      store !== null && typeof store === 'object'
+      && typeof (store as { get?: unknown }).get === 'function'
+        ? (store as { get(key: string): unknown }).get(anchorKey)
+        : undefined
+    const loaded = keyedNodeOf(snapshot?.chat?.nodes) ?? keyedNodeOf(snapshot?.nodes)
     if (loaded !== undefined) break
     if (snapshot?.hasMore !== true) break
     if (Date.now() >= deadline) break

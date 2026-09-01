@@ -469,6 +469,36 @@ describe('jumpToMessage', () => {
     expect(session.loadOlderCalls).toBe(3)
   })
 
+  it('shape-guards the legacy top-level nodes ARRAY (rc.2 silent-failure regression)', async () => {
+    // rc.2's ConversationSnapshot carries `nodes: readonly ConversationNode[]`
+    // at the TOP level — a plain array with no .get. The fast-path read
+    // `snapshot.nodes.get(...)` threw a TypeError inside the paging loop, the
+    // click handler's catch swallowed it, and EVERY far-history click on rc.2
+    // died silently (0.5.0 and 0.5.1 included): no paging, no glide, no log.
+    // The fakes never reproduced it — an absent `nodes` field short-circuits
+    // through `?.get` harmlessly; only the real kernel shape (an array)
+    // triggers the throw, so the fake below mirrors it exactly.
+    const sp = mountScrollport()
+    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 0 })
+    const key = '13:input-messagerc2far'
+    const session = fakeSession({ hasMore: true })
+    const baseSnapshot = session.getSnapshot.bind(session)
+    session.getSnapshot = (() => ({
+      ...baseSnapshot(),
+      nodes: [] as unknown as Map<string, unknown>,
+    })) as FakeSession['getSnapshot']
+    session.loadOlder = async () => {
+      session.loadOlderCalls += 1
+      session.nodes.set(key, {})
+      mockRow(addRow(sp, key), 1500, 40)
+    }
+    const pending = jumpToMessage(serviceFor(session), 's1', key)
+    await pumpUntil(pending)
+    expect(await pending).toBe(true)
+    expect(session.loadOlderCalls).toBe(1)
+    expect(g.scrollTop()).toBe(1500 - (600 - 40) / 2)
+  })
+
   it('keeps the jump alive when a page fails and the row renders anyway', async () => {
     const sp = mountScrollport()
     const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 0 })
