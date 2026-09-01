@@ -56,3 +56,23 @@ export interface OfficialNavigationItem {
   /** Bounded assistant-response preview; empty until the turn answers. */
   response: string
 }
+
+/**
+ * One mark of the official rail's FULL ladder (dsh >= 0.1.2-alpha.3): the
+ * kernel merges its loaded `TurnNavigationItem`s with the host `turnOutline`
+ * projection so every turn of the session renders, an unloaded one paging
+ * history through its seq when clicked. Duck-typed like its source faces.
+ * This plugin only ever glides to a mark it can address — a loaded one — so
+ * the ladder entry needs the anchor key and nothing else; an entry without
+ * one is an outline-only turn the kernel's own jump machinery owns.
+ */
+export interface TurnRailLadderItem {
+  /** Turn number the mark addresses. */
+  readonly turn: number
+  /** Bounded prompt preview (loaded window first, outline fallback). */
+  readonly prompt: string
+  /** Bounded response preview (loaded window first, outline fallback). */
+  readonly response: string
+  /** Chat anchor key; absent for an outline-only (unloaded) turn. */
+  readonly anchorKey?: string
+}

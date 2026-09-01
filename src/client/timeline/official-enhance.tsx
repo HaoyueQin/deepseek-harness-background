@@ -3,18 +3,31 @@
  * turn navigator (dsh >= 0.1.2, `TurnNavigator` in dsh-client-ui-chat).
  *
  * This component renders NOTHING. It borrows the official rail exactly as the
- * kernel painted it and fixes two behaviours:
+ * kernel painted it and fixes its behaviours, scoped to what the running rail
+ * generation still lacks (told apart by capability — see isFrameRail — never
+ * by version compare):
  *
- * 1. Smooth jump. The official `navigateToTurn` is one assignment
- *    (`el.scrollTop += flowTop(row, el) - 24`); a click across a long
- *    transcript teleports. Clicks are intercepted in the CAPTURE phase and
- *    re-run through the shared glide instead.
- * 2. Reachable history. The official rail only lists turns the client has
- *    already loaded, so anything behind the "load earlier" button has no mark
- *    at all. Hovering or focusing the rail pages older history in — only up
- *    to the rail's own uncompressed capacity, so the marks never degrade into
- *    a solid bar — with the scroll position compensated so the reader's view
- *    never moves.
+ * 1. Smooth jump (every generation). The official `navigateToTurn` is one
+ *    assignment (`el.scrollTop += flowTop(row, el) - 24`); a click across a
+ *    long transcript teleports. Clicks on LOADED marks are intercepted in the
+ *    capture phase and re-run through the shared glide instead. Since
+ *    0.1.2-alpha.3 the rail also renders marks for turns OUTSIDE the loaded
+ *    window (fed by the whole-log `turnOutline` projection); those jumps
+ *    page history through the kernel's own loadThrough machinery — marks
+ *    without an anchor key are left to it, and the click index is resolved
+ *    against the same merged ladder the kernel renders. While one of those
+ *    kernel jumps is still paging (a mark pulses `aria-busy`), the plugin
+ *    stands down entirely: the kernel's loaded branch cancels its own pending
+ *    jump before landing, and an interception would bypass that cancellation.
+ * 2. Reachable history (compressing rail only — dsh 0.1.2-alpha.1/2). That
+ *    rail only lists turns the client has already loaded, so anything behind
+ *    the "load earlier" button has no mark at all. Hovering or focusing the
+ *    rail pages older history in — only up to the rail's own uncompressed
+ *    capacity, so the marks never degrade into a solid bar — with the scroll
+ *    position compensated so the reader's view never moves. The alpha.3
+ *    frame-style rail lists every turn already and pages on demand itself, so
+ *    warming there would fight the kernel's pager for nothing and does not
+ *    run.
  *
  * State-ownership note (why intercepting the official click loses nothing):
  * the kernel's scrollport (`data-conversation-scroll`, ChatView's
@@ -43,10 +56,15 @@
 
 import react from 'react'
 import { CHATVIEW_FOLLOW_ZONE_PX, jumpToMessage, officialTargetTopFor, warmHistory } from './jump.ts'
-import { indexForEvent, normalizeNavigationItems, railCapacityOf } from './rail-pointer.ts'
-import type { OfficialNavigationItem, TimelineSessionsService } from './types.ts'
+import { indexForEvent, isFrameRail, mergeRailItems, normalizeNavigationItems, railCapacityOf } from './rail-pointer.ts'
+import type { TimelineSessionsService, TurnRailLadderItem } from './types.ts'
 
-/** Structural anchor of the official rail (its inline style carries the rail's own metrics). */
+/**
+ * Structural anchor of the official rail — its inline style carries the rail's
+ * own metrics, which BOTH generations publish (`--turn-natural-height`), so
+ * one selector finds either and the generation itself is told apart by
+ * isFrameRail afterwards.
+ */
 export const OFFICIAL_RAIL_SELECTOR = '[data-conversation-scroll] nav[style*="--turn-natural-height"]'
 
 /**
@@ -70,31 +88,44 @@ export interface OfficialTimelineEnhancerProps {
   sessionsService?: TimelineSessionsService
   /** Kernel selector hook over the Chat snapshot (absent before 0.1.2). */
   useChat?: (selector: (snapshot: unknown) => unknown) => unknown
+  /** Framework projection reader; the alpha.3 whole-log turn outline
+   *  (`turnOutline`) arrives through it (undefined on older kernels). */
+  useProjection?: (key: string) => unknown
   /** Whether the persisted timeline toggle is on. */
   enabled: boolean
   t: (key: string, params?: Record<string, string | number>) => string
 }
 
 /**
- * The enhancer: no visual output, only the two behaviour fixes.
+ * The enhancer: no visual output, only the behaviour fixes the running rail
+ * generation lacks.
  * @param props - dock slot props plus the enabled gate.
  * @returns null (always).
  */
 export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): null {
-  const { sessionId, sessionsService, useChat, enabled } = props
+  const { sessionId, sessionsService, useChat, useProjection, enabled } = props
 
-  // The official navigation index — the very array the official rail renders,
-  // so this plugin always targets a mark that visually exists.
+  // The official navigation index — the loaded-window half of what the rail
+  // renders, so this plugin always targets a mark that visually exists.
   const raw = useChat === undefined ? undefined : useChat((snapshot: unknown) => {
     const nav = (snapshot as { navigation?: { items?: () => unknown } } | undefined)?.navigation
     return typeof nav?.items === 'function' ? nav.items() : undefined
   })
   const items = normalizeNavigationItems(raw)
+  // The whole-log outline (dsh >= 0.1.2-alpha.3) — the other half of the
+  // rendered ladder. Reading an unregistered key is `undefined` on older
+  // kernels, and the merge then degrades to the loaded items, which IS the
+  // alpha.1/2 ladder. Called unconditionally per render: useProjection's
+  // presence never flips within a kernel, so the hook order stays stable.
+  const rawOutline = useProjection === undefined ? undefined : useProjection('turnOutline')
+  const ladder = mergeRailItems(items, rawOutline)
 
   const session = sessionId !== undefined && sessionsService !== undefined
     ? sessionsService.binding(sessionId)?.session
     : undefined
   const [rail, setRail] = react.useState<HTMLElement | null>(null)
+  /** Frame-style rail (dsh >= 0.1.2-alpha.3): decides the warm-up's presence. */
+  const [narrow, setNarrow] = react.useState(false)
 
   // Mirrors so the listeners below stay identity-stable: `items` changes
   // identity on every turn change, and re-attaching a listener each time
@@ -102,6 +133,8 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
   // effect can release its claim on unmount without re-subscribing.
   const itemsRef = react.useRef(items)
   itemsRef.current = items
+  const ladderRef = react.useRef(ladder)
+  ladderRef.current = ladder
   const railRef = react.useRef<HTMLElement | null>(rail)
   railRef.current = rail
   const aliveRef = react.useRef(true)
@@ -142,6 +175,7 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
       }
       claimedRails.set(found, claimToken)
       setRail(found)
+      setNarrow(isFrameRail(found))
     }
     check()
     const timer = window.setInterval(check, RAIL_POLL_MS)
@@ -153,7 +187,11 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
     }
   }, [claimToken])
 
-  const navigate = react.useCallback((item: OfficialNavigationItem): void => {
+  const navigate = react.useCallback((item: TurnRailLadderItem): void => {
+    // An outline-only mark (an unloaded turn) has no addressable row here —
+    // the kernel's own loadThrough jump owns it (the click handler never
+    // routes one this way; the guard is for direct callers).
+    if (item.anchorKey === undefined) return
     if (sessionsService === undefined || sessionId === undefined) return
     // Scope the bottom-follow detach to the column this rail belongs to: the
     // official rail is mounted, so its scrollport is known and the other
@@ -193,13 +231,21 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
   }, [session, rail])
 
   // Click interception. Capture phase on the rail itself, so this runs before
-  // React's root bubble listener and the official handler never fires.
+  // React's root bubble listener and the official handler never fires — for a
+  // LOADED mark. An outline-only mark (an unloaded turn, alpha.3) carries no
+  // anchor key: standing down lets the event reach the kernel's own handler,
+  // whose loadThrough machinery pages the history in and lands the row. While
+  // one of those kernel jumps is still paging (its mark pulses aria-busy) the
+  // plugin stands down ENTIRELY: the kernel's loaded branch cancels its own
+  // pending jump before landing, which an interception would bypass — the
+  // orphaned jump would teleport the scrollport away mid-glide at settle.
   react.useEffect(() => {
     if (!enabled || rail === null) return
     const onClick = (event: MouseEvent): void => {
+      if (rail.querySelector('[aria-busy="true"]') !== null) return
       const index = indexForEvent(rail, event)
-      const item = itemsRef.current[index]
-      if (item === undefined) return
+      const item = ladderRef.current[index]
+      if (item === undefined || item.anchorKey === undefined) return
       event.preventDefault()
       event.stopImmediatePropagation()
       navigate(item)
@@ -209,9 +255,12 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
   }, [enabled, rail, navigate])
 
   // Warm-up trigger: pointer or keyboard intent on the rail. Nothing pages
-  // until the reader actually reaches for the rail.
+  // until the reader actually reaches for the rail — and on the frame-style
+  // alpha.3 rail never at all: it lists every turn already (the whole-log
+  // outline) and pages on demand itself, so warming would only fight its
+  // pager. The compressing alpha.1/2 rail is the sole beneficiary.
   react.useEffect(() => {
-    if (!enabled || rail === null) return
+    if (!enabled || narrow || rail === null) return
     const start = (): void => { void warm() }
     rail.addEventListener('pointerenter', start)
     rail.addEventListener('focusin', start)
@@ -219,7 +268,7 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
       rail.removeEventListener('pointerenter', start)
       rail.removeEventListener('focusin', start)
     }
-  }, [enabled, rail, warm])
+  }, [enabled, narrow, rail, warm])
 
   return null
 }

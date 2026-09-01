@@ -85,9 +85,13 @@ export {
   DEFAULT_RAIL_CAPACITY,
   RAIL_INSET_PX,
   TICK_SPACING_PX,
+  frameIndexAtPointer,
   indexAtPointer,
   indexForEvent,
+  isFrameRail,
+  mergeRailItems,
   normalizeNavigationItems,
+  normalizeOutlineItems,
   railCapacityOf,
   railInsetOf,
 } from './rail-pointer.ts'
@@ -144,4 +148,5 @@ export type {
   TimelineMode,
   TimelineSessionHandle,
   TimelineSessionsService,
+  TurnRailLadderItem,
 } from './types.ts'
