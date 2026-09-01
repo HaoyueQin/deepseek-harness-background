@@ -56,6 +56,7 @@
 
 import react from 'react'
 import { CHATVIEW_FOLLOW_ZONE_PX, jumpToMessage, officialTargetTopFor, warmHistory } from './jump.ts'
+import { reportTimelineMode } from './mode-store.ts'
 import { indexForEvent, isFrameRail, mergeRailItems, normalizeNavigationItems, railCapacityOf } from './rail-pointer.ts'
 import type { TimelineSessionsService, TurnRailLadderItem } from './types.ts'
 
@@ -176,6 +177,10 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
       claimedRails.set(found, claimToken)
       setRail(found)
       setNarrow(isFrameRail(found))
+      // Refine the settings-row copy: the bridge reports the useChat-present
+      // base ('enhance') on mount; only the discovered rail geometry tells
+      // alpha.1/2 (full enhancement) from alpha.3 (narrow).
+      reportTimelineMode(isFrameRail(found) ? 'narrow' : 'enhance')
     }
     check()
     const timer = window.setInterval(check, RAIL_POLL_MS)

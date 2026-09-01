@@ -181,12 +181,14 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   // Which timeline frontend is live: this row has no session scope and cannot
   // probe the kernel itself, so it reads what the dock entry detected.
   const navMode = useSyncExternalStore(subscribeTimelineMode, timelineMode)
-  const timelineLabelKey = navMode === 'enhance'
-    ? 'background.timelineEnhance'
-    : 'background.timeline'
-  const timelineHintKey = navMode === 'enhance'
-    ? 'background.timelineEnhanceHint'
-    : 'background.timelineHint'
+  const timelineLabelKey = navMode === 'legacy'
+    ? 'background.timeline'
+    : 'background.timelineEnhance'
+  const timelineHintKey = navMode === 'narrow'
+    ? 'background.timelineEnhanceNarrowHint'
+    : navMode === 'enhance'
+      ? 'background.timelineEnhanceHint'
+      : 'background.timelineHint'
   const [draft, setDraft] = useState<BackgroundSettings>(DEFAULTS)
   const [uploading, setUploading] = useState(false)
   const [urlText, setUrlText] = useState('')

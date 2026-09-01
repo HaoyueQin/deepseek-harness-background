@@ -103,7 +103,7 @@ dsh --profile web
 | 毛玻璃模糊 / Glass blur | `0..40px` `backdrop-filter` blur on the translucent surfaces (1px steps). |
 | 壁纸模糊 / Wallpaper blur | `0..60px` blur of the wallpaper image itself (2px steps). |
 | 填充方式 / Fit | `cover` or `contain`. |
-| 会话时间线 / Timeline | on/off switch for the conversation timeline (default on). On dsh ≥ 0.1.2 the row is labelled 会话时间线增强 / *enhancement*: the official rail stays and this only improves its behaviour; turning it off restores stock behaviour. On older kernels the row is 会话时间线 / *timeline* and the switch controls the plugin's own ported rail. |
+| 会话时间线 / Timeline | on/off switch for the conversation timeline (default on). On dsh ≥ 0.1.2 the row is labelled 会话时间线增强 / *enhancement*: the official rail stays and this only improves its behaviour; turning it off restores stock behaviour. The copy follows the kernel generation — full enhancement on alpha.1/2, smooth-jump-only on alpha.3+. On older kernels the row is 会话时间线 / *timeline* and the switch controls the plugin's own ported rail. |
 
 5. **清除背景** removes the background and restores the stock look.
 

@@ -8,7 +8,10 @@
  * publishes the result here; the row subscribes and switches its copy between
  * "conversation timeline" (this plugin renders the rail) and "conversation
  * timeline enhancement" (the official rail exists and this plugin only
- * improves its behaviour).
+ * improves its behaviour). The enhancement copy itself splits in two once the
+ * enhancer discovers the rail generation: the full pair on the compressing
+ * alpha.1/2 rail, the narrow smooth-jump-only form on the alpha.3 frame rail
+ * ('narrow' — reported by the enhancer's poll via isFrameRail).
  */
 
 import type { TimelineMode } from './types.ts'

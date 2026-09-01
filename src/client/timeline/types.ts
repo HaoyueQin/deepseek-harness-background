@@ -9,10 +9,16 @@
  * - 'enhance': the running kernel publishes the official turn-navigation
  *   index (`useChat(s => s.navigation.items())`, dsh >= 0.1.2). The official
  *   rail stays on screen untouched; this plugin only improves its behaviour.
+ *   On the compressing alpha.1/2 rail the enhancement is the full pair
+ *   (smooth jumps + hover history warm-up).
+ * - 'narrow': the alpha.3 frame-style rail — the kernel owns reachability
+ *   itself (whole-log ladder + on-demand paging), so this plugin's share
+ *   narrows to the smooth glide. Reported by the enhancer once its poll
+ *   finds the frame-style rail (see isFrameRail).
  * - 'legacy': no official rail exists. This plugin renders its own port of
  *   the official rail from the same backend.
  */
-export type TimelineMode = 'enhance' | 'legacy'
+export type TimelineMode = 'legacy' | 'enhance' | 'narrow'
 
 /** One entry in the conversation timeline — a user question. */
 export interface TimelineEntry {

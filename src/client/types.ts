@@ -102,6 +102,7 @@ export type BackgroundCardLocaleKey =
   | 'background.timelineHint'
   | 'background.timelineEnhance'
   | 'background.timelineEnhanceHint'
+  | 'background.timelineEnhanceNarrowHint'
   | 'timeline.railLabel'
   | 'timeline.noText'
   | 'timeline.jump'
