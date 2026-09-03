@@ -30,7 +30,6 @@ import {
 } from '../settings.ts'
 import { clearPreviewSurface, paintBackground, paintBackgroundKnob, paintPreviewSurface } from './backdrop.ts'
 import { settingsClient, type SettingsSnapshot } from './settings-client.ts'
-import { subscribeTimelineMode, timelineMode } from './timeline/mode-store.ts'
 import css from './SettingsRow.module.css'
 
 /** Full component props: runtime share + locale seat. */
@@ -178,17 +177,11 @@ function syncTrackFill(el: HTMLInputElement): void {
  */
 export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   const snapshot = useSyncExternalStore(settingsClient.subscribe, readSnapshot)
-  // Which timeline frontend is live: this row has no session scope and cannot
-  // probe the kernel itself, so it reads what the dock entry detected.
-  const navMode = useSyncExternalStore(subscribeTimelineMode, timelineMode)
-  const timelineLabelKey = navMode === 'legacy'
-    ? 'background.timeline'
-    : 'background.timelineEnhance'
-  const timelineHintKey = navMode === 'narrow'
-    ? 'background.timelineEnhanceNarrowHint'
-    : navMode === 'enhance'
-      ? 'background.timelineEnhanceHint'
-      : 'background.timelineHint'
+  // Supported dsh baseline >= 0.1.2-rc.1: the official frame-style rail is
+  // always present, so the row copy is the fixed "enhancement" form — no
+  // session scope needed here to detect anything.
+  const timelineLabelKey = 'background.timelineEnhance'
+  const timelineHintKey = 'background.timelineEnhanceNarrowHint'
   const [draft, setDraft] = useState<BackgroundSettings>(DEFAULTS)
   const [uploading, setUploading] = useState(false)
   const [urlText, setUrlText] = useState('')

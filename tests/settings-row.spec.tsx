@@ -11,7 +11,6 @@ import type { RenderResult } from '@testing-library/react'
 import { paintBackground } from '../src/client/backdrop.ts'
 import { BackgroundSettingsRow } from '../src/client/SettingsRow.tsx'
 import { settingsClient, type SaveResult } from '../src/client/settings-client.ts'
-import { reportTimelineMode } from '../src/client/timeline/mode-store.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
 
 const SECTION: BackgroundSettings = {
@@ -68,31 +67,16 @@ function byLocalAny(local: string): HTMLElement | null {
 }
 
 describe('BackgroundSettingsRow', () => {
-  it('switches the timeline copy with the detected kernel generation', async () => {
-    // The row has no session scope: the dock entry probes the kernel and
-    // publishes the mode. Three generations, three copies — the alpha.3
-    // narrow hint must NOT claim the hover warm-up (the kernel owns
-    // reachability there), and the legacy label must not say enhancement.
-    reportTimelineMode('enhance')
-    const enhance = renderRow()
-    await screen.findByText('background.timelineEnhance')
-    expect(screen.getByText('background.timelineEnhanceHint')).not.toBeNull()
-    enhance.unmount()
-
-    reportTimelineMode('narrow')
-    const narrow = renderRow()
+  it('shows the fixed enhancement copy (supported dsh >= 0.1.2-rc.1)', async () => {
+    // The official frame-style rail is always present on the supported dsh
+    // baseline, so the row copy is the fixed enhancement form — no kernel
+    // generation detection needed.
+    const view = renderRow()
     await screen.findByText('background.timelineEnhance')
     expect(screen.getByText('background.timelineEnhanceNarrowHint')).not.toBeNull()
     expect(screen.queryByText('background.timelineEnhanceHint')).toBeNull()
-    narrow.unmount()
-
-    reportTimelineMode('legacy')
-    const legacy = renderRow()
-    await screen.findByText('background.timeline')
-    expect(screen.queryByText('background.timelineEnhance')).toBeNull()
-    legacy.unmount()
-    // Reset to the pre-probe default so later tests see a clean store.
-    reportTimelineMode('legacy')
+    expect(screen.queryByText('background.timeline')).toBeNull()
+    view.unmount()
   })
 
   it('renders the preview surface, source controls and effect sliders', async () => {

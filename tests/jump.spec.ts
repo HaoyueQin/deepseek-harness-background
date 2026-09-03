@@ -10,8 +10,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   animateScrollTop, centeredScrollTopFor, detachBottomFollow, glideDurationFor,
-  compensatedLoadOlder, jumpToMessage, officialTargetTopFor, scrollFloorOf,
-  waitForChatRow, warmHistory,
+  jumpToMessage, officialTargetTopFor, scrollFloorOf,
+  waitForChatRow,
 } from '../src/client/timeline/index.tsx'
 import type { TimelineSessionsService } from '../src/client/timeline/index.tsx'
 
@@ -297,7 +297,7 @@ describe('jump glide geometry', () => {
     const sp = mountScrollport()
     const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 2400 })
     detachBottomFollow(sp)
-    expect(g.scrollTop()).toBe(2400 - 25 - 1)
+    expect(g.scrollTop()).toBe(2400 - 24 - 1)
     // Already above the zone: untouched (own container, fresh geometry).
     const above = mountScrollport()
     const a = mockScrollport(above, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
@@ -383,7 +383,7 @@ describe('jumpToMessage', () => {
     const pending = jumpToMessage(serviceFor(session), 's1', key)
     await driveUntil(() => g.setHistory.length >= 2)
     // The FIRST assignment is the pre-paging detach, not the glide target.
-    expect(g.setHistory[1]).toBe(5400 - 25 - 1)
+    expect(g.setHistory[1]).toBe(5400 - 24 - 1)
     await pumpUntil(pending)
     expect(await pending).toBe(true)
     expect(g.scrollTop()).toBe(5400 + (3000 - 5400) - (600 - 40) / 2)
@@ -416,9 +416,13 @@ describe('jumpToMessage', () => {
     const session = fakeSession({ hasMore: true })
     session.loadOlder = async () => {
       session.loadOlderCalls += 1
-      // The store updates BEFORE React commits: add the node now, the row later.
-      session.nodes.set(key, {})
-      window.setTimeout(() => mockRow(addRow(sp, key), 1500, 40), 150)
+      // The real kernel raises loadingOlder while a page is in flight and
+      // commits the row AFTER the store update (that gap is the regression).
+      session.loadingOlder = true
+      window.setTimeout(() => {
+        session.loadingOlder = false
+        mockRow(addRow(sp, key), 1500, 40)
+      }, 150)
     }
     const pending = jumpToMessage(serviceFor(session), 's1', key)
     await new Promise((resolve) => setTimeout(resolve, 260))
@@ -467,36 +471,6 @@ describe('jumpToMessage', () => {
     await pumpUntil(pending)
     expect(await pending).toBe(true)
     expect(session.loadOlderCalls).toBe(3)
-  })
-
-  it('shape-guards the legacy top-level nodes ARRAY (rc.2 silent-failure regression)', async () => {
-    // rc.2's ConversationSnapshot carries `nodes: readonly ConversationNode[]`
-    // at the TOP level — a plain array with no .get. The fast-path read
-    // `snapshot.nodes.get(...)` threw a TypeError inside the paging loop, the
-    // click handler's catch swallowed it, and EVERY far-history click on rc.2
-    // died silently (0.5.0 and 0.5.1 included): no paging, no glide, no log.
-    // The fakes never reproduced it — an absent `nodes` field short-circuits
-    // through `?.get` harmlessly; only the real kernel shape (an array)
-    // triggers the throw, so the fake below mirrors it exactly.
-    const sp = mountScrollport()
-    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 0 })
-    const key = '13:input-messagerc2far'
-    const session = fakeSession({ hasMore: true })
-    const baseSnapshot = session.getSnapshot.bind(session)
-    session.getSnapshot = (() => ({
-      ...baseSnapshot(),
-      nodes: [] as unknown as Map<string, unknown>,
-    })) as FakeSession['getSnapshot']
-    session.loadOlder = async () => {
-      session.loadOlderCalls += 1
-      session.nodes.set(key, {})
-      mockRow(addRow(sp, key), 1500, 40)
-    }
-    const pending = jumpToMessage(serviceFor(session), 's1', key)
-    await pumpUntil(pending)
-    expect(await pending).toBe(true)
-    expect(session.loadOlderCalls).toBe(1)
-    expect(g.scrollTop()).toBe(1500 - (600 - 40) / 2)
   })
 
   it('keeps the jump alive when a page fails and the row renders anyway', async () => {
@@ -601,83 +575,3 @@ describe('official landing geometry', () => {
   })
 })
 
-describe('compensatedLoadOlder (plugin-driven paging)', () => {
-  it('restores the reader position by the prepended height', async () => {
-    // Regression: the host compensates a prepend through an internal anchor
-    // ref only its own "load earlier" button arms, so a plugin-driven page
-    // pushed the reader's content down.
-    const sp = mountScrollport()
-    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
-    const session = fakeSession({ hasMore: true })
-    session.loadOlder = async () => { g.grow(400) }
-    const pending = compensatedLoadOlder(session, sp, 24)
-    await pumpSettles(pending)
-    expect(await pending).toBe(true)
-    expect(g.scrollTop()).toBe(1400)
-  })
-
-  it('leaves a reader pinned to the floor alone (the host re-pins by itself)', async () => {
-    const sp = mountScrollport()
-    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 2400 })
-    const session = fakeSession({ hasMore: true })
-    session.loadOlder = async () => { g.grow(400) }
-    const pending = compensatedLoadOlder(session, sp, 24)
-    await pumpSettles(pending)
-    expect(await pending).toBe(true)
-    // No compensation: fighting the host's own follow logic would overshoot.
-    expect(g.scrollTop()).toBe(2400)
-  })
-
-  it('stops on a failed page instead of retrying', async () => {
-    const sp = mountScrollport()
-    mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
-    const session = fakeSession({ hasMore: true })
-    session.loadOlder = async () => {
-      session.loadOlderCalls += 1
-      throw new Error('boom')
-    }
-    const pending = compensatedLoadOlder(session, sp, 24)
-    await pumpSettles(pending)
-    expect(await pending).toBe(false)
-    expect(session.loadOlderCalls).toBe(1)
-  })
-})
-
-describe('warmHistory', () => {
-  it('pages until the rail capacity is reached, then stops', async () => {
-    const sp = mountScrollport()
-    const g = mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
-    const session = fakeSession({ hasMore: true })
-    let count = 2
-    session.loadOlder = async () => {
-      session.loadOlderCalls += 1
-      g.grow(200)
-      count += 1
-    }
-    const pending = warmHistory(session, sp, { countOf: () => count, capacity: 4, followZonePx: 24 })
-    await pumpSettles(pending)
-    expect(session.loadOlderCalls).toBe(2)
-    expect(count).toBe(4)
-  })
-
-  it('pages nothing when the log is already exhausted', async () => {
-    const sp = mountScrollport()
-    mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
-    const session = fakeSession({ hasMore: false })
-    session.loadOlder = async () => { throw new Error('should not page') }
-    const pending = warmHistory(session, sp, { countOf: () => 2, capacity: 41, followZonePx: 24 })
-    await pumpSettles(pending)
-    expect(session.loadOlderCalls).toBe(0)
-  })
-
-  it('stops as soon as a page stops growing the transcript', async () => {
-    const sp = mountScrollport()
-    mockScrollport(sp, { scrollHeight: 3000, clientHeight: 600, scrollTop: 1000 })
-    const session = fakeSession({ hasMore: true })
-    // A page that loads nothing must not spin the whole budget.
-    session.loadOlder = async () => { session.loadOlderCalls += 1 }
-    const pending = warmHistory(session, sp, { countOf: () => 2, capacity: 41, followZonePx: 24 })
-    await pumpSettles(pending)
-    expect(session.loadOlderCalls).toBe(1)
-  })
-})

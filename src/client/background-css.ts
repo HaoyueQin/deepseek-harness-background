@@ -35,7 +35,7 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * dock family (agent task strips: TodoPanel / GoalBar / QueueDock) and its
  * takeover panels (approval, question, plan review), the subagent lineage
  * popover, the home hero "preview" badge, the sidebar build badge, and the
- * timeline rail (timeline/legacy-rail-css.ts + the official-rail rules below).
+ * timeline rail (the official-rail rules below).
  * Every glassed surface shares ONE recipe:
  * fill from the painter's --dsw-specific-input-major token (same alpha
  * curve + theme dimming), the full shared blur/saturate/brightness chain
@@ -102,6 +102,9 @@ export const BACKGROUND_CSS = `
      slider returns these surfaces to the exact official paints. */
   body[data-dsh-bg-glass] [data-composer-card],
   body[data-dsh-bg-glass] [class*="_bubble"]:not([role="tooltip"]),
+  /* The read_image toolview (dsh >= 0.1.2-rc.1 ToolRow) collapses its result
+     into an image body card; glass it like the other content blocks. */
+  body[data-dsh-bg-glass] [class*="_imageBody"],
   body[data-dsh-bg-glass] .md-code-block,
   body[data-dsh-bg-glass] [data-terminal],
   body[data-dsh-bg-glass] [data-diff],

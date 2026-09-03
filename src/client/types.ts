@@ -32,12 +32,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   /**
    * Duck-typed framework standard kit for session-scoped slots. The real
    * members are merged at runtime by `ui-session` (sessionId,
-   * useProjection, useSession) and `ui-chat` (useChat, dsh >= 0.1.2); this
-   * package never imports those packages, but re-declaring the members it
-   * consumes keeps the capability detection a VISIBLE compile-time contract
-   * (the tools would have to be absent before this bridge silently degrades
-   * to the legacy port only if the declaration drifts from what the host
-   * merges).
+   * useProjection, useSession) and `ui-chat` (useChat); this package never
+   * imports those packages, but re-declaring the members it consumes keeps
+   * the capability detection a VISIBLE compile-time contract (the tools
+   * would have to be absent before this bridge degrades only if the
+   * declaration drifts from what the host merges).
    */
   interface SessionStandardProps {
     /** Current Session identity (ui-session merge). */
@@ -46,8 +45,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     useProjection?: (key: string) => unknown
     /**
      * Selector hook over the current Conversation binding's Chat target
-     * (ui-chat merge; absent before 0.1.2). Its presence IS the presence of
-     * the official turn rail.
+     * (ui-chat merge). Its presence IS the presence of the official turn
+     * rail (dsh >= 0.1.2-rc.1).
      */
     useChat?: (selector: (snapshot: unknown) => unknown) => unknown
   }
@@ -98,14 +97,8 @@ export type BackgroundCardLocaleKey =
   | 'background.clear'
   | 'background.uploadFailed'
   | 'background.saveFailed'
-  | 'background.timeline'
-  | 'background.timelineHint'
   | 'background.timelineEnhance'
-  | 'background.timelineEnhanceHint'
   | 'background.timelineEnhanceNarrowHint'
-  | 'timeline.railLabel'
-  | 'timeline.noText'
-  | 'timeline.jump'
 
 /** Cordis Context merges: the services this plugin injects. */
 declare module '@deepseek-ai/cordis' {

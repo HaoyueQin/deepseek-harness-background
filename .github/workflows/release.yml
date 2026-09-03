@@ -30,4 +30,7 @@ jobs:
       - run: pnpm run build
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+        # The header file carries the fixed version-compatibility banner
+        # (older dsh users must install an older plugin release); gh prepends
+        # it to the auto-generated notes.
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --notes-file .github/release-header.md

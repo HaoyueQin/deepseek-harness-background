@@ -1,5 +1,6 @@
 /**
- * Conversation jump engine — the shared behaviour both frontends run.
+ * Conversation jump engine — the shared behaviour the official-rail enhancer
+ * runs.
  *
  * Everything below the "which row" question lives here: paging older history
  * until the target node is loaded, waiting for React to commit the row,
@@ -8,13 +9,12 @@
  *
  * The official ChatView jump is one synchronous assignment
  * (`el.scrollTop += flowTop(row, el) - 24`) with no paging at all, which is
- * the pair of shortcomings this engine exists to fix. Both callers therefore
- * reuse the SAME code and differ only in two parameters: the host's
- * bottom-follow threshold (25px on the legacy conversation, 24px on the
- * current ChatView) and where the target row should land.
+ * the pair of shortcomings this engine exists to fix. The enhancer is its one
+ * caller (dsh >= 0.1.2-rc.1), so the engine is fitted to the current ChatView:
+ * its 24px bottom-follow threshold and its 24px landing inset.
  */
 
-import type { TimelineSessionHandle, TimelineSessionsService } from './types.ts'
+import type { TimelineSessionsService } from './types.ts'
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -22,14 +22,15 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 const JUMP_PAGE_DEADLINE_MS = 30000
 /** How long to wait for the chat view to commit the target row. */
 const JUMP_ROW_WAIT_MS = 3000
+/** Settle between consecutive pages so a resolver without loadingOlder cannot hot-spin the loop. */
+const PAGE_COOLDOWN_MS = 50
 
 /**
- * Official conversation follow threshold of the current ChatView (25px on the
- * legacy conversation view). The reader stays "at bottom" while within this
- * distance of the floor, and the view keeps following new content.
+ * Official conversation follow threshold of the current ChatView. The reader
+ * stays "at bottom" while within this distance of the floor, and the view
+ * keeps following new content.
  */
 export const CHATVIEW_FOLLOW_ZONE_PX = 24
-export const LEGACY_FOLLOW_ZONE_PX = 25
 
 /** Distance from the scrollport top the official ChatView lands a jumped row at. */
 const OFFICIAL_LANDING_INSET_PX = 24
@@ -40,16 +41,6 @@ const MIN_GLIDE_DISTANCE_PX = 8
 /** Glide duration floor / cap — a far-boundary jump stays a tangible slide. */
 const MIN_GLIDE_MS = 280
 const MAX_GLIDE_MS = 900
-
-/** How many rounds one warm-up page waits for its prepend to commit. */
-const WARM_PAGE_SETTLE_ROUNDS = 8
-/** Pause between those rounds. */
-const WARM_PAGE_SETTLE_MS = 25
-
-/** Wall-clock budget for one warm-up run. */
-const WARM_DEADLINE_MS = 15000
-/** Page budget for one warm-up run. */
-const WARM_MAX_PAGES = 40
 
 /**
  * Where a jumped row should land.
@@ -182,7 +173,7 @@ export function glideDurationFor(distance: number): number {
  * @param el - the conversation scrollport.
  * @param followZonePx - the host's own follow threshold.
  */
-export function detachBottomFollow(el: HTMLElement, followZonePx: number = LEGACY_FOLLOW_ZONE_PX): boolean {
+export function detachBottomFollow(el: HTMLElement, followZonePx: number = CHATVIEW_FOLLOW_ZONE_PX): boolean {
   const floor = scrollFloorOf(el)
   // Only the bottom zone can still hold the follow flag: anywhere above it
   // the official scroll handler already settled at-bottom to false, and
@@ -260,119 +251,6 @@ export function animateScrollTop(el: HTMLElement, target: number, durationMs: nu
 }
 
 /**
- * Page older history in WITHOUT moving what the reader is looking at.
- *
- * The host's ChatView compensates a prepend through an internal anchor ref
- * that only its own "load earlier" button and its own navigation arm. A
- * plugin calling `session.loadOlder()` from the outside gets no compensation,
- * so the prepended rows push the reader's content down — a visible jump.
- * This restores the visual position by the growth the prepend added.
- *
- * A reader pinned to the floor needs none of it: the host's follow logic
- * re-pins to the (growing) floor by itself, and compensating there would
- * fight it and overshoot.
- *
- * @param session - the session handle to page.
- * @param el - the conversation scrollport.
- * @param followZonePx - the host's bottom-follow threshold.
- * @returns whether the page actually grew the transcript (false = exhausted
- *   or failed, so the caller should stop paging).
- */
-export async function compensatedLoadOlder(
-  session: { loadOlder(): Promise<unknown> },
-  el: HTMLElement,
-  followZonePx: number = LEGACY_FOLLOW_ZONE_PX,
-): Promise<boolean> {
-  const pinned = scrollFloorOf(el) - el.scrollTop <= followZonePx
-  const heightBefore = el.scrollHeight
-  try {
-    await session.loadOlder()
-  } catch (error) {
-    console.warn('[deepseek-harness-background] timeline history page failed:', error)
-    return false
-  }
-  // The prepend commits on a later frame than the request's resolution
-  // (store update -> React commit), so wait for the growth to land.
-  for (let round = 0; round < WARM_PAGE_SETTLE_ROUNDS; round += 1) {
-    await settleScrollEvents()
-    const growth = el.scrollHeight - heightBefore
-    if (growth > 0) {
-      // Relative, not absolute: the browser keeps scrollTop constant while
-      // content above it grows, so whatever the reader scrolled to during
-      // the round-trip is preserved and only the prepend's height is undone.
-      if (!pinned) el.scrollTop = el.scrollTop + growth
-      return true
-    }
-    if (round < WARM_PAGE_SETTLE_ROUNDS - 1) await delay(WARM_PAGE_SETTLE_MS)
-  }
-  return false
-}
-
-/** Knobs one warm-up run may override. */
-export interface WarmOptions {
-  /** The host conversation's bottom-follow threshold in px. */
-  followZonePx?: number
-  /** Wall-clock budget for the whole run. */
-  deadlineMs?: number
-  /** Maximum number of pages one run may request. */
-  maxPages?: number
-  /** False once the caller unmounted — the run then stops at its next check. */
-  alive?: () => boolean
-  /** How many entries the rail currently shows. */
-  countOf: () => number
-  /** Marks the rail can show before it starts compressing them. */
-  capacity: number
-}
-
-/**
- * Page older history in until the rail is full or the log is exhausted — the
- * "turns behind the load-earlier button become reachable" half of the
- * enhancement, shared by both frontends.
- *
- * Stops at `capacity` on purpose: past the rail's uncompressed tick count the
- * official stylesheet squeezes every mark into the same 420px column and the
- * rail degrades into a solid bar the reader cannot aim at. Filling it exactly
- * to capacity is free reach; going past it is not.
- *
- * @param session - the session handle to page.
- * @param scrollport - the conversation scrollport (compensation anchor).
- * @param options - budgets, the live entry count and the rail's capacity.
- */
-export async function warmHistory(
-  session: TimelineSessionHandle,
-  scrollport: HTMLElement,
-  options: WarmOptions,
-): Promise<void> {
-  const followZonePx = options.followZonePx ?? LEGACY_FOLLOW_ZONE_PX
-  const deadline = Date.now() + (options.deadlineMs ?? WARM_DEADLINE_MS)
-  const maxPages = options.maxPages ?? WARM_MAX_PAGES
-  const alive = options.alive ?? ((): boolean => true)
-  for (let page = 0; page < maxPages; page += 1) {
-    if (!alive()) return
-    if (options.countOf() >= options.capacity) return
-    const snapshot = session.getSnapshot() as {
-      hasMore?: boolean
-      loadingOlder?: boolean
-      openState?: unknown
-    }
-    if (snapshot?.hasMore !== true) return
-    if (Date.now() >= deadline) return
-    if (snapshot.loadingOlder === true) {
-      await delay(50)
-      continue
-    }
-    // A session that is not open yet cannot page; wait instead of burning the
-    // budget on calls that cannot succeed.
-    if (snapshot.openState !== undefined && snapshot.openState !== 'open') {
-      await delay(100)
-      continue
-    }
-    const grew = await compensatedLoadOlder(session, scrollport, followZonePx)
-    if (!grew) return
-  }
-}
-
-/**
  * Ensure the target node is loaded, wait for the chat view to commit its row
  * into the DOM, then glide it into view. Paging uses a time budget instead
  * of a fixed iteration guard (each in-flight page burned part of that guard,
@@ -393,7 +271,7 @@ export async function jumpToMessage(
 ): Promise<boolean> {
   const session = sessionsService.binding(sessionId)?.session
   if (session === undefined) return false
-  const followZonePx = options.followZonePx ?? LEGACY_FOLLOW_ZONE_PX
+  const followZonePx = options.followZonePx ?? CHATVIEW_FOLLOW_ZONE_PX
   const resolveTarget = options.targetTop ?? centeredScrollTopFor
   const pageDeadlineMs = options.pageDeadlineMs ?? JUMP_PAGE_DEADLINE_MS
   const rowWaitMs = options.rowWaitMs ?? JUMP_ROW_WAIT_MS
@@ -428,34 +306,17 @@ export async function jumpToMessage(
   const deadline = Date.now() + pageDeadlineMs
   for (;;) {
     // DOM ground truth FIRST: the row may already be committed in some
-    // scrollport while the snapshot's node table — whatever generation it is
-    // — does not host it. On 0.1.2+ `session.getSnapshot()` exposes no node
-    // table at all (the `useChat` ChatSnapshot store is unreachable from
-    // here), so without this probe every jump would page the WHOLE history
-    // to the end (or burn the 30s deadline) even when the target row is on
-    // screen behind the "load earlier" button.
+    // scrollport even though `session.getSnapshot()` exposes no node table
+    // (the `useChat` ChatSnapshot store is unreachable from here), so
+    // without this probe every jump would page the WHOLE history to the end
+    // (or burn the 30s deadline) even when the target row is on screen
+    // behind the "load earlier" button.
     if (rowRenderedInDom(anchorKey)) break
     const snapshot = session.getSnapshot() as {
-      chat?: { nodes?: { get(key: string): unknown } }
-      nodes?: { get(key: string): unknown }
       hasMore?: boolean
       loadingOlder?: boolean
       openState?: unknown
     }
-    // Legacy (<= 0.1.1) fast path: read the keyed node reader where one
-    // EXISTS. The two kernel generations disagree on where the node table
-    // lives AND on its shape — 0.1.1's snapshot exposes the windowed
-    // ChatSnapshot node store at `chat.nodes` while its top-level `nodes`
-    // compatibility field is a PLAIN ARRAY (no .get) — so both reads are
-    // shape-guarded and a malformed store reads as absent (the DOM probe
-    // above and the paging loop below then take over).
-    const keyedNodeOf = (store: unknown): unknown =>
-      store !== null && typeof store === 'object'
-      && typeof (store as { get?: unknown }).get === 'function'
-        ? (store as { get(key: string): unknown }).get(anchorKey)
-        : undefined
-    const loaded = keyedNodeOf(snapshot?.chat?.nodes) ?? keyedNodeOf(snapshot?.nodes)
-    if (loaded !== undefined) break
     if (snapshot?.hasMore !== true) break
     if (Date.now() >= deadline) break
     if (snapshot.loadingOlder === true) {
@@ -477,6 +338,11 @@ export async function jumpToMessage(
       console.warn('[deepseek-harness-background] timeline jump paging failed:', error)
       break
     }
+    // Throttle consecutive pages: a resolver that comes back without ever
+    // flipping `loadingOlder` must not turn this loop into a hot spin (the
+    // real kernel raises the flag; the cooldown also gives each page a
+    // moment to commit before the next DOM probe).
+    await delay(PAGE_COOLDOWN_MS)
   }
   const row = await waitForChatRow(anchorKey, rowWaitMs)
   if (row === null) {

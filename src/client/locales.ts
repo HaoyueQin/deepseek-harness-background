@@ -31,14 +31,8 @@ export const zh: BackgroundCardDict = {
   'background.clear': '清除背景',
   'background.uploadFailed': '上传失败，请重试',
   'background.saveFailed': '保存失败，请重试',
-  'background.timeline': '会话时间线',
-  'background.timelineHint': '右侧轮次导航轨，悬停预览该轮问题与直达更早历史',
   'background.timelineEnhance': '会话时间线增强',
-  'background.timelineEnhanceHint': '为官方会话时间线补上平滑跳转，并可直达需要“加载更多”的更早轮次',
   'background.timelineEnhanceNarrowHint': '为官方会话时间线的已加载轮次补上平滑跳转',
-  'timeline.railLabel': '轮次导航',
-  'timeline.noText': '（无文本内容）',
-  'timeline.jump': '跳转到第 {turn} 轮',
 }
 
 /** English copy. */
@@ -67,12 +61,6 @@ export const en: BackgroundCardDict = {
   'background.clear': 'Clear background',
   'background.uploadFailed': 'Upload failed, try again',
   'background.saveFailed': 'Save failed, try again',
-  'background.timeline': 'Conversation timeline',
-  'background.timelineHint': 'Turn rail at the right edge; hover to preview a turn and reach earlier history',
   'background.timelineEnhance': 'Conversation timeline enhancement',
-  'background.timelineEnhanceHint': 'Adds smooth jumps and direct reach into turns that still need “load earlier”',
   'background.timelineEnhanceNarrowHint': 'Adds smooth jumps for the rail\'s loaded turns',
-  'timeline.railLabel': 'Turn navigation',
-  'timeline.noText': '(no text)',
-  'timeline.jump': 'Jump to turn {turn}',
 }
