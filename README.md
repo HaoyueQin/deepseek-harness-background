@@ -58,7 +58,7 @@ The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels d
 
 | Plugin release | Supported dsh versions |
 | --- | --- |
-| **Current (≥ 0.5.3)** | **dsh ≥ 0.1.2-rc.1** |
+| **Current (≥ 0.5.3)** | **dsh 0.1.2-rc.1 and 0.1.3-alpha.1** |
 | 0.5.2 | dsh 0.1.1-rc.2 and 0.1.2-alpha.1 ~ alpha.5 |
 
 ⚠️ **On older dsh (0.1.1-rc.2, 0.1.2-alpha.x or earlier) install an older

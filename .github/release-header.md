@@ -2,7 +2,7 @@
 
 | Plugin release | Supported dsh versions |
 | --- | --- |
-| Current | **dsh >= 0.1.2-rc.1** |
+| Current | **dsh 0.1.2-rc.1 and 0.1.3-alpha.1** |
 | 0.5.2 | dsh 0.1.1-rc.2 and 0.1.2-alpha.1 ~ alpha.5 |
 
 > **On an older dsh (0.1.1-rc.2, 0.1.2-alpha.x or earlier)?** Install an
@@ -17,7 +17,7 @@
 
 | 插件版本 | 支持的 dsh 版本 |
 | --- | --- |
-| 当前版本 | **dsh >= 0.1.2-rc.1** |
+| 当前版本 | **dsh 0.1.2-rc.1 与 0.1.3-alpha.1** |
 | 0.5.2 | dsh 0.1.1-rc.2 与 0.1.2-alpha.1 ~ alpha.5 |
 
 > **还在用旧版 dsh（0.1.1-rc.2、0.1.2-alpha.x 或更早）？** 请安装本插件的旧版本，例如：
