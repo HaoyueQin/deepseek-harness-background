@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@deepseek-ai/dsh-settings':
-        specifier: '>=0.1.2-rc.1'
-        version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/schemastery@3.18.1)
       '@deepseek-ai/schemastery':
         specifier: ^3.18.1
         version: 3.18.1
@@ -27,6 +24,9 @@ importers:
       '@deepseek-ai/dsh-host-webserver':
         specifier: '>=0.1.2-rc.1'
         version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.1)
+      '@deepseek-ai/dsh-settings':
+        specifier: '>=0.1.2-rc.1'
+        version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/schemastery@3.18.1)
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
