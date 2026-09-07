@@ -23,15 +23,14 @@ import { transform } from 'lightningcss'
 /**
  * Shared browser platform modules the shell seeds into the frozen module
  * table. Seeding, bundling externals, and Vite aliases consume this list so
- * their module identities cannot drift. This is the UNION of the official
- * `packages/client/web/src/platform.ts` across both supported kernel
- * generations — rc.2 (`packages/client/web/src/platform.ts`: react family +
- * cordis + ui-slots + ui-primitives) and 0.1.2-alpha.1 (adds
- * dsh-client-store) — because a specifier listed here stays external to this
- * plugin's bundle and must therefore be answerable by the kernel-side module
- * table whichever generation hosts it. Specifiers absent from BOTH tables
- * (older mirror leftovers) are deleted: declaring them is a runtime
- * require() failure the moment such an import appears.
+ * their module identities cannot drift. This mirrors the official
+ * `packages/client/web/src/platform.ts`, verified identical on both supported
+ * kernel generations — 0.1.2-rc.1 and 0.1.3-alpha.2 (react family +
+ * cordis + dsh-client-store + ui-slots + ui-primitives) — because a specifier
+ * listed here stays external to this plugin's bundle and must therefore be
+ * answerable by the kernel-side module table whichever generation hosts it.
+ * Specifiers absent from BOTH tables (older mirror leftovers) are deleted:
+ * declaring them is a runtime require() failure the moment such an import appears.
  */
 export const PLATFORM_MODULES = [
   'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis',
@@ -54,7 +53,7 @@ const CSS_VIRTUAL_SUFFIX = '.mjs'
  * Everything else under @deepseek-ai/* is either a module-table entry
  * (external) or a leak the purity gate rejects.
  */
-export const INLINE_SAFE = /^@deepseek-ai\/dsh-(host-apiproxy|session|llm|tools|brand)(\/|$)/
+export const INLINE_SAFE = /^(?:@deepseek-ai\/dsh-(?:file-reference|session|llm|tools|brand|deque|output-retention|typert-protocol|util-crypto|util-values|util-workspace-path)(?:\/|$)|@deepseek-ai\/dsh-token-meter\/client$|@deepseek-ai\/dsh-host-open-in-app\/shared$|@deepseek-ai\/dsh-agent-presets\/display$|@deepseek-ai\/dsh-spill-policy\/notice$)/
 
 /**
  * Vendored framework libraries: rescoped into @deepseek-ai, so the gate below
@@ -74,13 +73,13 @@ const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
 const SKIP_WORKSPACE_BUILD: UserConfig = { entry: '' }
 
 /**
- * rc.2-only module-table exemption (the kernel's own documented TEMPORARY
+ * Legacy module-table exemption (the kernel's own documented TEMPORARY
  * exemption in packages/client/web/src/platform.ts PRELOADED_CLIENT_EXTERNALS,
- * dropped by 0.1.2-alpha.1): the snapshot-store engine lives under
- * dsh-client-runtime/client pending its rehoming. This plugin imports nothing
- * from it today, but the externals list must keep the specifier because a
- * rc.2 host would answer it, whereas a 0.1.2-alpha.1 host would not — the
- * union policy above keeps runtime behavior faithful per generation. Do NOT
+ * dropped by 0.1.2-alpha.1 and still absent in 0.1.2-rc.1 / 0.1.3-alpha.2):
+ * the snapshot-store engine lives under dsh-client-runtime/client pending its
+ * rehoming. This plugin imports nothing from it today, but the externals list
+ * keeps the specifier so pre-0.1.2-alpha.1 hosts still answer it — the mirror
+ * policy above keeps runtime behavior faithful per generation. Do NOT
  * start importing dsh-client-runtime/client from this plugin.
  */
 const RUNTIME_STORE_EXEMPTION = '@deepseek-ai/dsh-client-runtime/client'
