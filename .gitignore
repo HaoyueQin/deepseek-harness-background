@@ -26,3 +26,7 @@ Thumbs.db
 # CodeBuddy working-memory directory (local IDE state, not part of the plugin)
 .codebuddy/
 *.tgz
+
+# Superpowers working docs (plans/specs): agent-local working material,
+# never tracked, never pushed
+docs/superpowers/
