@@ -124,7 +124,8 @@ describe('click interception', () => {
     // Stand in for React 18's root container: it dispatches onClick during
     // the BUBBLE phase, so a capture listener on the rail must beat it.
     const bubbled: Event[] = []
-    document.addEventListener('click', (event) => { bubbled.push(event) })
+    const record = (event: Event): void => { bubbled.push(event) }
+    document.addEventListener('click', record)
 
     // The capture listener attaches only after the poll effect has found the
     // rail: wait one full poll cycle for the find + claim, one more for the
@@ -136,7 +137,7 @@ describe('click interception', () => {
     expect(bubbled).toHaveLength(0)
     // The interception routes through the bound verb (turn-3 mark).
     expect(jumpedAnchorKeys).toEqual(['13:input-message2'])
-    document.removeEventListener('click', (event) => { bubbled.push(event) })
+    document.removeEventListener('click', record)
   })
 
   it('leaves the official behaviour untouched while the toggle is off', async () => {

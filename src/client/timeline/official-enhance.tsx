@@ -74,7 +74,6 @@ const RAIL_POLL_MS = 400
 
 /** Component props delivered by the dock slot registration. */
 export interface OfficialTimelineEnhancerProps {
-  sessionId?: string
   /** Session-bound jump verb from the registration factory (apply closure). */
   jumpToAnchor?: JumpToAnchor
   /** Kernel selector hook over the Chat snapshot (dsh >= 0.1.2-rc.1). */
@@ -121,6 +120,11 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
   ladderRef.current = ladder
   const railRef = react.useRef<HTMLElement | null>(rail)
   railRef.current = rail
+  // The bound verb is a fresh closure per inject-factory run; mirror it so
+  // `navigate` (and the click listener below) stays identity-stable while
+  // always calling the latest verb — same rationale as `ladderRef` above.
+  const jumpToAnchorRef = react.useRef(jumpToAnchor)
+  jumpToAnchorRef.current = jumpToAnchor
 
   // Locate the official rail. It mounts with the chat view and is replaced
   // whenever the view remounts, so it is polled rather than observed once.
@@ -166,9 +170,10 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
     // the kernel's own loadThrough jump owns it (the click handler never
     // routes one this way; the guard is for direct callers).
     if (item.anchorKey === undefined) return
-    if (jumpToAnchor === undefined) return
-    void jumpToAnchor(item.anchorKey).catch(() => {})
-  }, [jumpToAnchor])
+    const jump = jumpToAnchorRef.current
+    if (jump === undefined) return
+    void jump(item.anchorKey).catch(() => {})
+  }, [])
 
   // Click interception. Capture phase on the rail itself, so this runs before
   // React's root bubble listener and the official handler never fires — for a

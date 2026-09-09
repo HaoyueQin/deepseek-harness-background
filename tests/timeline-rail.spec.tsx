@@ -56,8 +56,30 @@ function useChatStub(entries: readonly OfficialItem[]):
   })
 }
 
+/**
+ * Minimal frame-style official rail stand-in (one loaded turn). The inline
+ * metrics mirror what the kernel's `TurnNavigator` publishes
+ * (`--turn-natural-height` for discovery, `--turn-scroll-top` for the frame
+ * generation the plugin maps gestures on).
+ */
+function mountFrameRail(): HTMLElement {
+  const sp = document.createElement('div')
+  sp.setAttribute('data-conversation-scroll', '')
+  const nav = document.createElement('nav')
+  nav.setAttribute('style', '--turn-natural-height: 12px; --turn-rail-inset: 6px; --turn-scroll-top: 0px')
+  const slot = document.createElement('div')
+  const button = document.createElement('button')
+  button.setAttribute('aria-label', 'jump to turn 1')
+  slot.appendChild(button)
+  nav.appendChild(slot)
+  sp.appendChild(nav)
+  document.body.appendChild(sp)
+  return nav
+}
+
 afterEach(() => {
   cleanup()
+  document.body.innerHTML = ''
   document.body.style.cssText = ''
   setSettings('loading', true)
 })
@@ -104,6 +126,32 @@ describe('TimelineBridge mode dispatch', () => {
     }))
     expect(document.querySelector('.dsbt-slot')).toBeNull()
     expect(seen).toEqual([])
+  })
+
+  it('forwards the bound verb to the enhancer end to end (loaded-mark click)', async () => {
+    // Wiring contract: the bridge must forward jumpToAnchor through to the
+    // enhancer — the null-render tests above cannot see a dropped forward,
+    // and the enhancer specs inject the stub directly, so only a click
+    // through the real bridge proves the chain.
+    const nav = mountFrameRail()
+    setSettings('ready', true)
+    const seen: string[] = []
+    render(React.createElement(TimelineBridge as never, {
+      sessionId: 's1',
+      jumpToAnchor: async (anchorKey: string): Promise<boolean> => {
+        seen.push(anchorKey)
+        return true
+      },
+      t,
+      useChat: useChatStub([
+        { turn: 1, anchorKey: 'k1', prompt: 'first', response: '' },
+      ]),
+    }))
+    // Wait for the enhancer poll to find the rail and bind its listener
+    // (two poll cycles plus margin; the interval lives in the enhancer).
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientY: 6 }))
+    expect(seen).toEqual(['k1'])
   })
 
   it('stays quiet while the persisted toggle is still loading (no wrong-state flash)', () => {

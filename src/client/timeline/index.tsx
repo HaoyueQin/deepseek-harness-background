@@ -23,7 +23,6 @@ import type { JumpToAnchor } from './types.ts'
 
 /** Props the dock slot delivers. */
 export interface TimelineBridgeProps {
-  sessionId?: string
   /** Session-bound jump verb from the registration factory (apply closure). */
   jumpToAnchor?: JumpToAnchor
   /** Kernel selector hook over the Chat snapshot; present on dsh >= 0.1.2. */
