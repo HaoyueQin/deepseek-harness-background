@@ -14,7 +14,10 @@ import { installGlassBridge } from './glass-registry.ts'
 import { en, zh } from './locales.ts'
 import { BackgroundSettingsRow } from './SettingsRow.tsx'
 import { settingsClient } from './settings-client.ts'
-import { TimelineBridge, clearLegacyMarks } from './timeline/index.tsx'
+import {
+  CHATVIEW_FOLLOW_ZONE_PX, OFFICIAL_RAIL_SELECTOR, TimelineBridge, clearLegacyMarks,
+  jumpToMessage, officialTargetTopFor,
+} from './timeline/index.tsx'
 import type {} from './types.ts'
 
 /**
@@ -62,17 +65,32 @@ export function apply(ctx: Context): void {
   }, BackgroundSettingsRow))
 
   // Conversation timeline: takes a per-session dock seat only to bind its
-  // lifecycle — the frontend is chosen per running kernel (official rail
-  // enhanced in place, or this plugin's own port of it). The sessions service
-  // is handed to the component through the registration's inject face —
-  // resolved lazily inside the factory so a runtime-side service rebuild can
-  // never leave the rail holding a stale reference.
+  // lifecycle — the official rail is enhanced in place, never re-rendered.
+  // A bound jumpToAnchor verb is handed to the component through the
+  // registration's inject face (the ui-goal verbs+hooks shape): the service
+  // never crosses the slot boundary, and the session is bound lazily inside
+  // the factory so a runtime-side service rebuild can never leave the rail
+  // holding a stale reference.
   ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
     name: 'conversation.input.dock',
     id: 'deepseek-harness-background.timeline',
     order: 45,
     locale: 'ui-background',
-    inject: () => ({ sessionsService: ctx.sessions }),
+    inject: (sessionId: string) => ({
+      jumpToAnchor: (anchorKey: string) => {
+        // Scope the bottom-follow detach to this rail's own column: the
+        // official rail is mounted, so its scrollport is known and the other
+        // columns need no nudge. Resolved at call time, not at registration.
+        const scrollport = document
+          .querySelector<HTMLElement>(OFFICIAL_RAIL_SELECTOR)
+          ?.closest<HTMLElement>('[data-conversation-scroll]') ?? null
+        return jumpToMessage(ctx.sessions, sessionId, anchorKey, {
+          followZonePx: CHATVIEW_FOLLOW_ZONE_PX,
+          targetTop: officialTargetTopFor,
+          scrollport,
+        })
+      },
+    }),
   }, TimelineBridge))
 
   ctx.effect(() => () => {

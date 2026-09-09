@@ -34,7 +34,7 @@ interface RenderExtra {
 function renderTimeline(sessionId: string, extra: RenderExtra = {}): void {
   render(React.createElement(TimelineBridge as never, {
     sessionId,
-    sessionsService: { binding: () => undefined },
+    jumpToAnchor: async () => true,
     t,
     ...extra,
   }))
@@ -83,6 +83,27 @@ describe('TimelineBridge mode dispatch', () => {
     setSettings('ready', true)
     expect(() => renderTimeline('s1')).not.toThrow()
     expect(document.querySelector('.dsbt-slot')).toBeNull()
+  })
+
+  it('drives jumps through a bound jumpToAnchor verb, not a service object', () => {
+    // Slot-boundary contract: the bridge accepts the jump verb (no service
+    // object crosses the boundary) and still renders nothing of its own.
+    setSettings('ready', true)
+    const seen: string[] = []
+    const jumpToAnchor = async (anchorKey: string): Promise<boolean> => {
+      seen.push(anchorKey)
+      return true
+    }
+    render(React.createElement(TimelineBridge as never, {
+      sessionId: 's1',
+      jumpToAnchor,
+      t,
+      useChat: useChatStub([
+        { turn: 1, anchorKey: 'k1', prompt: 'first', response: '' },
+      ]),
+    }))
+    expect(document.querySelector('.dsbt-slot')).toBeNull()
+    expect(seen).toEqual([])
   })
 
   it('stays quiet while the persisted toggle is still loading (no wrong-state flash)', () => {

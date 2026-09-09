@@ -45,9 +45,8 @@
  */
 
 import react from 'react'
-import { CHATVIEW_FOLLOW_ZONE_PX, jumpToMessage, officialTargetTopFor } from './jump.ts'
 import { indexForEvent, mergeRailItems, normalizeNavigationItems } from './rail-pointer.ts'
-import type { TimelineSessionsService, TurnRailLadderItem } from './types.ts'
+import type { JumpToAnchor, TurnRailLadderItem } from './types.ts'
 
 /**
  * Structural anchor of the official rail — its inline style carries the
@@ -76,7 +75,8 @@ const RAIL_POLL_MS = 400
 /** Component props delivered by the dock slot registration. */
 export interface OfficialTimelineEnhancerProps {
   sessionId?: string
-  sessionsService?: TimelineSessionsService
+  /** Session-bound jump verb from the registration factory (apply closure). */
+  jumpToAnchor?: JumpToAnchor
   /** Kernel selector hook over the Chat snapshot (dsh >= 0.1.2-rc.1). */
   useChat?: (selector: (snapshot: unknown) => unknown) => unknown
   /** Framework projection reader; the whole-log turn outline
@@ -94,7 +94,7 @@ export interface OfficialTimelineEnhancerProps {
  * @returns null (always).
  */
 export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): null {
-  const { sessionId, sessionsService, useChat, useProjection, enabled } = props
+  const { jumpToAnchor, useChat, useProjection, enabled } = props
 
   // The official navigation index — the loaded-window half of what the rail
   // renders, so this plugin always targets a mark that visually exists.
@@ -166,17 +166,9 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
     // the kernel's own loadThrough jump owns it (the click handler never
     // routes one this way; the guard is for direct callers).
     if (item.anchorKey === undefined) return
-    if (sessionsService === undefined || sessionId === undefined) return
-    // Scope the bottom-follow detach to the column this rail belongs to: the
-    // official rail is mounted, so its scrollport is known and the other
-    // columns need no nudge.
-    const scrollport = rail === null ? null : rail.closest<HTMLElement>('[data-conversation-scroll]')
-    void jumpToMessage(sessionsService, sessionId, item.anchorKey, {
-      followZonePx: CHATVIEW_FOLLOW_ZONE_PX,
-      targetTop: officialTargetTopFor,
-      scrollport,
-    }).catch(() => {})
-  }, [sessionsService, sessionId, rail])
+    if (jumpToAnchor === undefined) return
+    void jumpToAnchor(item.anchorKey).catch(() => {})
+  }, [jumpToAnchor])
 
   // Click interception. Capture phase on the rail itself, so this runs before
   // React's root bubble listener and the official handler never fires — for a

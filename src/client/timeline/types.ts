@@ -50,7 +50,18 @@ export interface TimelineSessionHandle {
   loadOlder(): Promise<unknown>
 }
 
-/** Sessions service face (narrowed to what jumps touch). */
+/** Sessions service face (narrowed to what the jump engine touches).
+ *
+ * Kept at the engine layer only (`jumpToMessage` + its spec): the slot
+ * boundary never sees this object — see `JumpToAnchor` below. */
 export interface TimelineSessionsService {
   binding(sessionId: string): { session: TimelineSessionHandle } | undefined
 }
+
+/**
+ * Session-bound jump verb handed through the dock slot's inject face.
+ * The session is already bound by the registration factory (apply closure),
+ * so the component only names the target row — it never sees the service.
+ * This is the ui-goal verbs+hooks shape, not a service passthrough.
+ */
+export type JumpToAnchor = (anchorKey: string) => Promise<boolean>

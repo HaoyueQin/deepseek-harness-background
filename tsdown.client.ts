@@ -24,9 +24,9 @@ import { transform } from 'lightningcss'
  * Shared browser platform modules the shell seeds into the frozen module
  * table. Seeding, bundling externals, and Vite aliases consume this list so
  * their module identities cannot drift. This mirrors the official
- * `packages/client/web/src/platform.ts`, verified identical on both supported
- * kernel generations — 0.1.2-rc.1 and 0.1.3-alpha.2 (react family +
- * cordis + dsh-client-store + ui-slots + ui-primitives) — because a specifier
+ * `packages/client/web/src/platform.ts`, verified identical on all supported
+ * kernel generations — 0.1.2-rc.1, 0.1.3-alpha.2 and 0.1.5-alpha.1 (react family +
+ * cordis + dsh-client-store + ui-slots + ui-primitives + ui-dockkit) — because a specifier
  * listed here stays external to this plugin's bundle and must therefore be
  * answerable by the kernel-side module table whichever generation hosts it.
  * Specifiers absent from BOTH tables (older mirror leftovers) are deleted:
@@ -37,6 +37,7 @@ export const PLATFORM_MODULES = [
   '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-ui-slots',
   '@deepseek-ai/dsh-client-ui-primitives',
+  '@deepseek-ai/dsh-client-ui-dockkit',
 ] as const
 
 /**

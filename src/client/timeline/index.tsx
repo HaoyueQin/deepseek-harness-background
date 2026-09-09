@@ -19,12 +19,13 @@
 import react from 'react'
 import { settingsClient } from '../settings-client.ts'
 import { OfficialTimelineEnhancer } from './official-enhance.tsx'
-import type { TimelineSessionsService } from './types.ts'
+import type { JumpToAnchor } from './types.ts'
 
 /** Props the dock slot delivers. */
 export interface TimelineBridgeProps {
   sessionId?: string
-  sessionsService?: TimelineSessionsService
+  /** Session-bound jump verb from the registration factory (apply closure). */
+  jumpToAnchor?: JumpToAnchor
   /** Kernel selector hook over the Chat snapshot; present on dsh >= 0.1.2. */
   useChat?: (selector: (snapshot: unknown) => unknown) => unknown
   /** Framework projection reader (SessionStandardProps seat). */
@@ -109,6 +110,7 @@ export function clearLegacyMarks(): void {
   }
 }
 export type {
+  JumpToAnchor,
   OfficialNavigationItem,
   TimelineSessionHandle,
   TimelineSessionsService,

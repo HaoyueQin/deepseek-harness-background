@@ -27,19 +27,14 @@ const t = (key: string): string => key
 /** How often the enhancer polls for the official rail. */
 const RAIL_POLL_MS = 400
 
-interface FakeSession {
-  hasMore: boolean
-  getSnapshot(): { hasMore: boolean; openState: string }
-  loadOlder(): Promise<void>
-  subscribe(): () => void
-}
+/** Anchor keys the jump verb received (production binds the real engine in
+ * the apply closure; the stub below stands in for it). Reset per test. */
+const jumpedAnchorKeys: string[] = []
 
-function fakeSession(initial: Partial<Pick<FakeSession, 'hasMore'>> = {}): FakeSession {
-  const state = { hasMore: true, ...initial } as FakeSession
-  state.getSnapshot = () => ({ hasMore: state.hasMore, openState: 'open' })
-  state.loadOlder = async () => {}
-  state.subscribe = () => () => {}
-  return state
+/** Session-bound jump verb stub: records the target, reports success. */
+function jumpToAnchorStub(anchorKey: string): Promise<boolean> {
+  jumpedAnchorKeys.push(anchorKey)
+  return Promise.resolve(true)
 }
 
 /**
@@ -88,14 +83,13 @@ function useChatStub(value: readonly { turn: number; anchorKey: string; prompt: 
 }
 
 function renderEnhancer(
-  session: FakeSession,
   count: number,
   enabled: boolean,
   extra: { outline?: unknown } = {},
 ): void {
   render(React.createElement(OfficialTimelineEnhancer as never, {
     sessionId: 's1',
-    sessionsService: { binding: () => ({ session: session as never }) },
+    jumpToAnchor: jumpToAnchorStub,
     useChat: useChatStub(items(count)),
     // An undefined outline keeps the prop absent — the merge then degrades to
     // the loaded items.
@@ -110,6 +104,7 @@ function renderEnhancer(
 afterEach(() => {
   cleanup()
   document.body.innerHTML = ''
+  jumpedAnchorKeys.length = 0
 })
 
 describe('official rail discovery', () => {
@@ -125,8 +120,7 @@ describe('click interception', () => {
     // every render (0px included), and the plugin maps gestures only on
     // rails that do.
     const nav = mountOfficialRail(3, 412, 0)
-    const session = fakeSession({ hasMore: false })
-    renderEnhancer(session, 3, true)
+    renderEnhancer(3, true)
     // Stand in for React 18's root container: it dispatches onClick during
     // the BUBBLE phase, so a capture listener on the rail must beat it.
     const bubbled: Event[] = []
@@ -140,13 +134,14 @@ describe('click interception', () => {
 
     nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientY: 200 }))
     expect(bubbled).toHaveLength(0)
+    // The interception routes through the bound verb (turn-3 mark).
+    expect(jumpedAnchorKeys).toEqual(['13:input-message2'])
     document.removeEventListener('click', (event) => { bubbled.push(event) })
   })
 
   it('leaves the official behaviour untouched while the toggle is off', async () => {
     const nav = mountOfficialRail(3, 412, 0)
-    const session = fakeSession({ hasMore: false })
-    renderEnhancer(session, 3, false)
+    renderEnhancer(3, false)
     const bubbled: Event[] = []
     const record = (event: Event): void => { bubbled.push(event) }
     document.addEventListener('click', record)
@@ -208,8 +203,7 @@ describe('narrow enhancement', () => {
 
   it('intercepts a loaded mark and lets the kernel own an unloaded one', async () => {
     const nav = mountOfficialRail(3, 412, 0)
-    const session = fakeSession({ hasMore: false })
-    renderEnhancer(session, 2, true, { outline })
+    renderEnhancer(2, true, { outline })
     const bubbled: Event[] = []
     const record = (event: Event): void => { bubbled.push(event) }
     document.addEventListener('click', record)
@@ -221,11 +215,15 @@ describe('narrow enhancement', () => {
     // kernel's own loadThrough jump.
     nav.querySelectorAll('button')[2]!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     expect(bubbled).toHaveLength(1)
+    // Pass-through to the kernel's loadThrough: the verb stays silent.
+    expect(jumpedAnchorKeys).toEqual([])
 
     // A click landing on the LOADED turn-1 mark (geometry path: offset =
     // clientY - 0 + 0 - 6): still intercepted, the kernel never sees it.
     nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientY: 6 }))
     expect(bubbled).toHaveLength(1)
+    // The loaded turn-1 mark routes through the bound verb.
+    expect(jumpedAnchorKeys).toEqual(['13:input-message0'])
     document.removeEventListener('click', record)
   })
 
@@ -233,8 +231,7 @@ describe('narrow enhancement', () => {
     const nav = mountOfficialRail(3, 412, 0)
     // The kernel pulses the mark whose load-through jump is in flight.
     nav.querySelectorAll('button')[1]!.setAttribute('aria-busy', 'true')
-    const session = fakeSession({ hasMore: false })
-    renderEnhancer(session, 2, true, { outline })
+    renderEnhancer(2, true, { outline })
     const bubbled: Event[] = []
     const record = (event: Event): void => { bubbled.push(event) }
     document.addEventListener('click', record)
@@ -247,6 +244,8 @@ describe('narrow enhancement', () => {
     // jump to teleport the scrollport away mid-glide at settle.
     nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientY: 6 }))
     expect(bubbled).toHaveLength(1)
+    // Stood down entirely: the verb stays silent during the kernel jump.
+    expect(jumpedAnchorKeys).toEqual([])
     document.removeEventListener('click', record)
   })
 })
