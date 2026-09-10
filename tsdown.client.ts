@@ -25,7 +25,7 @@ import { transform } from 'lightningcss'
  * table. Seeding, bundling externals, and Vite aliases consume this list so
  * their module identities cannot drift. This mirrors the official
  * `packages/client/web/src/platform.ts`, verified identical on all supported
- * kernel generations — 0.1.2-rc.1, 0.1.3-alpha.2 and 0.1.5-alpha.1 (react family +
+ * kernel generations — 0.1.2-rc.1, 0.1.3-alpha.2 and 0.1.5-alpha.1/alpha.2/rc.1 (react family +
  * cordis + dsh-client-store + ui-slots + ui-primitives + ui-dockkit) — because a specifier
  * listed here stays external to this plugin's bundle and must therefore be
  * answerable by the kernel-side module table whichever generation hosts it.

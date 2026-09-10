@@ -133,17 +133,11 @@ export const BACKGROUND_CSS = `
 
   /* The sidebar build badge paints with the label-ink token — a TEXT token we
      must not override globally — so it gets a theme-aware translucent ink. */
-  body[data-dsh-bg] [class*="_buildRevision"] {
+  body[data-dsh-bg] [class*="_buildVersion"] {
     background-color: rgba(15, 17, 21, 0.62);
   }
-  body[data-ds-dark-theme][data-dsh-bg] [class*="_buildRevision"] {
+  body[data-ds-dark-theme][data-dsh-bg] [class*="_buildVersion"] {
     background-color: rgba(249, 250, 251, 0.62);
-  }
-
-  /* The empty-state hero glow asset would wash out the wallpaper behind the
-     welcome message — dim it so the art stays visible. */
-  body[data-dsh-bg] [class*="_heroGlow"] {
-    opacity: 0.2;
   }
 
   /* ---- Whitelisted chrome buttons --------------------------------------
@@ -251,7 +245,7 @@ export const BACKGROUND_CSS = `
   /* Sidebar build badge: translucent ink already, but it sat directly on
      the wallpaper without frost. Join the shared blur chain under the same
      gate (its theme-aware ink fills from the active block above). */
-  body[data-dsh-bg-glass] [class*="_buildRevision"] {
+  body[data-dsh-bg-glass] [class*="_buildVersion"] {
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }

@@ -338,9 +338,9 @@ describe('deepseek-harness-background apply', () => {
     // Load-earlier history button gets the explicit chrome-button recipe;
     // the build badge gains the blur chain under the glass gate.
     expect(cssText).toContain('[class*="_older"] button')
-    expect(cssText).toContain('body[data-dsh-bg-glass] [class*="_buildRevision"]')
-    // Empty-state hero glow dims so the wallpaper stays visible.
-    expect(cssText).toContain('_heroGlow')
+    expect(cssText).toContain('body[data-dsh-bg-glass] [class*="_buildVersion"]')
+    // Empty-state hero glow no longer exists upstream (its rule is gone too).
+    expect(cssText).not.toContain('_heroGlow')
     // Rollback: no blanket anchors for menus/dialogs/panels/cards/toasts/
     // toolbars/send/rail, and no HoverCard ink re-scope.
     expect(cssText).not.toContain('[role="menu"]')
