@@ -9,15 +9,41 @@
  * `Config`, so `register()` is gone. Both generations must still mount the
  * same route family, against the namespace that generation actually keys on.
  */
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { mkdtempSync, rmSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join as joinPath } from 'node:path'
 import { apply } from '../src/index.ts'
+import { resolveHarnessHome } from '../src/harness-home.ts'
 import { BACKGROUND_SETTINGS_NAMESPACE, BackgroundSettingsSchema } from '../src/schema.ts'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 
 /** Entry id the profile patch inserts for this plugin (0.1.7's namespace). */
 const ENTRY_ID = 'deepseek-harness-background'
+
+/**
+ * This suite drives the mounted route family through a real GET, which runs
+ * the lazy migration gate. The host half resolves `$DSH_HOME` itself when no
+ * home is passed, so without a throwaway home the gate would read — and MARK —
+ * the developer's own installation, silently disabling the one-time adoption
+ * they would get on upgrade. Pin the home for every test in this file.
+ */
+const originalDshHome = process.env.DSH_HOME
+let harnessHome = ''
+
+beforeEach(() => {
+  harnessHome = mkdtempSync(joinPath(tmpdir(), 'dsh-bg-host-apply-'))
+  process.env.DSH_HOME = harnessHome
+})
+
+afterEach(() => {
+  if (originalDshHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = originalDshHome
+  rmSync(harnessHome, { recursive: true, force: true })
+  harnessHome = ''
+})
 
 /** Everything the host half touched, per mounted generation. */
 interface Harness {
@@ -98,6 +124,14 @@ async function getSection(harness: Harness): Promise<Record<string, unknown>> {
 }
 
 const SECTION = { enabled: true, uploadId: 'up-1', url: '', opacity: 0.4 }
+
+describe('harness-home isolation', () => {
+  it('resolves the harness home to the throwaway one, never the developer home', () => {
+    // The migration gate falls back to resolveHarnessHome(); if this ever
+    // fails, the GET tests below would read and MARK the real ~/.dsh.
+    expect(resolveHarnessHome()).toBe(harnessHome)
+  })
+})
 
 describe('host module surface', () => {
   it('exports the volatile Config the 0.1.7 loader projects into the settings form', async () => {
