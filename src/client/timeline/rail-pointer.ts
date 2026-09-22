@@ -72,12 +72,20 @@ export function frameIndexAtPointer(count: number, rail: HTMLElement, clientY: n
 /**
  * Resolve the gesture that produced a rail click to an entry index.
  *
- * Keyboard activation targets the focused mark button (recovered by its
- * position among the rail's buttons); a mouse click carries coordinates and
- * resolves through the rail geometry — the frame-style mapping over the
- * published `--turn-scroll-top`. Returns -1 when neither applies (a
- * keyboard target outside the rail, or a rail of an unsupported generation,
- * which the kernel's own handler then owns).
+ * Two rail generations answer here, told apart by capability:
+ *
+ * - The virtualized rail (dsh 0.1.7+) tags every RENDERED mark with its own
+ *   ladder index (`data-index`), so the gesture resolves by data. This is the
+ *   robust path: the virtualizer mounts only a window of marks, and their DOM
+ *   order is not the ladder order.
+ * - The frame-style rail tags nothing and paints marks with
+ *   `pointer-events: none`, so a MOUSE gesture arrives at the `<nav>` with
+ *   coordinates and resolves through the rail geometry over the published
+ *   `--turn-scroll-top`; a KEYBOARD gesture activates the focused mark button,
+ *   recovered by its position among its siblings.
+ *
+ * Returns -1 when neither applies (a keyboard target outside the rail, or a
+ * rail of an unsupported generation, which the kernel's own handler then owns).
  *
  * Assumption: the mark ticks are the ONLY buttons under the rail — the
  * official rail renders marks exclusively and its preview tooltip carries
@@ -90,6 +98,11 @@ export function frameIndexAtPointer(count: number, rail: HTMLElement, clientY: n
 export function indexForEvent(rail: HTMLElement, event: MouseEvent): number {
   const target = event.target
   if (target instanceof Element) {
+    const mark = target.closest('[data-index]')
+    if (mark !== null && rail.contains(mark)) {
+      const tagged = Number(mark.getAttribute('data-index'))
+      if (Number.isSafeInteger(tagged) && tagged >= 0) return tagged
+    }
     const button = target.closest('button')
     if (button !== null && rail.contains(button)) {
       const index = Array.from(rail.querySelectorAll('button')).indexOf(button)
@@ -98,10 +111,10 @@ export function indexForEvent(rail: HTMLElement, event: MouseEvent): number {
   }
   const count = rail.querySelectorAll('button').length
   if (count === 0) return -1
-  // The frame-style geometry is the only supported generation (dsh >=
-  // 0.1.2-alpha.3, unchanged on 0.1.2-rc.1). A rail that does not publish
-  // `--turn-scroll-top` is not the supported rail: stand down (-1) so the
-  // kernel's own handler owns the gesture untouched.
+  // The frame-style geometry is the only supported legacy generation (dsh >=
+  // 0.1.2-alpha.3, unchanged through 0.1.6). A rail that does not publish
+  // `--turn-scroll-top` is not that rail: stand down (-1) so the kernel's own
+  // handler owns the gesture untouched.
   return isFrameRail(rail) ? frameIndexAtPointer(count, rail, event.clientY) : -1
 }
 

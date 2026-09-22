@@ -18,7 +18,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import React from 'react'
 import {
-  OfficialTimelineEnhancer, OFFICIAL_RAIL_SELECTOR,
+  OfficialTimelineEnhancer, OFFICIAL_RAIL_SELECTOR, findOfficialRail,
   frameIndexAtPointer, indexForEvent, isFrameRail, mergeRailItems,
 } from '../src/client/timeline/index.tsx'
 
@@ -68,6 +68,27 @@ function mountOfficialRail(count: number, height = 412, scrollTopPx?: number): H
   return nav
 }
 
+/**
+ * Mount a stand-in for the dsh 0.1.7 rail: the same `<nav>` seat inside the
+ * conversation scrollport, but virtualized — no inline metrics at all, and one
+ * `<button data-index>` mark per RENDERED entry (the virtualizer mounts only a
+ * window, so the DOM order is not the ladder order).
+ */
+function mountVirtualRail(count: number): HTMLElement {
+  const sp = document.createElement('div')
+  sp.setAttribute('data-conversation-scroll', '')
+  const nav = document.createElement('nav')
+  for (let i = 0; i < count; i += 1) {
+    const button = document.createElement('button')
+    button.setAttribute('data-index', String(i))
+    button.setAttribute('aria-label', `jump to turn ${String(i + 1)}`)
+    nav.appendChild(button)
+  }
+  sp.appendChild(nav)
+  document.body.appendChild(sp)
+  return nav
+}
+
 function items(count: number): readonly { turn: number; anchorKey: string; prompt: string; response: string }[] {
   return Array.from({ length: count }, (_, i) => ({
     turn: i + 1,
@@ -111,6 +132,29 @@ describe('official rail discovery', () => {
   it('finds the rail through its published metrics', async () => {
     const nav = mountOfficialRail(3)
     expect(document.querySelector(OFFICIAL_RAIL_SELECTOR)).toBe(nav)
+    expect(findOfficialRail()).toBe(nav)
+  })
+
+  it('finds the 0.1.7 virtualized rail, which publishes no metrics', async () => {
+    const nav = mountVirtualRail(3)
+    // The legacy selector cannot see it: its inline frame metrics are gone.
+    expect(document.querySelector(OFFICIAL_RAIL_SELECTOR)).toBeNull()
+    expect(findOfficialRail()).toBe(nav)
+  })
+
+  it('finds the 0.1.7 rail seat before its virtualizer mounts any mark', async () => {
+    // Measured on the real 0.1.7 rail: the <nav> exists with an EMPTY marks
+    // container until the virtualizer has layout, so identity must come from
+    // the seat, not from a rendered mark.
+    const nav = mountVirtualRail(0)
+    expect(nav.querySelector('button[data-index]')).toBeNull()
+    expect(findOfficialRail()).toBe(nav)
+  })
+
+  it('ignores a nav outside the conversation scrollport', async () => {
+    const outside = document.createElement('nav')
+    document.body.appendChild(outside)
+    expect(findOfficialRail()).toBeNull()
   })
 })
 
@@ -150,6 +194,38 @@ describe('click interception', () => {
 
     nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientY: 200 }))
     expect(bubbled).toHaveLength(1)
+    document.removeEventListener('click', record)
+  })
+})
+
+describe('virtualized rail (dsh 0.1.7)', () => {
+  it("resolves a click through the mark's own data-index, not geometry", () => {
+    const nav = mountVirtualRail(5)
+    const mark = nav.querySelectorAll('button')[2]!
+    // jsdom reports zero geometry, so a geometry mapping could never land on 2.
+    expect(indexForEvent(nav, { target: mark, clientY: 0 } as unknown as MouseEvent)).toBe(2)
+  })
+
+  it('refuses a data-index that lives outside the rail', () => {
+    const nav = mountVirtualRail(3)
+    const stray = document.createElement('button')
+    stray.setAttribute('data-index', '9')
+    document.body.appendChild(stray)
+    expect(indexForEvent(nav, { target: stray, clientY: 0 } as unknown as MouseEvent)).toBe(-1)
+  })
+
+  it('swallows the official click and glides through the bound verb', async () => {
+    const nav = mountVirtualRail(3)
+    renderEnhancer(3, true)
+    const bubbled: Event[] = []
+    const record = (event: Event): void => { bubbled.push(event) }
+    document.addEventListener('click', record)
+    await new Promise((resolve) => setTimeout(resolve, RAIL_POLL_MS + 50))
+    await new Promise((resolve) => setTimeout(resolve, RAIL_POLL_MS + 50))
+
+    nav.querySelectorAll('button')[2]!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    expect(bubbled).toHaveLength(0)
+    expect(jumpedAnchorKeys).toEqual(['13:input-message2'])
     document.removeEventListener('click', record)
   })
 })

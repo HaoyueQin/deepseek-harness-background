@@ -18,7 +18,7 @@
 
 import react from 'react'
 import { settingsClient } from '../settings-client.ts'
-import { OfficialTimelineEnhancer } from './official-enhance.tsx'
+import { findOfficialRail, OfficialTimelineEnhancer } from './official-enhance.tsx'
 import type { JumpToAnchor } from './types.ts'
 
 /** Props the dock slot delivers. */
@@ -79,6 +79,7 @@ export {
   railInsetOf,
 } from './rail-pointer.ts'
 export {
+  findOfficialRail,
   OFFICIAL_RAIL_SELECTOR,
   OfficialTimelineEnhancer,
   type OfficialTimelineEnhancerProps,

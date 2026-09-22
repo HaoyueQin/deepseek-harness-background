@@ -3,33 +3,36 @@
  * turn navigator (dsh >= 0.1.2-rc.1, `TurnNavigator` in dsh-client-ui-chat).
  *
  * This component renders NOTHING. It borrows the official rail exactly as the
- * kernel painted it and fixes its behaviour, scoped to what the frame-style
- * rail (dsh >= 0.1.2-alpha.3, unchanged on 0.1.2-rc.1) still lacks — told
- * apart by capability, never by version compare:
+ * kernel painted it and fixes its behaviour, scoped to what the running rail
+ * generation still lacks — told apart by capability, never by version compare:
  *
  * Smooth jump. The official `navigateToTurn` is one assignment
  * (`el.scrollTop += flowTop(row, el) - 24`); a click across a long transcript
  * teleports. Clicks on LOADED marks are intercepted in the capture phase and
- * re-run through the shared glide instead. The frame-style rail also renders
- * marks for turns OUTSIDE the loaded window (fed by the whole-log
- * `turnOutline` projection); those jumps page history through the kernel's
- * own loadThrough machinery — marks without an anchor key are left to it, and
- * the click index is resolved against the same merged ladder the kernel
- * renders. While one of those kernel jumps is still paging (a mark pulses
- * `aria-busy`), the plugin stands down entirely: the kernel's loaded branch
- * cancels its own pending jump before landing, and an interception would
- * bypass that cancellation.
+ * re-run through the shared glide instead. Both generations also render marks
+ * for turns OUTSIDE the loaded window (fed by the whole-log `turnOutline`
+ * projection); those jumps page history through the kernel's own loadThrough
+ * machinery — marks without an anchor key are left to it, and the click index
+ * is resolved against the same merged ladder the kernel renders. While one of
+ * those kernel jumps is still paging (a mark pulses `aria-busy`), the plugin
+ * stands down entirely: the kernel's loaded branch cancels its own pending
+ * jump before landing, and an interception would bypass that cancellation.
+ *
+ * Two rail generations are supported, discovered by {@link findOfficialRail}:
+ * the frame-style rail of dsh 0.1.2-rc.1 … 0.1.6 (inline frame metrics, marks
+ * mapped by geometry) and the virtualized rail of dsh 0.1.7+ (no inline
+ * metrics, marks tagged `data-index`, only a window of them mounted at once).
  *
  * State-ownership note (why intercepting the official click loses nothing):
  * the kernel's scrollport (`data-conversation-scroll`, ChatView's
  * `onScrollRef` handler) treats every unaccounted scrollTop assignment as a
  * reader move and on each frame (a) flips its own at-bottom machinery,
- * (b) `chatScroll.save(position)` for view-tab restore, and (c)
- * `scheduleActiveTurn()` to re-derive the rail's active mark. The glide
- * animates the real scrollport, so all three keep converging to the target
- * row while it runs — the only thing the interception skips is the official
- * handler's synchronous `setActiveTurn(item.turn)`, which its own
- * scroll-driven active derivation re-settles by the time the glide lands.
+ * (b) `chatScroll.save(position)` for view-tab restore, and (c) re-derives
+ * the rail's active mark. The glide animates the real scrollport, so all three
+ * keep converging to the target row while it runs — the only thing the
+ * interception skips is the official handler's synchronous active-mark
+ * assignment, which its own scroll-driven derivation re-settles by the time
+ * the glide lands.
  *
  * The jump goes through the shared backend (jump.ts).
  *
@@ -37,8 +40,9 @@
  * root container during the BUBBLE phase. A capture listener on the rail
  * itself therefore runs first, and `stopImmediatePropagation()` there prevents
  * the event from ever reaching React's root — the official handler never
- * fires. The rail owns pointer input for its whole column (marks carry
- * `pointer-events: none`), so one listener catches mouse and keyboard alike.
+ * fires. The frame-style rail owns pointer input for its whole column (marks
+ * carry `pointer-events: none`); the virtualized rail's marks are real
+ * buttons. Both arrive at the same capture listener on the rail.
  *
  * Nothing here touches the official DOM: no nodes are injected into a
  * React-owned subtree and no official class or paint is overridden.
@@ -49,13 +53,33 @@ import { indexForEvent, mergeRailItems, normalizeNavigationItems } from './rail-
 import type { JumpToAnchor, TurnRailLadderItem } from './types.ts'
 
 /**
- * Structural anchor of the official rail — its inline style carries the
- * frame's own metric (`--turn-natural-height`), published on every supported
- * kernel (dsh >= 0.1.2-rc.1). Whether the found rail is the supported
- * frame-style generation is then told apart by isFrameRail, never by a
- * version compare.
+ * Structural anchor of the LEGACY (frame-style) official rail — its inline
+ * style carries the frame's own metric (`--turn-natural-height`), published on
+ * every kernel from dsh 0.1.2-rc.1 through 0.1.6. dsh 0.1.7's virtualized rail
+ * publishes no inline metrics, so this selector only names the older
+ * generation; discovery is {@link findOfficialRail}.
  */
 export const OFFICIAL_RAIL_SELECTOR = '[data-conversation-scroll] nav[style*="--turn-natural-height"]'
+
+/**
+ * Find the official turn rail, in either supported generation.
+ *
+ * Identity comes from the SEAT, not from a rendered mark: the rail is the only
+ * `<nav>` inside the conversation scrollport, and dsh 0.1.7's virtualizer
+ * mounts its marks lazily — measured on the real rail, the `<nav>` exists with
+ * an EMPTY marks container until the virtualizer has layout. Requiring a
+ * rendered `button[data-index]` would therefore miss the rail exactly when it
+ * first appears.
+ *
+ * The generation is then told apart by capability where it matters: the click
+ * resolver reads a mark's own `data-index`, and only falls back to the legacy
+ * frame geometry for a rail that publishes `--turn-scroll-top`.
+ * @param root - the tree to search (defaults to the document).
+ * @returns the rail element, or null when the conversation shows none.
+ */
+export function findOfficialRail(root: ParentNode = document): HTMLElement | null {
+  return root.querySelector<HTMLElement>('[data-conversation-scroll] nav')
+}
 
 /**
  * Rails claimed by an enhancer instance, keyed by the owning instance's
@@ -126,8 +150,9 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
   const jumpToAnchorRef = react.useRef(jumpToAnchor)
   jumpToAnchorRef.current = jumpToAnchor
 
-  // Locate the official rail. It mounts with the chat view and is replaced
-  // whenever the view remounts, so it is polled rather than observed once.
+  // Locate the official rail (either generation). It mounts with the chat
+  // view and is replaced whenever the view remounts, so it is polled rather
+  // than observed once.
   //
   // Ownership guard: one enhancer instance mounts per SESSION (the dock slot
   // is session-scoped), so a multi-column layout can run several instances
@@ -142,7 +167,7 @@ export function OfficialTimelineEnhancer(props: OfficialTimelineEnhancerProps): 
   const claimToken = react.useMemo<symbol>(() => Symbol('dsh-bg-timeline-claim'), [])
   react.useEffect(() => {
     const check = (): void => {
-      const found = document.querySelector<HTMLElement>(OFFICIAL_RAIL_SELECTOR)
+      const found = findOfficialRail()
       if (found === null) {
         setRail(null)
         return

@@ -15,7 +15,7 @@ import { en, zh } from './locales.ts'
 import { BackgroundSettingsRow } from './SettingsRow.tsx'
 import { settingsClient } from './settings-client.ts'
 import {
-  CHATVIEW_FOLLOW_ZONE_PX, OFFICIAL_RAIL_SELECTOR, TimelineBridge, clearLegacyMarks,
+  CHATVIEW_FOLLOW_ZONE_PX, findOfficialRail, TimelineBridge, clearLegacyMarks,
   jumpToMessage, officialTargetTopFor,
 } from './timeline/index.tsx'
 import type {} from './types.ts'
@@ -81,8 +81,7 @@ export function apply(ctx: Context): void {
         // Scope the bottom-follow detach to this rail's own column: the
         // official rail is mounted, so its scrollport is known and the other
         // columns need no nudge. Resolved at call time, not at registration.
-        const scrollport = document
-          .querySelector<HTMLElement>(OFFICIAL_RAIL_SELECTOR)
+        const scrollport = findOfficialRail()
           ?.closest<HTMLElement>('[data-conversation-scroll]') ?? null
         return jumpToMessage(ctx.sessions, sessionId, anchorKey, {
           followZonePx: CHATVIEW_FOLLOW_ZONE_PX,
