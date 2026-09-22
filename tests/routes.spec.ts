@@ -9,7 +9,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { createServer, request as httpRequest } from 'node:http'
+import { createServer, request as httpRequest, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import { join as joinPath, resolve as resolvePath } from 'node:path'
@@ -231,6 +231,39 @@ describe('namespace option (0.1.7 keys the section by the profile entry id)', ()
   })
 })
 
+/**
+ * Ports Node's fetch (undici) refuses to connect to on principle, loopback
+ * included (undici's `badPorts` list). A Windows dynamic port range can start
+ * at 1024 — this machine's does, 1024-15000 — so `listen(0)` is handed one of
+ * these often enough to flake the suite: the socket is fine, `fetch` rejects
+ * the URL with "bad port".
+ */
+const FETCH_BLOCKED_PORTS = new Set([
+  1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103,
+  104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 138, 139, 143, 161, 179, 389, 427, 465, 512,
+  513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719,
+  1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697,
+  10080,
+])
+
+/**
+ * Listen on an OS-assigned port that fetch will actually accept: a draw inside
+ * the blocked list is released and re-drawn (bounded, so a pathological range
+ * fails loudly instead of spinning).
+ * @param server - the server to bind (not yet listening).
+ * @param host - the bind address.
+ * @returns the accepted port.
+ */
+async function listenFetchable(server: Server, host = '127.0.0.1'): Promise<number> {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    await new Promise<void>((resolve) => { server.listen(0, host, resolve) })
+    const port = (server.address() as AddressInfo).port
+    if (!FETCH_BLOCKED_PORTS.has(port)) return port
+    await new Promise<void>((resolve) => { server.close(() => { resolve() }) })
+  }
+  throw new Error('no fetchable port could be drawn')
+}
+
 /** Boot a real node:http server over the route family on an ephemeral port. */
 async function withServer(
   fn: (base: string, home: string) => Promise<void>,
@@ -247,8 +280,8 @@ async function withServer(
     if (!route) { res.writeHead(404); res.end(); return }
     void route.handler(req, res)
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  const port = await listenFetchable(server)
+  const base = `http://127.0.0.1:${port}`
   try {
     await fn(base, home)
   } finally {
@@ -490,8 +523,7 @@ describe('request fence (loopback host allowlist)', () => {
     const server = createServer((req, res) => {
       void routes[0]?.handler(req, res)
     })
-    await new Promise<void>((resolve) => server.listen(0, bindHost, resolve))
-    const port = (server.address() as AddressInfo).port
+    const port = await listenFetchable(server, bindHost)
     try {
       await fn(port)
     } finally {
