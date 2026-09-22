@@ -5,8 +5,8 @@
  * make every partial section valid at runtime though the schema's input type
  * is the full section. */
 import { describe, expect, it } from 'vitest'
-import { BackgroundSettingsSchema } from '../src/schema.ts'
-import type { BackgroundSettings } from '../src/settings.ts'
+import { BackgroundSettingsSchema, Config } from '../src/schema.ts'
+import { BACKGROUND_SETTINGS_FIELDS, type BackgroundSettings } from '../src/settings.ts'
 
 /** Resolve one (possibly partial) user section through the schema. */
 function resolve(section: object): BackgroundSettings {
@@ -78,5 +78,44 @@ describe('ui-background schema', () => {
     expect(resolved.panelOpacity).toBe(1)
     expect(resolved.blur).toBe(40)
     expect(resolved.wallpaperBlur).toBe(60)
+  })
+})
+
+/**
+ * dsh 0.1.7 keys a plugin's settings section on its profile entry and takes
+ * the schema from the module's exported `Config`. Every field must sit under a
+ * volatile node, or `settings.replace(entryId, section)` refuses the write
+ * ("Config field ... is not volatile"). The wire schema stays unmarked: it is
+ * also the 0.1.5/0.1.6 registration schema and the browser envelope.
+ */
+describe('Config (dsh 0.1.7 profile-entry schema)', () => {
+  /** Unwrap one resolved field: the volatile view yields a `Volatile` per
+   *  field, and this is the unwrapping `plainConfig` does before projecting. */
+  function unwrap(value: unknown): unknown {
+    if (value !== null && typeof value === 'object' && typeof (value as { get?: unknown }).get === 'function') {
+      return (value as { get(): unknown }).get()
+    }
+    return value
+  }
+
+  /** The volatile view resolved to plain values. */
+  function plain(section: Partial<BackgroundSettings>): Record<string, unknown> {
+    const resolved = Config(section as BackgroundSettings) as unknown as Record<string, unknown>
+    return Object.fromEntries(Object.entries(resolved).map(([key, value]) => [key, unwrap(value)]))
+  }
+
+  it('resolves the same section as the wire schema', () => {
+    expect(plain({})).toEqual(BackgroundSettingsSchema({} as BackgroundSettings))
+    expect(plain({ enabled: true, opacity: 0.4 }))
+      .toEqual(BackgroundSettingsSchema({ enabled: true, opacity: 0.4 } as BackgroundSettings))
+  })
+
+  it('marks every field volatile, leaving the wire schema unmarked', () => {
+    const configFields = Config.dict as Record<string, { meta: { volatile?: boolean } }>
+    const wireFields = BackgroundSettingsSchema.dict as Record<string, { meta: { volatile?: boolean } }>
+    for (const field of BACKGROUND_SETTINGS_FIELDS) {
+      expect(configFields[field]?.meta.volatile, `${field} must be volatile`).toBe(true)
+      expect(wireFields[field]?.meta.volatile, `${field} must stay plain`).toBeUndefined()
+    }
   })
 })

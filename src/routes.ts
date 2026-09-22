@@ -21,7 +21,6 @@ import { existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from 'node
 import { readFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { extname, join as joinPath } from 'node:path'
-import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
   BACKGROUND_API_PREFIX, BACKGROUND_SETTINGS_FIELDS, BACKGROUND_SETTINGS_NAMESPACE,
@@ -59,6 +58,36 @@ function pickKnown(section: object): Record<string, unknown> {
     if (key in src) out[key] = src[key]
   }
   return out
+}
+
+/**
+ * The settings surface these routes need. Satisfied by BOTH generations of the
+ * host service: dsh 0.1.5/0.1.6's `SettingsProvider` and 0.1.7's
+ * `SettingsForms`. `describe()` is the one read verb both expose — the old
+ * provider-level `get(ns)` was removed in 0.1.7, so reads never touch it.
+ */
+export interface BackgroundSettingsService {
+  /** Every registered/active namespace with its resolved value. */
+  describe(): readonly { ns: string; value?: unknown }[]
+  /** Replace one namespace's user section wholesale. */
+  replace(ns: string, section: object): Promise<void>
+}
+
+/**
+ * Resolve the plugin's section from whatever settings generation is mounted.
+ * Both generations return the schema-resolved value from `describe()`, so one
+ * read path serves 0.1.5, 0.1.6 and 0.1.7; an absent namespace (or a settings
+ * service that has not finished registering) resolves to the schema defaults.
+ * @param settings - the mounted settings service.
+ * @param namespace - the namespace/entry id owning the section.
+ * @returns the resolved section, defaults filled in.
+ */
+export function readBackgroundSection(
+  settings: BackgroundSettingsService,
+  namespace: string = BACKGROUND_SETTINGS_NAMESPACE,
+): BackgroundSettings {
+  const described = settings.describe().find((descriptor) => descriptor.ns === namespace)?.value
+  return { ...DEFAULTS, ...(described as Partial<BackgroundSettings> | undefined) }
 }
 
 /** Accepted upload MIME type → file extension. */
@@ -354,11 +383,12 @@ function mimeForPath(path: string): string | undefined {
 }
 
 /** One background API route family over the settings provider + home. */
-export function makeBackgroundRoutes(settings: SettingsProvider, opts: { home?: string } = {}): WebRoute[] {
-  const readSection = (): BackgroundSettings => {
-    const section = settings.get(BACKGROUND_SETTINGS_NAMESPACE) as BackgroundSettings | undefined
-    return { ...DEFAULTS, ...section }
-  }
+export function makeBackgroundRoutes(
+  settings: BackgroundSettingsService,
+  opts: { home?: string; namespace?: string } = {},
+): WebRoute[] {
+  const namespace = opts.namespace ?? BACKGROUND_SETTINGS_NAMESPACE
+  const readSection = (): BackgroundSettings => readBackgroundSection(settings, namespace)
 
   return [
     {
@@ -403,7 +433,7 @@ export function makeBackgroundRoutes(settings: SettingsProvider, opts: { home?: 
               json(res, 400, { ok: false, error: 'mutually-exclusive-source' })
               return
             }
-            await settings.replace(BACKGROUND_SETTINGS_NAMESPACE, merged)
+            await settings.replace(namespace, merged)
             const after = readSection()
             // Prune the replaced upload: switching images (or clearing) must
             // not leave the old file on disk forever. Only the *previous*

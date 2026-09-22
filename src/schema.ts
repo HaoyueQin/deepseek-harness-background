@@ -16,12 +16,11 @@ export {
 } from './settings.ts'
 
 /**
- * Durable background section; also the wire envelope the browser scope
- * validates against. `uploadId` and `url` name the two exclusive sources; the
- * schema stays structural (no trim/transform — a function callback would break
- * the schema's toJSON wire serialization).
+ * The section's fields, in schema order — ONE definition feeding both
+ * generations. Field schemas are immutable builders (`volatile()` clones),
+ * so deriving the volatile view below leaves this one unmarked.
  */
-export const BackgroundSettingsSchema: z<BackgroundSettings> = z.object({
+const BackgroundSettingsFields = {
   enabled: z.boolean().default(false),
   /** Content-addressed local upload id or empty. */
   uploadId: z.string().default(''),
@@ -34,4 +33,34 @@ export const BackgroundSettingsSchema: z<BackgroundSettings> = z.object({
   wallpaperBlur: z.number().min(BLUR_MIN).max(WALLPAPER_BLUR_MAX).default(DEFAULT_WALLPAPER_BLUR),
   fit: z.union([...FIT_MODES]).default(DEFAULT_FIT),
   timeline: z.boolean().default(DEFAULT_TIMELINE),
-})
+}
+
+/**
+ * Durable background section; also the wire envelope the browser scope
+ * validates against and the namespace schema registered on dsh 0.1.5/0.1.6.
+ * `uploadId` and `url` name the two exclusive sources; the schema stays
+ * structural (no trim/transform — a function callback would break the
+ * schema's toJSON wire serialization).
+ */
+export const BackgroundSettingsSchema: z<BackgroundSettings> = z.object(BackgroundSettingsFields)
+
+/** The same fields, each marked volatile (the marker is cloned, so the plain
+ *  view above stays unmarked). */
+function volatileFields<T extends Record<string, z>>(fields: T): T {
+  return Object.fromEntries(
+    Object.entries(fields).map(([key, field]) => [key, field.volatile()]),
+  ) as T
+}
+
+/**
+ * The plugin's live configuration as dsh 0.1.7+ reads it: the settings
+ * service projects each active profile entry's exported `Config` into a form
+ * and keys the section on the entry id. Every field is volatile — "editable
+ * without remounting" — which is exactly what a wholesale
+ * `settings.replace(entryId, section)` demands of each written path
+ * (`isVolatilePath` walks to a volatile ancestor or refuses the write).
+ *
+ * The wire schema above stays unmarked: it is also the 0.1.5/0.1.6
+ * registration schema, where `volatile` has no meaning.
+ */
+export const Config: z<BackgroundSettings> = z.object(volatileFields(BackgroundSettingsFields))

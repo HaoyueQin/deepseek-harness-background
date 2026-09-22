@@ -15,8 +15,11 @@ import { homedir, tmpdir } from 'node:os'
 import { join as joinPath, resolve as resolvePath } from 'node:path'
 import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import { resolveHarnessHome } from '../src/harness-home.ts'
-import { makeBackgroundRoutes, pluginHome, storeUpload, validateSectionBody } from '../src/routes.ts'
-import { BACKGROUND_SETTINGS_NAMESPACE } from '../src/settings.ts'
+import {
+  makeBackgroundRoutes, pluginHome, readBackgroundSection, storeUpload, validateSectionBody,
+  type BackgroundSettingsService,
+} from '../src/routes.ts'
+import { BACKGROUND_SETTINGS_NAMESPACE, DEFAULT_BLUR, DEFAULT_FIT, DEFAULT_SCRIM } from '../src/settings.ts'
 
 /** Minimal valid PNG: 8-byte signature + IHDR chunk header (content trivial). */
 const PNG_BYTES = Buffer.from([
@@ -160,11 +163,12 @@ describe('validateSectionBody', () => {
 
 /** In-memory settings provider exposing only what the route family uses.
  * `initial` maps namespace → section, like the real provider's document. */
-function settingsMock(initial: Record<string, Record<string, unknown>> = {}): SettingsProvider {
+function settingsMock(initial: Record<string, Record<string, unknown>> = {}) {
   const store = new Map<string, Record<string, unknown>>()
   for (const [ns, section] of Object.entries(initial)) store.set(ns, { ...section })
   return {
     get(ns: string) { return store.get(ns) },
+    describe() { return [...store].map(([ns, value]) => ({ ns, value })) },
     async update(ns: string, patch: Record<string, unknown>) {
       const current = store.get(ns) ?? {}
       store.set(ns, { ...current, ...patch })
@@ -172,16 +176,67 @@ function settingsMock(initial: Record<string, Record<string, unknown>> = {}): Se
     async replace(ns: string, section: Record<string, unknown>) {
       store.set(ns, { ...section })
     },
-  } as unknown as SettingsProvider
+  }
 }
+
+/**
+ * In-memory settings surface shaped like dsh 0.1.7's `SettingsForms`: it
+ * exposes `describe()` and `replace()` and NOTHING else — in particular no
+ * `get()`, which the 0.1.7 rewrite removed. Any route that still reaches for
+ * `get` must fail against this mock.
+ */
+function modernSettingsMock(initial: Record<string, Record<string, unknown>> = {}): unknown {
+  const store = new Map<string, Record<string, unknown>>()
+  for (const [ns, section] of Object.entries(initial)) store.set(ns, { ...section })
+  return {
+    describe() { return [...store].map(([ns, value]) => ({ ns, value })) },
+    async replace(ns: string, section: Record<string, unknown>) { store.set(ns, { ...section }) },
+  }
+}
+
+describe('readBackgroundSection', () => {
+  it('reads through describe() so a 0.1.7 settings service without get() works', () => {
+    const settings = modernSettingsMock({ [BACKGROUND_SETTINGS_NAMESPACE]: { enabled: true, opacity: 0.5 } })
+    expect(readBackgroundSection(settings as never)).toMatchObject({
+      enabled: true, opacity: 0.5, scrim: DEFAULT_SCRIM, fit: DEFAULT_FIT,
+    })
+  })
+
+  it('resolves schema defaults when the namespace is absent', () => {
+    const section = readBackgroundSection(modernSettingsMock() as never)
+    expect(section.enabled).toBe(false)
+    expect(section.uploadId).toBe('')
+    expect(section.blur).toBe(DEFAULT_BLUR)
+  })
+})
+
+describe('namespace option (0.1.7 keys the section by the profile entry id)', () => {
+  it('reads and writes the supplied namespace instead of ui-background', async () => {
+    const entry = 'deepseek-harness-background'
+    await withServer(async (base) => {
+      expect((await getSection(base)).enabled).toBe(true)
+      expect(await postSection(base, { enabled: false, uploadId: '', url: '' })).toBe(200)
+      expect((await getSection(base)).enabled).toBe(false)
+    }, { [entry]: { enabled: true, uploadId: '', url: '' } }, entry)
+  })
+
+  it('leaves a section under the default namespace untouched when another is addressed', async () => {
+    await withServer(async (base) => {
+      // The 0.1.5/0.1.6 section is not the addressed one: reads fall back to
+      // defaults rather than leaking the other namespace's values.
+      expect((await getSection(base)).enabled).toBe(false)
+    }, { [BACKGROUND_SETTINGS_NAMESPACE]: { enabled: true, uploadId: '', url: '' } }, 'deepseek-harness-background')
+  })
+})
 
 /** Boot a real node:http server over the route family on an ephemeral port. */
 async function withServer(
   fn: (base: string, home: string) => Promise<void>,
   initial?: Record<string, Record<string, unknown>>,
+  namespace?: string,
 ): Promise<void> {
   const home = freshHome()
-  const routes = makeBackgroundRoutes(settingsMock(initial ?? {}), { home })
+  const routes = makeBackgroundRoutes(settingsMock(initial ?? {}), { home, namespace })
   const server = createServer((req, res) => {
     const url = req.url ?? '/'
     const route = routes.find((r) => (
@@ -234,6 +289,13 @@ async function getSection(base: string): Promise<Record<string, unknown>> {
   const body = await res.json() as { ok: boolean; value?: Record<string, unknown> }
   expect(body.ok).toBe(true)
   return body.value as Record<string, unknown>
+}
+
+/** GET one settings read; returns the whole JSON envelope. */
+async function getSettingsBody(base: string): Promise<Record<string, unknown>> {
+  const res = await fetch(`${base}/api/bg-wallpaper/settings`)
+  expect(res.status).toBe(200)
+  return await res.json() as Record<string, unknown>
 }
 
 describe('upload pruning (swap / clear deletes the superseded file)', () => {
