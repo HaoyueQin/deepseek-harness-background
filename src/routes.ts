@@ -32,6 +32,7 @@ import {
   type BackgroundSettings,
 } from './settings.ts'
 import { PLUGIN_HOME_REL, resolveHarnessHome } from './harness-home.ts'
+import { ensureLegacyMigration } from './migrate.ts'
 
 /** Re-export the shared API prefix for host-side consumers. */
 export { BACKGROUND_API_PREFIX } from './settings.ts'
@@ -67,8 +68,8 @@ function pickKnown(section: object): Record<string, unknown> {
  * provider-level `get(ns)` was removed in 0.1.7, so reads never touch it.
  */
 export interface BackgroundSettingsService {
-  /** Every registered/active namespace with its resolved value. */
-  describe(): readonly { ns: string; value?: unknown }[]
+  /** Every registered/active namespace with its resolved value and raw user layer. */
+  describe(): readonly { ns: string; value?: unknown; user?: unknown }[]
   /** Replace one namespace's user section wholesale. */
   replace(ns: string, section: object): Promise<void>
 }
@@ -382,6 +383,40 @@ function mimeForPath(path: string): string | undefined {
   return undefined
 }
 
+/**
+ * Lazily attempt the pre-0.1.7 settings migration exactly once per mounted
+ * route family.
+ *
+ * It runs from the first settings READ rather than from `apply` for two
+ * reasons: the settings service refuses a write until this plugin's fiber is
+ * ACTIVE, and a route handler only ever runs once it is; and the read that
+ * triggers it is the browser half's own first `load()`, so the very response
+ * that carries the adopted section also carries the `migrated` notice.
+ * @param settings - the mounted settings service.
+ * @param namespace - the entry-keyed namespace to write.
+ * @param home - harness home override (tests); production resolves the env.
+ */
+function createMigrationGate(
+  settings: BackgroundSettingsService,
+  namespace: string,
+  home?: string,
+): () => Promise<{ from: string } | undefined> {
+  let attempted = false
+  return async () => {
+    if (attempted) return undefined
+    attempted = true
+    try {
+      const outcome = await ensureLegacyMigration(settings, namespace, home ?? resolveHarnessHome())
+      return outcome.kind === 'migrated' ? { from: outcome.from } : undefined
+    } catch (error) {
+      // A failed migration must never take the settings route down: the
+      // section simply reads as its defaults.
+      console.error('[deepseek-harness-background] legacy settings migration failed:', error)
+      return undefined
+    }
+  }
+}
+
 /** One background API route family over the settings provider + home. */
 export function makeBackgroundRoutes(
   settings: BackgroundSettingsService,
@@ -389,6 +424,7 @@ export function makeBackgroundRoutes(
 ): WebRoute[] {
   const namespace = opts.namespace ?? BACKGROUND_SETTINGS_NAMESPACE
   const readSection = (): BackgroundSettings => readBackgroundSection(settings, namespace)
+  const migrate = createMigrationGate(settings, namespace, opts.home)
 
   return [
     {
@@ -400,7 +436,10 @@ export function makeBackgroundRoutes(
           return
         }
         if (req.method === 'GET') {
-          json(res, 200, { ok: true, value: readSection() })
+          // The pre-0.1.7 section is adopted before the first answer, so the
+          // client paints the recovered background instead of a blank frame.
+          const migrated = await migrate()
+          json(res, 200, { ok: true, value: readSection(), ...(migrated === undefined ? {} : { migrated }) })
           return
         }
         if (req.method === 'POST') {

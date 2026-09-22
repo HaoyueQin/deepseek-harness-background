@@ -186,6 +186,9 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   const [uploading, setUploading] = useState(false)
   const [urlText, setUrlText] = useState('')
   const [error, setError] = useState('')
+  // The host reports the adopted pre-0.1.7 section on the read that migrated
+  // it; the notice is one-shot and the user closes it.
+  const [noticeDismissed, setNoticeDismissed] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   // The latest draft, read by every handler (never a stale closure).
@@ -381,6 +384,16 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
         </div>
         <div className={css.desc}>{t('background.description')}</div>
       </div>
+
+      {/* One-shot notice: the host adopted a section written by dsh <= 0.1.6. */}
+      {snapshot.migrated !== undefined && !noticeDismissed && (
+        <div className={css.notice} role="status">
+          <span className={css.noticeText}>{t('background.migratedNotice')}</span>
+          <button type="button" className={css.noticeBtn} onClick={() => setNoticeDismissed(true)}>
+            {t('background.migratedDismiss')}
+          </button>
+        </div>
+      )}
 
       {/* Live preview surface: image + theme-aware scrim + frosted glass bubble. */}
       <div className={css.preview} ref={previewRef}>

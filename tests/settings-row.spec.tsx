@@ -66,6 +66,25 @@ function byLocalAny(local: string): HTMLElement | null {
   return document.querySelector(`[class*="${local}"]`)
 }
 
+describe('BackgroundSettingsRow legacy migration notice', () => {
+  it('announces a recovered pre-0.1.7 section and lets the user dismiss it', async () => {
+    ;(settingsClient as unknown as { snapshot: unknown }).snapshot = {
+      status: 'ready', value: { ...persisted }, migrated: { from: 'settings.yaml.imported' },
+    }
+    const view = renderRow()
+    await screen.findByText('background.migratedNotice')
+    fireEvent.click(screen.getByText('background.migratedDismiss'))
+    expect(screen.queryByText('background.migratedNotice')).toBeNull()
+    view.unmount()
+  })
+
+  it('says nothing on an ordinary load', async () => {
+    renderRow()
+    await screen.findByText('background.title')
+    expect(screen.queryByText('background.migratedNotice')).toBeNull()
+  })
+})
+
 describe('BackgroundSettingsRow', () => {
   it('shows the fixed enhancement copy (supported dsh >= 0.1.2-rc.1)', async () => {
     // The official frame-style rail is always present on the supported dsh

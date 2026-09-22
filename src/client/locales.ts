@@ -33,6 +33,8 @@ export const zh: BackgroundCardDict = {
   'background.saveFailed': '保存失败，请重试',
   'background.timelineEnhance': '会话时间线增强',
   'background.timelineEnhanceNarrowHint': '为官方会话时间线的已加载轮次补上平滑跳转',
+  'background.migratedNotice': '已从旧版 dsh 的设置中恢复你的背景设置',
+  'background.migratedDismiss': '知道了',
 }
 
 /** English copy. */
@@ -63,4 +65,6 @@ export const en: BackgroundCardDict = {
   'background.saveFailed': 'Save failed, try again',
   'background.timelineEnhance': 'Conversation timeline enhancement',
   'background.timelineEnhanceNarrowHint': 'Adds smooth jumps for the rail\'s loaded turns',
+  'background.migratedNotice': 'Restored your background settings from the previous dsh version',
+  'background.migratedDismiss': 'Got it',
 }

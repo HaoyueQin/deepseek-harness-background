@@ -8,7 +8,7 @@
  * real harness home.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
@@ -168,7 +168,9 @@ function settingsMock(initial: Record<string, Record<string, unknown>> = {}) {
   for (const [ns, section] of Object.entries(initial)) store.set(ns, { ...section })
   return {
     get(ns: string) { return store.get(ns) },
-    describe() { return [...store].map(([ns, value]) => ({ ns, value })) },
+    // The real provider reports the raw USER layer as `user` whenever the
+    // document holds a section — the migration gate reads exactly that.
+    describe() { return [...store].map(([ns, value]) => ({ ns, value, user: value })) },
     async update(ns: string, patch: Record<string, unknown>) {
       const current = store.get(ns) ?? {}
       store.set(ns, { ...current, ...patch })
@@ -297,6 +299,54 @@ async function getSettingsBody(base: string): Promise<Record<string, unknown>> {
   expect(res.status).toBe(200)
   return await res.json() as Record<string, unknown>
 }
+
+/** The document dsh <= 0.1.6 wrote, as dsh 0.1.7 renamed it away. */
+const LEGACY_SETTINGS_DOCUMENT = [
+  'ui-background:',
+  '  enabled: true',
+  '  uploadId: up-468ddc69ecb171facd87c60e',
+  '  url: ""',
+  '  opacity: 0.2',
+  '  scrim: 0.05',
+  '  panelOpacity: 0.4',
+  '  blur: 4',
+  '  wallpaperBlur: 0',
+  '  fit: cover',
+  '  timeline: true',
+  '',
+].join('\n')
+
+describe('legacy settings migration on the first read', () => {
+  const ENTRY = 'deepseek-harness-background'
+
+  it('adopts the renamed pre-0.1.7 section and reports where it came from', async () => {
+    await withServer(async (base, home) => {
+      writeFileSync(joinPath(home, 'settings.yaml.imported'), LEGACY_SETTINGS_DOCUMENT, 'utf8')
+
+      const first = await getSettingsBody(base)
+      expect(first.migrated).toEqual({ from: 'settings.yaml.imported' })
+      expect(first.value).toMatchObject({
+        enabled: true, uploadId: 'up-468ddc69ecb171facd87c60e', opacity: 0.2, blur: 4,
+      })
+
+      // One-shot: the marker is written, so a later read reports no migration
+      // and the adopted section still stands.
+      const second = await getSettingsBody(base)
+      expect(second.migrated).toBeUndefined()
+      expect(second.value).toMatchObject({ enabled: true, opacity: 0.2 })
+      expect(existsSync(joinPath(home, 'deepseek-harness-background', '.migrated-from-legacy-settings'))).toBe(true)
+    }, undefined, ENTRY)
+  })
+
+  it('never overwrites a section the entry already carries', async () => {
+    await withServer(async (base, home) => {
+      writeFileSync(joinPath(home, 'settings.yaml.imported'), LEGACY_SETTINGS_DOCUMENT, 'utf8')
+      const body = await getSettingsBody(base)
+      expect(body.migrated).toBeUndefined()
+      expect(body.value).toMatchObject({ opacity: 0.9 })
+    }, { [ENTRY]: { enabled: false, uploadId: '', url: '', opacity: 0.9 } }, ENTRY)
+  })
+})
 
 describe('upload pruning (swap / clear deletes the superseded file)', () => {
   it('deletes the replaced upload when the section switches to a new image', async () => {

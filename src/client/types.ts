@@ -99,6 +99,8 @@ export type BackgroundCardLocaleKey =
   | 'background.saveFailed'
   | 'background.timelineEnhance'
   | 'background.timelineEnhanceNarrowHint'
+  | 'background.migratedNotice'
+  | 'background.migratedDismiss'
 
 /** Cordis Context merges: the services this plugin injects. */
 declare module '@deepseek-ai/cordis' {

@@ -51,6 +51,41 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+/* One-shot migration notice: an informational strip above the preview, on the
+   same surface tokens as the surrounding settings chrome. */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.noticeText {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.noticeBtn {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.noticeBtn:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
 /* ── Live preview surface ───────────────────────────────────────────────────
    Renders the current background + effects inside the panel: the image, the
    theme-aware scrim, and a frosted "glass" bubble that blurs what sits under

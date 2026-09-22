@@ -14,6 +14,13 @@ import { BACKGROUND_API_PREFIX } from '../settings.ts'
 export interface SettingsSnapshot {
   status: 'loading' | 'ready' | 'error'
   value?: BackgroundSettings
+  /**
+   * Set by the host on the one read that adopted a pre-0.1.7 section (dsh
+   * 0.1.7 renamed `settings.yaml` away and skipped the plugin's namespace, so
+   * the host pulls it back into the entry-keyed document on first read). The
+   * row turns it into a one-time notice; a later boot no longer reports it.
+   */
+  migrated?: { from: string }
 }
 
 type Listener = () => void
@@ -58,9 +65,17 @@ export class SettingsClient {
     try {
       const response = await fetch(`${BACKGROUND_API_PREFIX}/settings`)
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const body = await response.json() as { ok: boolean; value?: BackgroundSettings }
+      const body = await response.json() as {
+        ok: boolean
+        value?: BackgroundSettings
+        migrated?: { from: string }
+      }
       if (!body.ok || body.value === undefined) throw new Error('unexpected payload')
-      this.snapshot = { status: 'ready', value: body.value }
+      this.snapshot = {
+        status: 'ready',
+        value: body.value,
+        ...(body.migrated === undefined ? {} : { migrated: body.migrated }),
+      }
     } catch {
       this.snapshot = { status: 'error' }
     }
@@ -89,7 +104,13 @@ export class SettingsClient {
         // Discard the response of a superseded save — it reflects an older
         // document that must not overwrite the latest one.
         if (seq !== this.saveSeq) return 'superseded'
-        this.snapshot = { status: 'ready', value: body.value }
+        // A save is not a reload: carry the migration notice the load adopted
+        // so it survives the user's first interaction instead of blinking out.
+        this.snapshot = {
+          status: 'ready',
+          value: body.value,
+          ...(this.snapshot.migrated === undefined ? {} : { migrated: this.snapshot.migrated }),
+        }
         this.notify()
         return 'ok'
       } catch {

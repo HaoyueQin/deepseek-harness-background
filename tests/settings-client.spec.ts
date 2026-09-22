@@ -25,6 +25,25 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('SettingsClient.load', () => {
+  it('adopts the one-shot migration notice the host reports', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(jsonResponse({
+      ok: true, value: SECTION_A, migrated: { from: 'settings.yaml.imported' },
+    }))))
+    const client = new SettingsClient()
+    await client.load()
+    expect(client.getSnapshot().migrated).toEqual({ from: 'settings.yaml.imported' })
+    expect(client.getSnapshot().value).toEqual(SECTION_A)
+  })
+
+  it('carries no notice on an ordinary load', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(jsonResponse({ ok: true, value: SECTION_A }))))
+    const client = new SettingsClient()
+    await client.load()
+    expect(client.getSnapshot().migrated).toBeUndefined()
+  })
+})
+
 describe('SettingsClient.save', () => {
   it("answers 'superseded' for an older save resolving after a newer one, keeping the newer snapshot", async () => {
     let releaseOlder!: (response: Response) => void
