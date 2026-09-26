@@ -12,6 +12,7 @@ import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { apply, inject } from '../src/client/index.ts'
 import { paintBackgroundKnob, paintPreviewSurface } from '../src/client/backdrop.ts'
 import { settingsClient } from '../src/client/settings-client.ts'
+import { GLASS_ANCHORS } from './glass-anchors.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
 
 const SECTION: BackgroundSettings = {
@@ -309,11 +310,14 @@ describe('deepseek-harness-background apply', () => {
     expect(cssText).toContain('[data-composer-card] [class*="_add"]')
     expect(cssText).toContain('_toBottom')
     expect(cssText).toContain('data-dsh-bg-glass')
-    // Substring-collision exclusions: the new-session button's inner label
-    // span and the zero-height toBottom sticky slot share the suffix but must
-    // keep their own paints (a glassed slot paints a full-width shadow band,
-    // a glassed label doubles the button fill).
-    expect(cssText).toContain('[class*="_newSession"]:not([class*="Label"])')
+    // The new-session anchor is an ELEMENT test on the button, not another
+    // suffix exclusion: 0.1.7-rc.2 nested `newSessionLabelMask` /
+    // `newSessionContent` / `newSessionShortcut` inside the control, and the
+    // old `:not([class*="Label"])` form left a composer-sized second box on
+    // `…Content` (plus a third appearing on hover). glass-anchors.spec.ts
+    // asserts the match SET against the real host markup; the sweep below
+    // only fails when an anchor disappears outright.
+    expect(cssText).not.toContain(':not([class*="Label"])')
     expect(cssText).toContain('[class*="_toBottom"]:not([class*="Slot"])')
     // Unified recipe: chrome buttons + popover fill from the composer token,
     // badge keeps its hue via color-mix on the shared alpha var, and NO
@@ -339,6 +343,13 @@ describe('deepseek-harness-background apply', () => {
     // the build badge gains the blur chain under the glass gate.
     expect(cssText).toContain('[class*="_older"] button')
     expect(cssText).toContain('body[data-dsh-bg-glass] [class*="_buildVersion"]')
+    // 0.1.7 turn deliverables (changed-files card + its diff hover preview),
+    // the re-anchored turn rail, the New Session element test, and the
+    // markdown-inline-code compound — all compared against the canonical
+    // selector list glass-anchors.spec.ts evaluates against the host markup.
+    for (const { name, selector } of GLASS_ANCHORS) {
+      expect(cssText, name).toContain(selector)
+    }
     // Empty-state hero glow no longer exists upstream (its rule is gone too).
     expect(cssText).not.toContain('_heroGlow')
     // Rollback: no blanket anchors for menus/dialogs/panels/cards/toasts/

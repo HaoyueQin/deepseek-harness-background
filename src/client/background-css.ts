@@ -34,8 +34,9 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * button, scroll-to-bottom), the load-earlier history button, the composer
  * dock family (agent task strips: TodoPanel / GoalBar / QueueDock) and its
  * takeover panels (approval, question, plan review), the subagent lineage
- * popover, the home hero "preview" badge, the sidebar build badge, and the
- * timeline rail (the official-rail rules below).
+ * popover, the home hero "preview" badge, the sidebar build badge, the turn
+ * deliverables (the changed-files card and the diff hover preview it opens),
+ * and the timeline rail (the official-rail rules below).
  * Every glassed surface shares ONE recipe:
  * fill from the painter's --dsw-specific-input-major token (same alpha
  * curve + theme dimming), the full shared blur/saturate/brightness chain
@@ -43,10 +44,14 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * surface reads heavier than the composer card. Dialogs, the settings UI,
  * menus, tooltips, toasts and every hover/accent fill keep the OFFICIAL
  * opaque paints — they are reading surfaces and must stay legible.
+ * The same rule excludes the HoverCard primitive's compact pod (a fixed
+ * #2C2C2E chip): it is hover FEEDBACK, not a floating card, and the official
+ * opaque paint is what keeps its label legible over any wallpaper.
  *
  * Selectors target authored attributes (`data-dsh-bg`, `data-composer-card`,
- * `data-terminal`…), the `:global` `.md-code-block` anchor, and CSS-module
- * SUFFIX conventions (`_bubble`, `_newSession`…) audited for collisions.
+ * `data-terminal`, `data-changes-hover-preview`…), the `:global`
+ * `.md-code-block` anchor, and CSS-module SUFFIX conventions (`_bubble`,
+ * `_newSession`…) audited for collisions.
  *
  * MAINTENANCE NOTE: the suffix anchors are the host's only stable-enough
  * integration surface today, but a host restyle that renames them silently
@@ -55,11 +60,14 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * suffix entries.
  * `_bubble` excludes `role="tooltip"` (Tooltip.module.css shares the suffix),
  * `_add` is scoped under `[data-composer-card]` (DiffBlock line markers share
- * it), `_newSession` excludes `Label` (the button's inner label span) and
- * `_toBottom` excludes `Slot` (the zero-height sticky wrapper) — both share
- * the substring with the chrome control but must keep their own paint, and
- * the subagent popover is `role="tree"` + `_menu` so the generic menu
- * surface stays untouched.
+ * it), `_newSession` is scoped to the `button` element — an element test, not
+ * another suffix exclusion, because 0.1.7-rc.2 added `newSessionLabelMask` /
+ * `newSessionContent` / `newSessionShortcut` INSIDE the button and each of
+ * those spans would otherwise take the chrome paint (the composer-sized
+ * second box the user sees inside the control) — and `_toBottom` excludes
+ * `Slot` (the zero-height sticky wrapper) — both share the substring with the
+ * chrome control but must keep their own paint, and the subagent popover is
+ * `role="tree"` + `_menu` so the generic menu surface stays untouched.
  */
 export const BACKGROUND_CSS = `
   .dsh-bg-layer {
@@ -113,7 +121,7 @@ export const BACKGROUND_CSS = `
   body[data-dsh-bg-glass] [data-web],
   body[data-dsh-bg-glass] [class*="_ioCard"],
   body[data-dsh-bg-glass] [class*="_instructionsCard"],
-  body[data-dsh-bg-glass] [class*="_markdown"] :not(pre) > code {
+  body[data-dsh-bg-glass] [class*="_markdown"]:not(pre) > code {
     background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
@@ -150,7 +158,7 @@ export const BACKGROUND_CSS = `
      caps), sheen = the shared sheen vars. Hover = the same white glass at the
      boosted alpha var. Gated on data-dsh-bg-glass (off when the panel is
      fully opaque). */
-  body[data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]),
+  body[data-dsh-bg-glass] button[class*="_newSession"],
   body[data-dsh-bg-glass] [data-composer-card] [class*="_add"],
   body[data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]) {
     background-color: var(--dsw-specific-input-major);
@@ -162,15 +170,15 @@ export const BACKGROUND_CSS = `
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
       0 4px 14px rgba(0, 0, 0, 0.08);
   }
-  body[data-dsh-bg-glass] [class*="_newSession"]:not([class*="Label"]):hover,
+  body[data-dsh-bg-glass] button[class*="_newSession"]:hover,
   body[data-dsh-bg-glass] [data-composer-card] [class*="_add"]:hover:not(:disabled),
   body[data-dsh-bg-glass] [class*="_toBottom"]:not([class*="Slot"]):hover {
     background-color: color-mix(in srgb, rgb(255 255 255) calc(var(--bg-glass-alpha-strong, 0.8) * 100%), transparent);
   }
   /* Collapsed rail renders the new-session control as a bare icon — keep the
      official transparent paint (and its official translucent hover). */
-  body[data-dsh-bg-glass] [class*="_collapsed"] [class*="_newSession"],
-  body[data-dsh-bg-glass] [class*="_collapsed"] [class*="_newSession"]:hover {
+  body[data-dsh-bg-glass] [data-sidebar-collapsed="true"] [class*="_newSession"],
+  body[data-dsh-bg-glass] [data-sidebar-collapsed="true"] [class*="_newSession"]:hover {
     background-color: transparent;
     background-image: none;
     box-shadow: none;
@@ -250,19 +258,46 @@ export const BACKGROUND_CSS = `
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
 
+  /* ---- Turn deliverables: the changed-files card + its hover preview -----
+     Both paint with the official opaque --dsw-alias-bg-layer-1 (the token the
+     painter deliberately keeps opaque, because it backs the settings UI,
+     dialogs and menus), so each needs an EXPLICIT fill on top of the shared
+     sheen/blur chain — the token-mediated rule above cannot reach them.
+     [data-changed-files] is the card a turn tail renders; its header and
+     rows carry their own fills, so the card surface alone is glassed and the
+     contents keep their official paints. [data-changes-hover-preview] is
+     the fixed HoverCard the changed-files rows open on hover and the shared
+     component behind every diff preview; its width/height are set by the
+     hover-card primitive, so this only supplies the material. The preview's
+     official elevation shadow rides its own token untouched — only the fill
+     and the filter chain are taken over here. */
+  body[data-dsh-bg-glass] [data-changed-files],
+  body[data-dsh-bg-glass] [data-changes-hover-preview] {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    box-shadow: var(--dsw-elevation-panel, 0 4px 14px rgba(0, 0, 0, 0.08));
+  }
+
   /* ---- Official turn rail (dsh >= 0.1.2, TurnNavigator) -----------------
      The enhance mode borrows the kernel's rail untouched, so its hover
      preview card keeps the OFFICIAL opaque fill (bg-layer-1, not mediated
      by any overridden token) — the "悬浮反馈形态不透明" complaint. Glass it
      explicitly with the same explicit-fill recipe as the chrome buttons
-     (fill = the painter's composer token + shared blur/sheen). Anchors are
-     structural, never class names: the kernel's module-CSS class hashes are
-     not a stable contract, but nav[style*="--turn-natural-height"] (its
-     inline rail metrics) and the preview's role="tooltip" are. No edge
+     (fill = the painter's composer token + shared blur/sheen). The anchor is
+     the rail's SEAT, the same one timeline/official-enhance.tsx identifies it
+     by: the only nav inside the conversation scrollport. 0.1.7 virtualized
+     the rail (commit f89cd786aa), which deleted the turn-natural-height
+     inline metric that used to sit on that nav — the nav carries no style
+     attribute at all now — so the selector that keyed on it matched nothing
+     and the preview went bare. The scrollport attribute and the preview's
+     preview went bare. The scrollport attribute and the preview's
+     role="tooltip" are the structural hooks; class hashes never are. No edge
      dissolve on the marks column: the first and last tick dashes straddle
      the marks box edges by 1px, so a fade zone sized off the box height
      swallows them instead of the band. */
-  body[data-dsh-bg-glass] nav[style*="--turn-natural-height"] [role="tooltip"] {
+  body[data-dsh-bg-glass] [data-conversation-scroll] nav [role="tooltip"] {
     background-color: var(--dsw-specific-input-major);
     background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
