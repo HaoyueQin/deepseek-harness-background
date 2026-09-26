@@ -292,7 +292,6 @@ export const BACKGROUND_CSS = `
      inline metric that used to sit on that nav — the nav carries no style
      attribute at all now — so the selector that keyed on it matched nothing
      and the preview went bare. The scrollport attribute and the preview's
-     preview went bare. The scrollport attribute and the preview's
      role="tooltip" are the structural hooks; class hashes never are. No edge
      dissolve on the marks column: the first and last tick dashes straddle
      the marks box edges by 1px, so a fade zone sized off the box height
