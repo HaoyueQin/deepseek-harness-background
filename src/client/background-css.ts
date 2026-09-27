@@ -123,7 +123,6 @@ export const BACKGROUND_CSS = `
      light glass slightly DIMS, dark glass keeps a slight lift. Gated on the
      GLASS ATTR (wallpaper active AND panelOpacity < 1): maxing the panel
      slider returns these surfaces to the exact official paints. */
-  body[data-dsh-bg-glass] [data-composer-card],
   body[data-dsh-bg-glass] [class*="_bubble"]:not([role="tooltip"]),
   /* The read_image toolview (dsh >= 0.1.2-rc.1 ToolRow) collapses its result
      into an image body card; glass it like the other content blocks. */
@@ -145,6 +144,37 @@ export const BACKGROUND_CSS = `
       inset 0 -1px 0 rgba(255, 255, 255, 0.08),
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
       0 12px 40px rgba(0, 0, 0, 0.12);
+  }
+
+  /* ---- Composer card: the filter rides a pseudo-element ------------------
+     Chromium makes every element that carries a backdrop-filter a Backdrop
+     Root, and a filter inside one can only sample what that element itself
+     paints. The composer hosts the picker menu as an absolutely positioned
+     child ([data-composer-card] > … conversation.input.overlay), so with the
+     filter on the card itself that menu sampled the card's own paint only and
+     read as flat transparency over the wallpaper. Moving the filter to a
+     positioned ::before breaks the root — the pseudo-element is not an
+     ancestor of the menu, so the menu blurs the wallpaper again. The card
+     keeps its own frost (the ::before supplies it) and needs no layout change:
+     ui-conversation already declares it position: relative as the overlay
+     anchor context. */
+  body[data-dsh-bg-glass] [data-composer-card] {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+      0 12px 40px rgba(0, 0, 0, 0.12);
+  }
+  body[data-dsh-bg-glass] [data-composer-card]::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
 
   /* The sticky code-block header officially occludes scrolled code with
@@ -293,6 +323,35 @@ export const BACKGROUND_CSS = `
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     box-shadow: var(--dsw-elevation-panel, 0 4px 14px rgba(0, 0, 0, 0.08));
+  }
+
+  /* The card's header paints the official opaque fill (--changes-fill is a
+     static neutral), so the glass card underneath never shows through: hand
+     that one surface back to the card by clearing its fill, and give the
+     header's own hover/focus feedback the translucent interactive token the
+     card's rows already use. */
+  body[data-dsh-bg-glass] [data-changed-files] > :first-child {
+    background-color: transparent;
+  }
+  body[data-dsh-bg-glass] [data-changed-files] > :first-child:hover:not(:disabled),
+  body[data-dsh-bg-glass] [data-changed-files] > :first-child:focus-visible {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  /* ---- Docked stat dialogs (turn time, session stats, token usage) -------
+     These portal to document.body, so unlike the picker menu above they do
+     reach the wallpaper; their official menu skin is a 40px blur under a flat
+     58% fill, which on a soft wallpaper still reads as plain transparency. The
+     official fill and its readable contrast stay, and the shared sheen +
+     exposure chain joins them to the same glass family as every other panel —
+     including the user's blur slider (--bg-glass-blur). Anchors are the
+     panels' own detail lists: class hashes are never structural hooks. */
+  body[data-dsh-bg-glass] [role="dialog"]:has([data-turn-usage-details]),
+  body[data-dsh-bg-glass] [role="dialog"]:has([data-session-stats-details]),
+  body[data-dsh-bg-glass] [role="dialog"]:has([data-session-stats-usage]) {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
 
   /* ---- Official turn rail (dsh >= 0.1.2, TurnNavigator) -----------------

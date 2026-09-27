@@ -27,6 +27,9 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { BACKGROUND_CSS } from '../src/client/background-css.ts'
+import {
+  CHANGED_FILES_HEADER, CHANGED_FILES_HEADER_HOVER, COMPOSER_CARD, COMPOSER_CARD_FILTER, STAT_DIALOGS,
+} from './glass-anchors.ts'
 
 /** One parsed rule: its comma-separated selector parts and its body. */
 interface ParsedRule {
@@ -149,13 +152,36 @@ function mountFixture(): void {
       <div class="siJF9W_markdown"><code>inline</code></div>
     </div>
 
-    <!-- turn deliverables: the changed-files card, and the HoverCard pod the
-         diff preview opens inside it -->
+    <!-- turn deliverables: the changed-files card (header + rows), and the
+         HoverCard pod the diff preview opens inside it -->
     <div class="hz8-rW_card" data-changed-files="">
       <div class="hz8-rW_header"></div>
+      <ul class="hz8-rW_list">
+        <li><button type="button" class="hz8-rW_row">a.ts</button></li>
+      </ul>
     </div>
     <div class="${HOVER_PREVIEW}" data-changes-hover-preview="">
       <div data-diff=""></div>
+    </div>
+
+    <!-- composer: the card, and the picker menu ui-conversation renders INSIDE
+         it (conversation.input.overlay) — the menu is the reason the card's
+         filter lives on a pseudo-element instead of the card -->
+    <div class="Nn4vBq_card" data-composer-card="">
+      <div class="Nn4vBq_overlayAnchor">
+        <div class="Js2fFb_menu" role="listbox" id="picker-menu">
+          <button type="button" role="option">添加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- composer dock: the three portaled stat dialogs, plus an ordinary
+         dialog that carries a plain <dl> and must stay on its official skin -->
+    <div role="dialog" id="turn-usage-dialog" class="kT3vQc_panel"><dl data-turn-usage-details=""></dl></div>
+    <div role="dialog" id="session-stats-dialog" class="kT3vQc_panel"><dl data-session-stats-details=""></dl></div>
+    <div role="dialog" id="session-usage-dialog" class="kT3vQc_panel"><dl data-session-stats-usage=""></dl></div>
+    <div role="dialog" id="settings-dialog" class="nArs4W_dialog">
+      <dl><dt>主题</dt><dd>深色</dd></dl>
     </div>
 
     <!-- reading surfaces that must NOT be glassed -->
@@ -251,6 +277,66 @@ describe('turn deliverables and the rail', () => {
     // The bubble anchor deliberately excludes role="tooltip" wholesale.
     const bubble = 'body[data-dsh-bg-glass] [class*="_bubble"]:not([role="tooltip"])'
     expect(matchSelector(bubble)).toEqual([])
+  })
+})
+
+describe('composer card backdrop root', () => {
+  it('keeps the filter on the pseudo-element, never on the card itself', () => {
+    mountFixture()
+    // A filter on the card made it a Backdrop Root: the picker menu it hosts
+    // could then sample the card's own paint only, and rendered as flat
+    // transparency over the wallpaper instead of frosted glass.
+    expect(ruleForSelector(COMPOSER_CARD).body).not.toContain('backdrop-filter')
+    const filter = ruleForSelector(COMPOSER_CARD_FILTER).body
+    expect(filter).toContain('backdrop-filter')
+    expect(filter).toContain('position: absolute')
+    expect(filter).toContain('z-index: -1')
+    // The pseudo-element inherits the card's rounding so it covers it exactly.
+    expect(filter).toContain('border-radius: inherit')
+  })
+
+  it('leaves the picker menu the card hosts on its official skin', () => {
+    mountFixture()
+    const menu = document.getElementById('picker-menu')!
+    for (const selector of parseRules(BACKGROUND_CSS).flatMap(rule => rule.selectors)) {
+      // Any hit here is a blanket rule creeping back in: the menu keeps the
+      // official material and now blurs the wallpaper on its own.
+      expect(menu.matches(selector), selector).toBe(false)
+    }
+  })
+})
+
+describe('changed-files glass card', () => {
+  it('clears the header fill and leaves the rows alone', () => {
+    mountFixture()
+    const hits = matchSelector(CHANGED_FILES_HEADER)
+    expect(hits).toHaveLength(1)
+    expect(hits[0]!.className).toBe('hz8-rW_header')
+    // The official fill is the opaque --changes-fill static neutral; clearing
+    // it is what lets the glass card surface show through.
+    expect(ruleForSelector(CHANGED_FILES_HEADER).body).toContain('background-color: transparent')
+    // The header's own hover feedback moves to the rows' translucent token.
+    expect(ruleForSelector(CHANGED_FILES_HEADER_HOVER).body)
+      .toContain('var(--dsw-alias-interactive-bg-hover)')
+  })
+})
+
+describe('docked stat dialogs', () => {
+  it('glasses exactly the stat panels, never an ordinary dialog', () => {
+    mountFixture()
+    const ids: Record<string, string> = {
+      'turn usage dialog': 'turn-usage-dialog',
+      'session stats dialog': 'session-stats-dialog',
+      'session token usage dialog': 'session-usage-dialog',
+    }
+    for (const { name, selector } of STAT_DIALOGS) {
+      expect(matchSelector(selector).map(element => element.id), name).toEqual([ids[name]])
+      expect(ruleForSelector(selector).body, name).toContain('backdrop-filter')
+    }
+    // The anchor is the panel's own detail list, so a dialog that carries a
+    // plain <dl> (the settings shell) stays on the official menu skin.
+    const settings = document.getElementById('settings-dialog')!
+    for (const { name, selector } of STAT_DIALOGS) expect(settings.matches(selector), name).toBe(false)
   })
 })
 

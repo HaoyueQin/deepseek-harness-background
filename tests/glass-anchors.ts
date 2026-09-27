@@ -34,6 +34,55 @@ export const MARKDOWN_INLINE_CODE = `${GATE} [class*="_markdown"]:not(pre) > cod
 /** The changed-files card a turn tail renders. */
 export const CHANGED_FILES = `${GATE} [data-changed-files]`
 
+/**
+ * The changed-files card's header row.
+ *
+ * Its official fill is the opaque `--changes-fill` static neutral, which hid
+ * the glass card behind it; clearing that one fill hands the surface back to
+ * the card. The child step is what keeps the rows (transparent already, and
+ * hoverable on their own) out of the rule.
+ */
+export const CHANGED_FILES_HEADER = `${GATE} [data-changed-files] > :first-child`
+
+/** The header's own hover/focus feedback, on the rows' translucent token. */
+export const CHANGED_FILES_HEADER_HOVER = `${CHANGED_FILES_HEADER}:hover:not(:disabled)`
+
+/**
+ * The composer card.
+ *
+ * It carries the fill and the sheen, deliberately NOT the filter: Chromium
+ * makes any element with a backdrop-filter a Backdrop Root, and the picker menu
+ * this card hosts is an absolutely positioned CHILD (ui-conversation renders
+ * `conversation.input.overlay` inside `[data-composer-card]`), so inside that
+ * root the menu could sample the card's own paint only and read as flat
+ * transparency over the wallpaper.
+ */
+export const COMPOSER_CARD = `${GATE} [data-composer-card]`
+
+/**
+ * The pseudo-element that carries the composer card's filter instead.
+ *
+ * It is not an ancestor of the hosted menu, so the menu keeps its own wallpaper
+ * backdrop and blurs the wallpaper again. Verified in Chromium: the menu's
+ * backdrop goes from crisp to blurred, with the card's own frost unchanged.
+ */
+export const COMPOSER_CARD_FILTER = `${COMPOSER_CARD}::before`
+
+/**
+ * The portaled stat dialogs (turn time, session stats, token usage).
+ *
+ * They reach `document.body`, so unlike the picker menu they do blur the
+ * wallpaper; the rule only adds the shared sheen and exposure chain, because
+ * the official 40px blur under a flat 58% fill still reads as plain
+ * transparency on a soft wallpaper. Each anchor is the panel's own detail list,
+ * so the `:has()` keeps this from being a blanket dialog rule.
+ */
+export const STAT_DIALOGS: readonly { readonly name: string, readonly selector: string }[] = [
+  { name: 'turn usage dialog', selector: `${GATE} [role="dialog"]:has([data-turn-usage-details])` },
+  { name: 'session stats dialog', selector: `${GATE} [role="dialog"]:has([data-session-stats-details])` },
+  { name: 'session token usage dialog', selector: `${GATE} [role="dialog"]:has([data-session-stats-usage])` },
+]
+
 /** The diff hover preview the changed-files rows open (HoverCard preview pod). */
 export const CHANGES_HOVER_PREVIEW = `${GATE} [data-changes-hover-preview]`
 
@@ -55,6 +104,10 @@ export const GLASS_ANCHORS: readonly { readonly name: string, readonly selector:
   { name: 'load earlier', selector: HISTORY_LOAD },
   { name: 'markdown inline code', selector: MARKDOWN_INLINE_CODE },
   { name: 'changed files card', selector: CHANGED_FILES },
+  { name: 'changed files header', selector: CHANGED_FILES_HEADER },
+  { name: 'composer card', selector: COMPOSER_CARD },
+  { name: 'composer card filter', selector: COMPOSER_CARD_FILTER },
+  ...STAT_DIALOGS.map(entry => ({ name: entry.name, selector: entry.selector })),
   { name: 'diff hover preview', selector: CHANGES_HOVER_PREVIEW },
   { name: 'turn rail preview', selector: TURN_RAIL_PREVIEW },
 ]
