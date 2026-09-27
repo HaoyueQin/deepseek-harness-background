@@ -92,6 +92,21 @@ export const BACKGROUND_CSS = `
   body[data-ds-dark-theme] .dsh-bg-scrim {
     background: rgba(0, 0, 0, var(--bg-scrim, 0.25));
   }
+  /* Desktop window drag (Electron on macOS): the shell marks a chrome row
+     \`data-window-drag\` and one rule subtracts every other body-level box
+     (\`html[data-platform='darwin'] body > :not(#root) { -webkit-app-region:
+     no-drag; }\`, ui-web base.css). Chromium collects app-region boxes by
+     geometry in DOM order and the LAST box containing a point decides, so
+     these two decorative layers — body children that follow #root — would
+     swallow the drag surface of the whole window (traffic-light strip,
+     conversation header, dock strip). They never take the pointer, so they
+     must not join the composition at all: a computed \`none\` is the one value
+     Chromium does not collect. The shell rule carries #root's id specificity,
+     so a plain declaration cannot outrank it — this needs \`!important\`. */
+  body > .dsh-bg-layer,
+  body > .dsh-bg-scrim {
+    -webkit-app-region: none !important;
+  }
 
   /* Active: make the app frame + sidebar background transparent so all columns
      share the same wallpaper + scrim backdrop. */

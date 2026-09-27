@@ -129,6 +129,33 @@ describe('deepseek-harness-background apply', () => {
     expect(cssText).toContain('rgba(0, 0, 0, var(--bg-scrim')
   })
 
+  it('keeps both wallpaper surfaces out of the desktop window-drag composition', async () => {
+    mockFetch()
+    await mount()
+    // Copied from the shell (ui-web base.css): Electron on macOS marks a chrome
+    // row `data-window-drag` and subtracts every other body-level box with
+    // `html[data-platform='darwin'] body > :not(#root) { -webkit-app-region:
+    // no-drag; }`. App-region boxes compose by geometry in DOM order and the
+    // LAST box containing a point decides, so a body-level layer that follows
+    // #root would swallow the whole window's drag surface (traffic-light strip,
+    // conversation header, dock strip). These two layers are the boxes that rule
+    // reaches, which is why they have to opt out of the composition themselves.
+    expect(layer()?.parentElement).toBe(document.body)
+    expect(scrim()?.parentElement).toBe(document.body)
+    // Opting out means a computed `none` — the one value Chromium does not
+    // collect — and it must be `!important`, because the shell selector carries
+    // #root's id specificity (1,2,2) against a class-level declaration.
+    // Derived from the shell's rule and its regions.ts composition; not yet
+    // exercised on a macOS desktop build (no macOS host in this workspace).
+    const cssText = document.querySelector('style[data-plugin-css="deepseek-harness-background/styles"]')?.textContent ?? ''
+    const optOuts = [...cssText.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .map(match => ({ selector: match[1] ?? '', body: match[2] ?? '' }))
+      .filter(entry => /-webkit-app-region:\s*none\s*!important/.test(entry.body))
+    for (const name of ['.dsh-bg-layer', '.dsh-bg-scrim']) {
+      expect(optOuts.some(entry => entry.selector.includes(name)), name).toBe(true)
+    }
+  })
+
   it('repaints the glass tokens when the theme flips (observer)', async () => {
     mockFetch()
     await mount()
