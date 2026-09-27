@@ -1,0 +1,8 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fixed palette: the shell hands manifest icons to an <img>, so currentColor
+       cannot inherit the theme; #4D6BFE stays legible on both card materials. -->
+  <title>Custom Background</title>
+  <rect x="2.5" y="6.5" width="31" height="23" rx="5.5" stroke="#4D6BFE" stroke-width="1.5" />
+  <circle cx="25.5" cy="13.5" r="2.25" fill="#4D6BFE" />
+  <path d="M5 25.5L12.5 18.5L16.8 22.8L21.5 18L31 25.5" stroke="#4D6BFE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
