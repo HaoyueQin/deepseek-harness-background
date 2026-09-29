@@ -25,6 +25,8 @@ const SECTION: BackgroundSettings = {
   blur: 16,
   wallpaperBlur: 0,
   fit: 'cover',
+  offsetX: 0.5,
+  offsetY: 0.5,
   timeline: true,
 }
 
@@ -106,6 +108,22 @@ describe('deepseek-harness-background apply', () => {
     expect(document.body.style.getPropertyValue('--bg-glass-blur')).toBe('16px')
     // The image opacity knob is written so the wallpaper fades with the slider.
     expect(document.body.style.getPropertyValue('--bg-opacity')).toBe('1')
+    // Framing defaults to centered on both axes.
+    expect(document.body.style.getPropertyValue('--bg-offset-x')).toBe('0.5')
+    expect(document.body.style.getPropertyValue('--bg-offset-y')).toBe('0.5')
+  })
+
+  it('writes and hot-updates the framing offsets', async () => {
+    mockFetch()
+    await mount()
+    // The pan hot path writes one variable, no full apply.
+    paintBackgroundKnob('offsetX', 0.25)
+    paintBackgroundKnob('offsetY', 0.8)
+    expect(document.body.style.getPropertyValue('--bg-offset-x')).toBe('0.25')
+    expect(document.body.style.getPropertyValue('--bg-offset-y')).toBe('0.8')
+    // The injected sheet maps them onto object-position.
+    const cssTag = document.querySelector('style[data-plugin-css="deepseek-harness-background/styles"]')
+    expect(cssTag?.textContent).toContain('object-position: calc(var(--bg-offset-x')
   })
 
   it('writes the image opacity knob onto body', async () => {

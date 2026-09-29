@@ -76,6 +76,11 @@ export const BACKGROUND_CSS = `
   .dsh-bg-layer .dsh-bg-image {
     width: 100%; height: 100%; display: block; border: 0; background: transparent;
     object-fit: var(--bg-object-fit, cover);
+    /* Normalized crop framing: percent object-position is the position of the
+       image inside its own overflow, so one stored 0..1 value holds for every
+       window size and every source. Both axes are always written; the axis
+       with no overflow simply ignores its value. */
+    object-position: calc(var(--bg-offset-x, 0.5) * 100%) calc(var(--bg-offset-y, 0.5) * 100%);
     opacity: var(--bg-opacity, 1);
     filter: blur(var(--bg-wallpaper-blur, 0px));
     /* Blur thins the edges; scale the image up to hide the fringe. */

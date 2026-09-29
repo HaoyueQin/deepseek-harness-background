@@ -65,6 +65,8 @@ describe('readLegacyBackgroundSection', () => {
       blur: 4,
       wallpaperBlur: 0,
       fit: 'cover',
+      offsetX: 0.5,
+      offsetY: 0.5,
       timeline: true,
     })
   })
@@ -118,6 +120,8 @@ describe('readLegacyBackgroundSection', () => {
       blur: 16,
       wallpaperBlur: 0,
       fit: 'cover',
+      offsetX: 0.5,
+      offsetY: 0.5,
       timeline: true,
     })
   })

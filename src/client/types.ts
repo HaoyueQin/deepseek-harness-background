@@ -94,6 +94,8 @@ export type BackgroundCardLocaleKey =
   | 'background.fit'
   | 'background.cover'
   | 'background.contain'
+  | 'background.previewPanHint'
+  | 'background.repositionReset'
   | 'background.clear'
   | 'background.uploadFailed'
   | 'background.saveFailed'

@@ -24,9 +24,10 @@ import { extname, join as joinPath } from 'node:path'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
   BACKGROUND_API_PREFIX, BACKGROUND_SETTINGS_FIELDS, BACKGROUND_SETTINGS_NAMESPACE,
-  BLUR_MAX, BLUR_MIN, DEFAULT_BLUR, DEFAULT_FIT,
+  BLUR_MAX, BLUR_MIN, DEFAULT_BLUR, DEFAULT_FIT, DEFAULT_OFFSET,
   DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_TIMELINE,
-  DEFAULT_WALLPAPER_BLUR, OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
+  DEFAULT_WALLPAPER_BLUR, OFFSET_MAX, OFFSET_MIN,
+  OPACITY_MAX, OPACITY_MIN, PANEL_OPACITY_MAX, PANEL_OPACITY_MIN,
   SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX,
   FIT_MODES, type BackgroundFit,
   type BackgroundSettings,
@@ -48,6 +49,8 @@ const DEFAULTS: BackgroundSettings = {
   blur: DEFAULT_BLUR,
   wallpaperBlur: DEFAULT_WALLPAPER_BLUR,
   fit: DEFAULT_FIT,
+  offsetX: DEFAULT_OFFSET,
+  offsetY: DEFAULT_OFFSET,
   timeline: DEFAULT_TIMELINE,
 }
 
@@ -109,6 +112,8 @@ const NUM_BOUNDS: Record<string, { min: number; max: number }> = {
   panelOpacity: { min: PANEL_OPACITY_MIN, max: PANEL_OPACITY_MAX },
   blur: { min: BLUR_MIN, max: BLUR_MAX },
   wallpaperBlur: { min: BLUR_MIN, max: WALLPAPER_BLUR_MAX },
+  offsetX: { min: OFFSET_MIN, max: OFFSET_MAX },
+  offsetY: { min: OFFSET_MIN, max: OFFSET_MAX },
 }
 
 /** Magic-byte signatures for the accepted formats (first bytes). */

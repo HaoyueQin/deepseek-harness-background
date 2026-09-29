@@ -23,6 +23,8 @@ const SECTION: BackgroundSettings = {
   blur: 16,
   wallpaperBlur: 0,
   fit: 'cover',
+  offsetX: 0.5,
+  offsetY: 0.5,
   timeline: true,
 }
 
@@ -306,5 +308,121 @@ describe('BackgroundSettingsRow', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+/**
+ * Preview framing (pan) contract: the card mirrors the live viewport ratio,
+ * and a `cover` crop with slack on one axis is pannable on that axis only.
+ * Drag writes the CSS variables live and commits once on release; arrow keys
+ * nudge; the chip and a double-click recenter. jsdom performs no layout, so
+ * the card box and the source's natural size are pinned.
+ */
+describe('BackgroundSettingsRow preview framing', () => {
+  const FRAME_W = 400
+  const FRAME_H = 300
+  let naturalW = 0
+  let naturalH = 0
+
+  beforeEach(() => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 })
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(FRAME_W)
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(FRAME_H)
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockImplementation(() => naturalW)
+    vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockImplementation(() => naturalH)
+    // Pointer capture is a no-op under jsdom (there is no active pointer).
+    Object.assign(Element.prototype, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: vi.fn(() => false),
+      releasePointerCapture: vi.fn(),
+    })
+    // Run the resize rAF callback synchronously.
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 1 })
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** The preview card: the first element whose hashed class carries "preview". */
+  function card(): HTMLElement {
+    return byLocalAny('preview') as HTMLElement
+  }
+
+  /** Fire the image load with a known natural size. */
+  function loadSource(w: number, h: number): void {
+    naturalW = w
+    naturalH = h
+    fireEvent.load(byLocalAny('previewImg') as HTMLImageElement)
+  }
+
+  it('pans the cover crop on its slack axis and commits once on release', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    renderRow()
+    await screen.findByText('background.opacity')
+    // Portrait source in a landscape card: cover fills the width, so the
+    // height overflows and the vertical axis is the pannable one.
+    loadSource(500, 1000)
+    await waitFor(() => { expect(card().getAttribute('data-pan')).toBe('y') })
+
+    fireEvent.pointerDown(card(), { pointerId: 1, clientX: 200, clientY: 100 })
+    fireEvent.pointerMove(card(), { pointerId: 1, clientX: 200, clientY: 50 })
+    // Live write only: a 50px drag over a 500px overflow moves the offset 0.1.
+    expect(document.body.style.getPropertyValue('--bg-offset-y')).toBe('0.6')
+    expect(card().style.getPropertyValue('--bg-offset-y')).toBe('0.6')
+    expect(persisted.offsetY).toBe(0.5)
+
+    fireEvent.pointerUp(card(), { pointerId: 1 })
+    await waitFor(() => { expect(persisted.offsetY).toBeCloseTo(0.6, 5) })
+    expect(settingsClient.save).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no pan under a contain fit', async () => {
+    persisted = { ...SECTION, fit: 'contain' }
+    await settingsClient.load()
+    renderRow()
+    await screen.findByText('background.opacity')
+    loadSource(500, 1000)
+    // Letterboxed: nothing overflows, so there is no pan affordance at all —
+    // not even a focusable card. The cover case above shows data-pan appears
+    // for the same source, so this is the fit gate, not a missing image.
+    await waitFor(() => { expect(byLocalAny('previewImg')).not.toBeNull() })
+    expect(card().getAttribute('data-pan')).toBeNull()
+    expect(card().getAttribute('tabindex')).toBeNull()
+  })
+
+  it('nudges with the arrow keys and recenters from the chip', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    renderRow()
+    await screen.findByText('background.opacity')
+    loadSource(500, 1000)
+    await waitFor(() => { expect(card().getAttribute('data-pan')).toBe('y') })
+    // The chip only exists once the crop has left center.
+    expect(byLocalAny('previewReset')).toBeNull()
+
+    fireEvent.keyDown(card(), { key: 'ArrowDown' })
+    await waitFor(() => { expect(persisted.offsetY).toBeCloseTo(0.52, 5) })
+    expect(byLocalAny('previewReset')).not.toBeNull()
+
+    fireEvent.click(byLocalAny('previewReset') as HTMLElement)
+    await waitFor(() => { expect(persisted.offsetY).toBe(0.5) })
+    expect(byLocalAny('previewReset')).toBeNull()
+  })
+
+  it('keeps the preview box on the live viewport ratio', async () => {
+    renderRow()
+    await screen.findByText('background.opacity')
+    // jsdom viewport 1024x768 (4:3) at a 400px frame → a 400x300 card.
+    await waitFor(() => { expect(card().style.height).toBe('300px') })
+    expect(card().style.width).toBe('400px')
+
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
+    fireEvent(window, new Event('resize'))
+    // 2:1 → a 400x200 card at the same width.
+    await waitFor(() => { expect(card().style.height).toBe('200px') })
+    expect(card().style.width).toBe('400px')
   })
 })

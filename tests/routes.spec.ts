@@ -621,6 +621,15 @@ describe('validateSectionBody field pre-checks', () => {
     expect(validateSectionBody({ fit: '' })).toBe('invalid-fit')
   })
 
+  it('rejects an out-of-range framing offset', () => {
+    // String coercion must not slip a value past the schema's 0..1 domain.
+    expect(validateSectionBody({ offsetX: '0.5' })).toBe('invalid-range')
+    expect(validateSectionBody({ offsetX: 1.01 })).toBe('invalid-range')
+    expect(validateSectionBody({ offsetY: -0.01 })).toBe('invalid-range')
+    expect(validateSectionBody({ offsetY: NaN })).toBe('invalid-range')
+    expect(validateSectionBody({ offsetX: 0, offsetY: 1 })).toBeNull()
+  })
+
   it('still accepts valid enabled/fit values', () => {
     expect(validateSectionBody({ enabled: true, fit: 'contain' })).toBeNull()
   })

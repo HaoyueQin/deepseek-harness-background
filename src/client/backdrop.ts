@@ -219,6 +219,12 @@ export class BackgroundPainter {
     // Push the knobs into CSS variables.
     const s = document.body.style
     this.setVar('--bg-object-fit', settings.fit)
+    // Framing: normalized percentages map to CSS `object-position`, whose
+    // percent semantics ("image p% aligns with container p%") are exactly the
+    // relative position inside the crop overflow — so the stored value needs
+    // no re-scaling when the window or the source changes.
+    this.setVar('--bg-offset-x', String(settings.offsetX))
+    this.setVar('--bg-offset-y', String(settings.offsetY))
     this.setVar('--bg-opacity', String(settings.opacity))
     this.setVar('--bg-wallpaper-blur', `${settings.wallpaperBlur}px`)
     this.setVar('--bg-wallpaper-scale', (1 + settings.wallpaperBlur * 0.006).toFixed(4))
@@ -267,7 +273,7 @@ export class BackgroundPainter {
    * @param key - the knob to update.
    * @param value - its new value in its canonical unit.
    */
-  setKnob(key: 'opacity' | 'scrim' | 'panelOpacity' | 'blur' | 'wallpaperBlur' | 'fit', value: number | BackgroundSettings['fit']): void {
+  setKnob(key: 'opacity' | 'scrim' | 'panelOpacity' | 'blur' | 'wallpaperBlur' | 'fit' | 'offsetX' | 'offsetY', value: number | BackgroundSettings['fit']): void {
     if (this.settings === undefined || !this.settings.enabled) return
     switch (key) {
       case 'opacity':
@@ -299,6 +305,12 @@ export class BackgroundPainter {
       }
       case 'fit':
         this.setVar('--bg-object-fit', String(value))
+        break
+      case 'offsetX':
+        this.setVar('--bg-offset-x', String(value))
+        break
+      case 'offsetY':
+        this.setVar('--bg-offset-y', String(value))
         break
     }
   }
@@ -400,7 +412,7 @@ export function paintBackground(settings: BackgroundSettings): void {
 }
 
 /** Numeric effect knobs the slider drag path repaints. */
-export type BackgroundKnob = 'opacity' | 'scrim' | 'panelOpacity' | 'blur' | 'wallpaperBlur' | 'fit'
+export type BackgroundKnob = 'opacity' | 'scrim' | 'panelOpacity' | 'blur' | 'wallpaperBlur' | 'fit' | 'offsetX' | 'offsetY'
 
 /**
  * Update one effect knob on the live backdrop without re-running the full
@@ -415,6 +427,7 @@ export function paintBackgroundKnob(key: BackgroundKnob, value: number | Backgro
 /** Preview variables the settings-surface preview card consumes. */
 const PREVIEW_VARS = [
   '--bg-opacity', '--bg-scrim', '--bg-object-fit',
+  '--bg-offset-x', '--bg-offset-y',
   '--bg-wallpaper-blur', '--bg-wallpaper-scale',
   '--bg-glass-blur', '--bg-glass-saturate', '--bg-glass-brightness',
   '--bg-preview-glass',
@@ -430,6 +443,8 @@ const PREVIEW_VARS = [
 export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSettings): void {
   const s = el.style
   s.setProperty('--bg-object-fit', settings.fit)
+  s.setProperty('--bg-offset-x', String(settings.offsetX))
+  s.setProperty('--bg-offset-y', String(settings.offsetY))
   s.setProperty('--bg-opacity', String(settings.opacity))
   s.setProperty('--bg-scrim', String(settings.scrim))
   s.setProperty('--bg-wallpaper-blur', `${settings.wallpaperBlur}px`)

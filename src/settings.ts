@@ -11,7 +11,7 @@ export const BACKGROUND_SETTINGS_NAMESPACE = 'ui-background'
  */
 export const BACKGROUND_SETTINGS_FIELDS = [
   'enabled', 'uploadId', 'url', 'opacity', 'scrim',
-  'panelOpacity', 'blur', 'wallpaperBlur', 'fit', 'timeline',
+  'panelOpacity', 'blur', 'wallpaperBlur', 'fit', 'offsetX', 'offsetY', 'timeline',
 ] as const
 
 /** Browser-facing base path of the background API (shared with the host routes). */
@@ -73,6 +73,15 @@ export const FIT_MODES = ['cover', 'contain'] as const
 /** Background rendering mode. */
 export type BackgroundFit = typeof FIT_MODES[number]
 
+/** Minimum framing offset (0 = flush to the left/top edge of the crop window). */
+export const OFFSET_MIN = 0
+
+/** Maximum framing offset (1 = flush to the right/bottom edge of the crop window). */
+export const OFFSET_MAX = 1
+
+/** Default framing offset — the image sits centered on both axes. */
+export const DEFAULT_OFFSET = 0.5
+
 /**
  * User-owned background section, resolved from schema defaults + user layer.
  * The active source is either a local upload id (host serves it via
@@ -99,6 +108,18 @@ export interface BackgroundSettings {
   wallpaperBlur: number
   /** How the image fits the frame. */
   fit: BackgroundFit
+  /**
+   * Horizontal framing (0..1; 0.5 = centered). Maps to the CSS
+   * `object-position` x — it only has a visible effect under `cover` when the
+   * image is cropped horizontally (a portrait source in a landscape frame).
+   */
+  offsetX: number
+  /**
+   * Vertical framing (0..1; 0.5 = centered). Maps to the CSS
+   * `object-position` y — it only has a visible effect under `cover` when the
+   * image is cropped vertically (a landscape source in a portrait frame).
+   */
+  offsetY: number
   /** Whether the conversation timeline rail renders at the right edge. */
   timeline: boolean
 }

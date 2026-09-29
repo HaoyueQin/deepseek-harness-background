@@ -25,6 +25,8 @@ describe('ui-background schema', () => {
       blur: 16,
       wallpaperBlur: 0,
       fit: 'cover',
+      offsetX: 0.5,
+      offsetY: 0.5,
       timeline: true,
     })
   })
@@ -40,6 +42,8 @@ describe('ui-background schema', () => {
       blur: 20,
       wallpaperBlur: 5,
       fit: 'contain',
+      offsetX: 0.25,
+      offsetY: 0.75,
       timeline: false,
     })).toEqual({
       enabled: true,
@@ -51,6 +55,8 @@ describe('ui-background schema', () => {
       blur: 20,
       wallpaperBlur: 5,
       fit: 'contain',
+      offsetX: 0.25,
+      offsetY: 0.75,
       timeline: false,
     })
   })
@@ -68,16 +74,20 @@ describe('ui-background schema', () => {
     expect(() => resolve({ panelOpacity: 1.2 })).toThrow()
     expect(() => resolve({ blur: 100 })).toThrow()
     expect(() => resolve({ fit: 'stretch' as BackgroundSettings['fit'] })).toThrow()
+    expect(() => resolve({ offsetX: 1.5 })).toThrow()
+    expect(() => resolve({ offsetY: -0.1 })).toThrow()
     expect(() => resolve({ timeline: 'yes' as unknown as boolean })).toThrow()
   })
 
   it('accepts every numeric bound exactly at its edge', () => {
-    const resolved = resolve({ scrim: 0.95, opacity: 1, panelOpacity: 1, blur: 40, wallpaperBlur: 60 })
+    const resolved = resolve({ scrim: 0.95, opacity: 1, panelOpacity: 1, blur: 40, wallpaperBlur: 60, offsetX: 0, offsetY: 1 })
     expect(resolved.scrim).toBe(0.95)
     expect(resolved.opacity).toBe(1)
     expect(resolved.panelOpacity).toBe(1)
     expect(resolved.blur).toBe(40)
     expect(resolved.wallpaperBlur).toBe(60)
+    expect(resolved.offsetX).toBe(0)
+    expect(resolved.offsetY).toBe(1)
   })
 })
 
