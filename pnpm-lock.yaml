@@ -16,16 +16,16 @@ importers:
         specifier: ^4.0.1
         version: 4.0.1
       '@deepseek-ai/dsh-client-locale':
-        specifier: '>=0.1.2-rc.1 || >=0.1.3-alpha.1 || >=0.1.5-alpha.1 || >=0.1.5-rc.1 || >=0.1.5-rc.2 || >=0.1.6-alpha.1 || >=0.1.6-alpha.2 || >=0.1.7-alpha.1'
+        specifier: '>=0.1.2-rc.1 || >=0.1.3-alpha.1 || >=0.1.5-alpha.1 || >=0.1.5-rc.1 || >=0.1.5-rc.2 || >=0.1.6-alpha.1 || >=0.1.6-alpha.2 || >=0.1.7-alpha.1 || >=0.2.0-rc.1'
         version: 0.1.5-rc.2(@deepseek-ai/cordis@4.0.1)
       '@deepseek-ai/dsh-client-ui-slots':
-        specifier: '>=0.1.2-rc.1 || >=0.1.3-alpha.1 || >=0.1.5-alpha.1 || >=0.1.5-rc.1 || >=0.1.5-rc.2 || >=0.1.6-alpha.1 || >=0.1.6-alpha.2 || >=0.1.7-alpha.1'
+        specifier: '>=0.1.2-rc.1 || >=0.1.3-alpha.1 || >=0.1.5-alpha.1 || >=0.1.5-rc.1 || >=0.1.5-rc.2 || >=0.1.6-alpha.1 || >=0.1.6-alpha.2 || >=0.1.7-alpha.1 || >=0.2.0-rc.1'
         version: 0.1.5-rc.2(@deepseek-ai/cordis@4.0.1)
       '@deepseek-ai/dsh-host-webserver':
-        specifier: '>=0.1.2-rc.1 || >=0.1.3-alpha.1 || >=0.1.5-alpha.1 || >=0.1.5-rc.1 || >=0.1.5-rc.2 || >=0.1.6-alpha.1 || >=0.1.6-alpha.2 || >=0.1.7-alpha.1'
+        specifier: '>=0.1.2-rc.1 || >=0.1.3-alpha.1 || >=0.1.5-alpha.1 || >=0.1.5-rc.1 || >=0.1.5-rc.2 || >=0.1.6-alpha.1 || >=0.1.6-alpha.2 || >=0.1.7-alpha.1 || >=0.2.0-rc.1'
         version: 0.1.5-rc.2(@deepseek-ai/cordis@4.0.1)
       '@deepseek-ai/dsh-settings':
-        specifier: '>=0.1.2-rc.1 || >=0.1.3-alpha.1 || >=0.1.5-alpha.1 || >=0.1.5-rc.1 || >=0.1.5-rc.2 || >=0.1.6-alpha.1 || >=0.1.6-alpha.2 || >=0.1.7-alpha.1'
+        specifier: '>=0.1.2-rc.1 || >=0.1.3-alpha.1 || >=0.1.5-alpha.1 || >=0.1.5-rc.1 || >=0.1.5-rc.2 || >=0.1.6-alpha.1 || >=0.1.6-alpha.2 || >=0.1.7-alpha.1 || >=0.2.0-rc.1'
         version: 0.1.5-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/schemastery@3.18.3)
       '@testing-library/dom':
         specifier: ^10.4.1
@@ -151,9 +151,6 @@ packages:
   '@deepseek-ai/cosmokit@1.8.2':
     resolution: {integrity: sha512-muBOKtSrUKU5m/xpq8ZXWL6hQ/jgd4PhU2PqH97bcxIiLEJfNwZOGQEx4t/aS/GgxRAR+ra9pMHPMtTHU4sqqA==}
 
-  '@deepseek-ai/cosmokit@1.8.3':
-    resolution: {integrity: sha512-qBo+ronVM6Eu2WNVJXi8JcMiqZ19T9BRIpV+5qJUFPXjGH/Z0QKcQMC/IZJ7L394YTOtJgcovbk9qP0w2GsBXQ==}
-
   '@deepseek-ai/cosmokit@1.8.4':
     resolution: {integrity: sha512-zOX7hFKtUQNY6GlZi1OCGY+bp6swWDf8aFNbCSAonVKEpEb5Tc2m3moUtNZscT7ksflIcVn+qgqYZo9QKUF+fQ==}
 
@@ -185,9 +182,6 @@ packages:
     resolution: {integrity: sha512-Cr0TkM6dFAD+Iy4sNXH/afJVMHwJXoOztivj+RflkYoACsOq+Ix0vdHn36hwW7mayU8OK3ZKIZUQ6BPo1fHvUg==}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.2
-
-  '@deepseek-ai/schemastery@3.18.2':
-    resolution: {integrity: sha512-njDtZsznjYxok7KLLlHOPyuv2efdWVbSflAHgztSfbMsg+CVraEoRe2DjOCgClYv3ZCSm7WXoaUkbB/+RY7tWQ==}
 
   '@deepseek-ai/schemastery@3.18.3':
     resolution: {integrity: sha512-plZIZADuGLT/3PoYmUaEDZd0vG1rVahU89MevnxXsyQhFEi2D6DUuTJel7FUb3cUM9aCzqGMN99sHJe1RIushA==}
@@ -1219,14 +1213,12 @@ snapshots:
 
   '@deepseek-ai/cosmokit@1.8.2': {}
 
-  '@deepseek-ai/cosmokit@1.8.3': {}
-
   '@deepseek-ai/cosmokit@1.8.4': {}
 
   '@deepseek-ai/dsh-client-locale@0.1.5-rc.2(@deepseek-ai/cordis@4.0.1)':
     dependencies:
       '@deepseek-ai/cordis': 4.0.1
-      '@deepseek-ai/schemastery': 3.18.2
+      '@deepseek-ai/schemastery': 3.18.3
 
   '@deepseek-ai/dsh-client-ui-slots@0.1.5-rc.2(@deepseek-ai/cordis@4.0.1)':
     dependencies:
@@ -1235,7 +1227,7 @@ snapshots:
   '@deepseek-ai/dsh-host-webserver@0.1.5-rc.2(@deepseek-ai/cordis@4.0.1)':
     dependencies:
       '@deepseek-ai/cordis': 4.0.1
-      '@deepseek-ai/schemastery': 3.18.2
+      '@deepseek-ai/schemastery': 3.18.3
       compression: 1.8.1
       negotiator: 1.1.0
     transitivePeerDependencies:
@@ -1250,11 +1242,6 @@ snapshots:
   '@deepseek-ai/dsh-util-values@0.1.5-rc.2(@deepseek-ai/cordis@4.0.1)':
     dependencies:
       '@deepseek-ai/cordis': 4.0.1
-
-  '@deepseek-ai/schemastery@3.18.2':
-    dependencies:
-      '@deepseek-ai/cosmokit': 1.8.3
-      '@standard-schema/spec': 1.1.0
 
   '@deepseek-ai/schemastery@3.18.3':
     dependencies:
