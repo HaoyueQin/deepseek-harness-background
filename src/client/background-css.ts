@@ -97,20 +97,29 @@ export const BACKGROUND_CSS = `
   body[data-ds-dark-theme] .dsh-bg-scrim {
     background: rgba(0, 0, 0, var(--bg-scrim, 0.25));
   }
-  /* Desktop window drag (Electron on macOS): the shell marks a chrome row
-     \`data-window-drag\` and one rule subtracts every other body-level box
+  /* Desktop window drag: the shell marks a chrome row \`data-window-drag\` and
+     one rule subtracts every other body-level box
      (\`html[data-platform='darwin'] body > :not(#root) { -webkit-app-region:
      no-drag; }\`, ui-web base.css). Chromium collects app-region boxes by
      geometry in DOM order and the LAST box containing a point decides, so
      these two decorative layers — body children that follow #root — would
      swallow the drag surface of the whole window (traffic-light strip,
-     conversation header, dock strip). They never take the pointer, so they
-     must not join the composition at all: a computed \`none\` is the one value
-     Chromium does not collect. The shell rule carries #root's id specificity,
-     so a plain declaration cannot outrank it — this needs \`!important\`. */
+     conversation header, dock strip, and on Windows the caption strip that
+     owns drag and double-click maximize). They never take the pointer, so they
+     must not join the composition at all.
+
+     The value that achieves that is \`initial\`, NOT \`none\`: Chromium maps the
+     \`none\` keyword onto \`no-drag\`, so a \`-webkit-app-region: none\` layer IS
+     collected and DOES punch a hole exactly like \`no-drag\` does. Measured, not
+     assumed — getComputedStyle on the Windows 0.2.0-rc.2 desktop build returns
+     "no-drag" for it, and with these two full-viewport layers in that state the
+     whole window stopped dragging and double-click maximize stopped working;
+     \`initial\` is the one declaration that reads back as "none" and leaves the
+     composition. The shell rule carries #root's id specificity, so a plain
+     declaration cannot outrank it — this needs \`!important\`. */
   body > .dsh-bg-layer,
   body > .dsh-bg-scrim {
-    -webkit-app-region: none !important;
+    -webkit-app-region: initial !important;
   }
 
   /* Active: make the app frame + sidebar background transparent so all columns

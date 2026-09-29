@@ -150,25 +150,27 @@ describe('deepseek-harness-background apply', () => {
   it('keeps both wallpaper surfaces out of the desktop window-drag composition', async () => {
     mockFetch()
     await mount()
-    // Copied from the shell (ui-web base.css): Electron on macOS marks a chrome
-    // row `data-window-drag` and subtracts every other body-level box with
+    // Copied from the shell (ui-web base.css): the shell marks a chrome row
+    // `data-window-drag` and subtracts every other body-level box with
     // `html[data-platform='darwin'] body > :not(#root) { -webkit-app-region:
     // no-drag; }`. App-region boxes compose by geometry in DOM order and the
     // LAST box containing a point decides, so a body-level layer that follows
     // #root would swallow the whole window's drag surface (traffic-light strip,
-    // conversation header, dock strip). These two layers are the boxes that rule
-    // reaches, which is why they have to opt out of the composition themselves.
+    // conversation header, dock strip) — and on Windows the caption strip that
+    // owns drag and double-click maximize.
     expect(layer()?.parentElement).toBe(document.body)
     expect(scrim()?.parentElement).toBe(document.body)
-    // Opting out means a computed `none` — the one value Chromium does not
-    // collect — and it must be `!important`, because the shell selector carries
-    // #root's id specificity (1,2,2) against a class-level declaration.
-    // Derived from the shell's rule and its regions.ts composition; not yet
-    // exercised on a macOS desktop build (no macOS host in this workspace).
+    // Opting out means `initial`, NOT `none`. Chromium maps the `none` keyword
+    // onto `no-drag`, so a `none` layer stays collected and still punches its
+    // hole: the Windows 0.2.0-rc.2 build returned "no-drag" for it through
+    // getComputedStyle and the window became undraggable (double-click maximize
+    // included) until `initial` replaced it. `!important` is required because
+    // the shell selector carries #root's id specificity (1,2,2) against a
+    // class-level declaration.
     const cssText = document.querySelector('style[data-plugin-css="deepseek-harness-background/styles"]')?.textContent ?? ''
     const optOuts = [...cssText.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .map(match => ({ selector: match[1] ?? '', body: match[2] ?? '' }))
-      .filter(entry => /-webkit-app-region:\s*none\s*!important/.test(entry.body))
+      .filter(entry => /-webkit-app-region:\s*initial\s*!important/.test(entry.body))
     for (const name of ['.dsh-bg-layer', '.dsh-bg-scrim']) {
       expect(optOuts.some(entry => entry.selector.includes(name)), name).toBe(true)
     }
