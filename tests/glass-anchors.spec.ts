@@ -29,7 +29,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { BACKGROUND_CSS } from '../src/client/background-css.ts'
 import {
   ACCOUNT_NOTICE, CHANGED_FILES_HEADER, CHANGED_FILES_HEADER_HOVER, COMPOSER_CARD, COMPOSER_CARD_FILTER,
-  PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK, PRESENTED_FILE, PRESENTED_FILE_HOVER, STAT_DIALOGS,
+  PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK, PRESENTED_FILE, PRESENTED_FILE_HOVER, PRESENT_OUTPUT,
+  SCHEDULE_CREATE_CARD, SCHEDULE_CREATE_HOVER, STAT_DIALOGS, TURN_TRIGGER, TURN_TRIGGER_HOVER,
 } from './glass-anchors.ts'
 
 /** One parsed rule: its comma-separated selector parts and its body. */
@@ -214,6 +215,18 @@ function mountFixture(): void {
     <div role="dialog" aria-modal="true" class="nArs4W_modal" id="plain-modal">
       <header class="nArs4W_head">标题</header>
     </div>
+
+    <!-- tool rows whose fill no overridden token reaches -->
+    <div data-tool="present" data-state="ok" class="Yk2mQa_row">
+      <div class="Yk2mQa_disclosure"><pre class="Yk2mQa_output">已交付 report.docx</pre></div>
+    </div>
+    <div class="Sq7vTz_card" data-tool="schedule_create" data-state="ok">
+      <button type="button" class="Sq7vTz_cardOpen" aria-label="打开任务"></button>
+      <span class="Sq7vTz_title">每日构建</span>
+    </div>
+    <section class="Fg9pLx_root" data-turn-trigger="">
+      <button type="button" class="Fg9pLx_header">由定时任务触发</button>
+    </section>
 
     <!-- reading surfaces that must NOT be glassed -->
     <div class="nArs4W_paneCard">文件</div>
@@ -405,6 +418,42 @@ describe('Platform overlay ground', () => {
     expect(document.getElementById('plain-modal')!.matches(PLATFORM_OVERLAY)).toBe(false)
     expect(ruleForSelector(PLATFORM_OVERLAY_DARK).body.replace(/\s+/g, ' '))
       .toContain('background-color: var(--dsw-static-neutral-bluish-950)')
+  })
+})
+
+describe('transcript tool cards the whitelist missed', () => {
+  it('takes the fill on the present result box and the schedule card', () => {
+    mountFixture()
+    const anchors: readonly (readonly [string, string])[] = [
+      ['present output', PRESENT_OUTPUT],
+      ['schedule_create card', SCHEDULE_CREATE_CARD],
+    ]
+    for (const [name, selector] of anchors) {
+      const hits = matchSelector(selector)
+      expect(hits, name).toHaveLength(1)
+      // Both paint a fill no overridden token reaches (bg-layer-1 and the
+      // delivery card's static neutral), so each takes an explicit fill.
+      const body = ruleForSelector(selector).body.replace(/\s+/g, ' ')
+      expect(body, name).toContain('background-color: var(--dsw-specific-input-major)')
+      expect(body, name).toContain('backdrop-filter: blur(var(--bg-glass-blur')
+    }
+  })
+
+  it('gives the turn-trigger card one fill across both schemes', () => {
+    mountFixture()
+    const hits = matchSelector(TURN_TRIGGER)
+    expect(hits).toHaveLength(1)
+    expect(hits[0]!.tagName).toBe('SECTION')
+    // rc.2 splits the card's own token per scheme — overridden in light,
+    // untouched in dark — so one explicit fill is what ends the split.
+    const body = ruleForSelector(TURN_TRIGGER).body.replace(/\s+/g, ' ')
+    expect(body).toContain('background-color: var(--dsw-specific-input-major)')
+    expect(body).toContain('backdrop-filter: blur(var(--bg-glass-blur')
+    // Both hover states restate the glass fill instead of falling back to the
+    // module's own static neutral / interactive token.
+    for (const selector of [SCHEDULE_CREATE_HOVER, TURN_TRIGGER_HOVER]) {
+      expect(ruleForSelector(selector).body, selector).toContain('color-mix(')
+    }
   })
 })
 

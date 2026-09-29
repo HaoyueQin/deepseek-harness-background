@@ -89,6 +89,35 @@ export const PLATFORM_OVERLAY = 'body[data-dsh-bg] [role="dialog"][aria-modal="t
 export const PLATFORM_OVERLAY_DARK = 'body[data-ds-dark-theme][data-dsh-bg] [role="dialog"][aria-modal="true"]:has(> header[data-window-drag])'
 
 /**
+ * The present tool's result box.
+ *
+ * It paints `--dsw-alias-bg-layer-1`, the token the painter keeps opaque on
+ * purpose (it backs the settings UI and the dialogs), so it needs the explicit
+ * fill. The anchor is the row's own `data-tool` mark plus the element the fill
+ * sits on — never a class hash.
+ */
+export const PRESENT_OUTPUT = `${GATE} [data-tool="present"] pre`
+
+/** The schedule_create transcript card: the delivery card's static neutral. */
+export const SCHEDULE_CREATE_CARD = `${GATE} [data-tool="schedule_create"]`
+
+/** The schedule card's own hover repaints that static neutral. */
+export const SCHEDULE_CREATE_HOVER = `${SCHEDULE_CREATE_CARD}:hover`
+
+/**
+ * The turn-trigger attribution card.
+ *
+ * 0.2.0-rc.2 split its fill per scheme: `--dsw-alias-turn-trigger-bg` is the
+ * painter's overridden code-block token in light but an untouched interactive
+ * token in dark, which left the same card translucent in one scheme and opaque
+ * in the other. The rule gives it one explicit fill instead.
+ */
+export const TURN_TRIGGER = `${GATE} [data-turn-trigger]`
+
+/** The turn-trigger card's hover, kept on that same glass fill. */
+export const TURN_TRIGGER_HOVER = `${TURN_TRIGGER}:hover`
+
+/**
  * The composer card.
  *
  * It carries the fill and the sheen, deliberately NOT the filter: Chromium
@@ -147,6 +176,9 @@ export const GLASS_ANCHORS: readonly { readonly name: string, readonly selector:
   { name: 'changed files card', selector: CHANGED_FILES },
   { name: 'changed files header', selector: CHANGED_FILES_HEADER },
   { name: 'presented file card', selector: PRESENTED_FILE },
+  { name: 'present output', selector: PRESENT_OUTPUT },
+  { name: 'schedule_create card', selector: SCHEDULE_CREATE_CARD },
+  { name: 'turn trigger card', selector: TURN_TRIGGER },
   { name: 'account notice', selector: ACCOUNT_NOTICE },
   { name: 'composer card', selector: COMPOSER_CARD },
   { name: 'composer card filter', selector: COMPOSER_CARD_FILTER },

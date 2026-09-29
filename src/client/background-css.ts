@@ -434,6 +434,44 @@ export const BACKGROUND_CSS = `
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
   }
 
+  /* ---- Transcript tool cards the whitelist missed -----------------------
+     Three tool-row surfaces still painted an opaque ground over a wallpaper.
+     Two of them carry a fill no overridden token reaches: the present tool's
+     result box paints --dsw-alias-bg-layer-1 (the token the painter keeps
+     opaque on purpose, because it backs the settings UI and the dialogs), and
+     the schedule_create card reuses the delivery card's static neutral
+     (--card-fill = --dsw-static-neutral-50 / 850 — its own module header says
+     the box is the delivery card). Both need an explicit fill on top of
+     the shared sheen chain, and the schedule card's own hover repaints from the
+     other static neutral, so the glass fill has to be restated there.
+
+     The turn-trigger card is the odd one out: 0.2.0-rc.2 split its fill per
+     scheme (--dsw-alias-turn-trigger-bg, set to the painter's
+     --dsw-alias-markdown-code-block in light but to an untouched
+     --dsw-alias-interactive-bg-hover in dark), which left the very same card
+     translucent in light and fully opaque in dark. One explicit fill — the
+     painter's composer token, the same one every other glass surface uses —
+     ends that split, for the resting and the hover state alike.
+
+     Anchors are the rows' own data-tool / data-turn-trigger marks; class hashes
+     never are. */
+  body[data-dsh-bg-glass] [data-tool="present"] pre,
+  body[data-dsh-bg-glass] [data-tool="schedule_create"],
+  body[data-dsh-bg-glass] [data-turn-trigger] {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+      0 4px 14px rgba(0, 0, 0, 0.08);
+  }
+  body[data-dsh-bg-glass] [data-tool="schedule_create"]:hover,
+  body[data-dsh-bg-glass] [data-turn-trigger]:hover {
+    background-color: color-mix(in srgb, rgb(255 255 255) calc(var(--bg-glass-alpha-strong, 0.8) * 100%), transparent);
+  }
+
   /* ---- Platform overlay return bar (Account settings -> usage / top-up) --
      The isolated native Platform view paints its whole surface with
      --dsw-alias-bg-base, the very token the painter sets to transparent while a
