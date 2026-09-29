@@ -30,7 +30,12 @@ jobs:
       - run: pnpm run build
       - env:
           GH_TOKEN: ${{ github.token }}
-        # The header file carries the fixed version-compatibility banner
-        # (older dsh users must install an older plugin release); gh prepends
-        # it to the auto-generated notes.
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --notes-file .github/release-header.md
+        # The body is AUTHORED, not generated: the fixed version-compatibility
+        # banner (older dsh users must install an older plugin release) plus the
+        # notes committed for THIS tag. A tag whose notes file is missing fails
+        # the job instead of publishing a body assembled from PR titles.
+        run: |
+          NOTES=".github/releases/${GITHUB_REF_NAME}.md"
+          test -f "$NOTES" || { echo "missing $NOTES"; exit 1; }
+          cat .github/release-header.md "$NOTES" > /tmp/release-notes.md
+          gh release create "$GITHUB_REF_NAME" --verify-tag --notes-file /tmp/release-notes.md

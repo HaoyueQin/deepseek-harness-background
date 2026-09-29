@@ -57,7 +57,8 @@
 
 | 本插件版本 | 支持的 dsh 版本 |
 | --- | --- |
-| **0.6.0** | **dsh 0.1.2-rc.1 与 0.1.3-alpha.x（已在 alpha.2 验证），另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2（已在 rc.2 验证）、0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 / alpha.2 / rc.1 / rc.2（已在 rc.2 验证）与 0.2.0-rc.1（已在 rc.1 验证）** |
+| **0.6.1** | **dsh 0.1.2-rc.1 与 0.1.3-alpha.x（已在 alpha.2 验证），另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2（已在 rc.2 验证）、0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 / alpha.2 / rc.1 / rc.2（已在 rc.2 验证）、0.2.0-rc.1（已在 rc.1 验证）与 0.2.0-rc.2（已在 rc.2 验证）** |
+| 0.6.0 | dsh 0.1.2-rc.1 与 0.1.3-alpha.x，另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2 与 0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 / alpha.2 / rc.1 / rc.2 与 0.2.0-rc.1 |
 | 0.5.6 | dsh 0.1.2-rc.1 与 0.1.3-alpha.x，另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2 与 0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 / alpha.2 / rc.1 / rc.2 |
 | 0.5.5 | dsh 0.1.2-rc.1 与 0.1.3-alpha.x，另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2 与 0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 |
 | 0.5.3 – 0.5.4 | dsh 0.1.2-rc.1 与 0.1.3-alpha.x，另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2 与 0.1.6-alpha.1 / alpha.2 |

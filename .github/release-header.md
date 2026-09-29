@@ -2,7 +2,7 @@
 
 | Plugin release | Supported dsh versions |
 | --- | --- |
-| Current | **dsh 0.1.2-rc.1 and 0.1.3-alpha.x (verified on alpha.2), plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 (verified on rc.2), 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1/alpha.2/rc.1/rc.2 (verified on rc.2) and 0.2.0-rc.1 (verified on rc.1)** |
+| Current | **dsh 0.1.2-rc.1 and 0.1.3-alpha.x (verified on alpha.2), plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 (verified on rc.2), 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1/alpha.2/rc.1/rc.2 (verified on rc.2), 0.2.0-rc.1 (verified on rc.1) and 0.2.0-rc.2 (verified on rc.2)** |
 | 0.5.6 | dsh 0.1.2-rc.1 and 0.1.3-alpha.x, plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 and 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1/alpha.2/rc.1/rc.2 |
 | 0.5.5 | dsh 0.1.2-rc.1 and 0.1.3-alpha.x, plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 and 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1 |
 | 0.5.3 – 0.5.4 | dsh 0.1.2-rc.1 and 0.1.3-alpha.x, plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 and 0.1.6-alpha.1/alpha.2 |
@@ -20,7 +20,7 @@
 
 | 插件版本 | 支持的 dsh 版本 |
 | --- | --- |
-| 当前版本 | **dsh 0.1.2-rc.1 与 0.1.3-alpha.x（已在 alpha.2 验证），另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2（已在 rc.2 验证）、0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 / alpha.2 / rc.1 / rc.2（已在 rc.2 验证）与 0.2.0-rc.1（已在 rc.1 验证）** |
+| 当前版本 | **dsh 0.1.2-rc.1 与 0.1.3-alpha.x（已在 alpha.2 验证），另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2（已在 rc.2 验证）、0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 / alpha.2 / rc.1 / rc.2（已在 rc.2 验证）、0.2.0-rc.1（已在 rc.1 验证）与 0.2.0-rc.2（已在 rc.2 验证）** |
 | 0.5.6 | dsh 0.1.2-rc.1 与 0.1.3-alpha.x，另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2 与 0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 / alpha.2 / rc.1 / rc.2 |
 | 0.5.5 | dsh 0.1.2-rc.1 与 0.1.3-alpha.x，另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2 与 0.1.6-alpha.1 / alpha.2、0.1.7-alpha.1 |
 | 0.5.3 – 0.5.4 | dsh 0.1.2-rc.1 与 0.1.3-alpha.x，另支持 0.1.5-alpha.1 / alpha.2 / rc.1 / rc.2 与 0.1.6-alpha.1 / alpha.2 |
