@@ -12,7 +12,7 @@ import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { apply, inject } from '../src/client/index.ts'
 import { paintBackgroundKnob, paintPreviewSurface } from '../src/client/backdrop.ts'
 import { settingsClient } from '../src/client/settings-client.ts'
-import { GLASS_ANCHORS } from './glass-anchors.ts'
+import { GLASS_ANCHORS, PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK } from './glass-anchors.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
 
 const SECTION: BackgroundSettings = {
@@ -397,6 +397,11 @@ describe('deepseek-harness-background apply', () => {
     for (const { name, selector } of GLASS_ANCHORS) {
       expect(cssText, name).toContain(selector)
     }
+    // The Platform overlay ground is the one INVERSE anchor: it keeps a surface
+    // OPAQUE where the wallpaper would otherwise hand it --dsw-alias-bg-base as
+    // transparent, and it keys on data-dsh-bg rather than on the glass gate.
+    expect(cssText).toContain(PLATFORM_OVERLAY)
+    expect(cssText).toContain(PLATFORM_OVERLAY_DARK)
     // Empty-state hero glow no longer exists upstream (its rule is gone too).
     expect(cssText).not.toContain('_heroGlow')
     // Rollback: no blanket anchors for menus/dialogs/panels/cards/toasts/

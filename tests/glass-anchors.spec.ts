@@ -28,7 +28,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { BACKGROUND_CSS } from '../src/client/background-css.ts'
 import {
-  CHANGED_FILES_HEADER, CHANGED_FILES_HEADER_HOVER, COMPOSER_CARD, COMPOSER_CARD_FILTER, STAT_DIALOGS,
+  ACCOUNT_NOTICE, CHANGED_FILES_HEADER, CHANGED_FILES_HEADER_HOVER, COMPOSER_CARD, COMPOSER_CARD_FILTER,
+  PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK, PRESENTED_FILE, PRESENTED_FILE_HOVER, STAT_DIALOGS,
 } from './glass-anchors.ts'
 
 /** One parsed rule: its comma-separated selector parts and its body. */
@@ -152,13 +153,21 @@ function mountFixture(): void {
       <div class="siJF9W_markdown"><code>inline</code></div>
     </div>
 
-    <!-- turn deliverables: the changed-files card (header + rows), and the
-         HoverCard pod the diff preview opens inside it -->
+    <!-- turn deliverables: the multi-file changed-files card, its single-file
+         form (whose header arrives inside the HoverCard anchor wrapper), the
+         delivered file card, and the HoverCard pod the diff preview opens -->
     <div class="hz8-rW_card" data-changed-files="">
-      <div class="hz8-rW_header"></div>
+      <button type="button" class="hz8-rW_header"></button>
       <ul class="hz8-rW_list">
         <li><button type="button" class="hz8-rW_row">a.ts</button></li>
       </ul>
+    </div>
+    <div class="hz8-rW_card" data-changed-files="" data-single="true">
+      <span class="IP6KhG_anchor"><button type="button" class="hz8-rW_header"></button></span>
+    </div>
+    <div class="hz8-rW_file" data-presented-file="">
+      <button type="button" class="hz8-rW_cardPreview" aria-label="预览"></button>
+      <span class="hz8-rW_fileName">report.docx</span>
     </div>
     <div class="${HOVER_PREVIEW}" data-changes-hover-preview="">
       <div data-diff=""></div>
@@ -182,6 +191,28 @@ function mountFixture(): void {
     <div role="dialog" id="session-usage-dialog" class="kT3vQc_panel"><dl data-session-stats-usage=""></dl></div>
     <div role="dialog" id="settings-dialog" class="nArs4W_dialog">
       <dl><dt>主题</dt><dd>深色</dd></dl>
+    </div>
+
+    <!-- the account notice: portaled straight onto document.body, painting the
+         overridden input token with no filter of its own -->
+    <aside class="bQ3kTa_card" id="account-notice">
+      <div role="status" class="bQ3kTa_copy">
+        <div class="bQ3kTa_title">赠金已到账</div>
+        <p>你已获得 6 元赠金</p>
+      </div>
+      <button type="button" class="bQ3kTa_close" aria-label="关闭"></button>
+    </aside>
+
+    <!-- the Platform overlay: aria-modal, with the return bar as its own direct
+         child — plus a modal that carries neither mark, and must stay official -->
+    <div role="dialog" aria-modal="true" class="pL4tFm_overlay" id="platform-overlay">
+      <header class="pL4tFm_header" data-window-drag="">
+        <button type="button" class="pL4tFm_back">返回 DeepSeek Harness</button>
+      </header>
+      <div class="pL4tFm_viewport"></div>
+    </div>
+    <div role="dialog" aria-modal="true" class="nArs4W_modal" id="plain-modal">
+      <header class="nArs4W_head">标题</header>
     </div>
 
     <!-- reading surfaces that must NOT be glassed -->
@@ -241,8 +272,9 @@ describe('turn deliverables and the rail', () => {
     for (const anchor of ['data-changed-files', 'data-changes-hover-preview']) {
       const selector = `body[data-dsh-bg-glass] [${anchor}]`
       const hits = matchSelector(selector)
-      expect(hits, anchor).toHaveLength(1)
-      expect(hits[0]!.hasAttribute(anchor), anchor).toBe(true)
+      // The multi-file card and the single-file card both carry the anchor.
+      expect(hits, anchor).toHaveLength(anchor === 'data-changed-files' ? 2 : 1)
+      for (const hit of hits) expect(hit.hasAttribute(anchor), anchor).toBe(true)
       // Both paint an official OPAQUE token, so the rule must take the fill.
       const body = ruleForSelector(selector).body.replace(/\s+/g, ' ')
       expect(body, anchor).toContain('background-color: var(--dsw-specific-input-major)')
@@ -307,17 +339,72 @@ describe('composer card backdrop root', () => {
 })
 
 describe('changed-files glass card', () => {
-  it('clears the header fill and leaves the rows alone', () => {
+  it('clears the header fill in BOTH card forms and leaves the rows alone', () => {
     mountFixture()
     const hits = matchSelector(CHANGED_FILES_HEADER)
-    expect(hits).toHaveLength(1)
-    expect(hits[0]!.className).toBe('hz8-rW_header')
+    // The multi-file card renders the header as its own first child; the
+    // single-file card renders the same header inside the HoverCard anchor
+    // wrapper. A child-position anchor reached only that wrapper, so the real
+    // header kept the opaque --changes-fill and the card stayed opaque.
+    expect(hits).toHaveLength(2)
+    for (const hit of hits) {
+      expect(hit.tagName).toBe('BUTTON')
+      expect(hit.className).toBe('hz8-rW_header')
+    }
+    // The anchor is the header element, so the transparent rows stay untouched.
+    expect(hits.some(hit => hit.classList.contains('hz8-rW_row'))).toBe(false)
     // The official fill is the opaque --changes-fill static neutral; clearing
     // it is what lets the glass card surface show through.
     expect(ruleForSelector(CHANGED_FILES_HEADER).body).toContain('background-color: transparent')
     // The header's own hover feedback moves to the rows' translucent token.
     expect(ruleForSelector(CHANGED_FILES_HEADER_HOVER).body)
       .toContain('var(--dsw-alias-interactive-bg-hover)')
+  })
+})
+
+describe('delivered file cards', () => {
+  it('takes the fill that no overridden token reaches', () => {
+    mountFixture()
+    const hits = matchSelector(PRESENTED_FILE)
+    expect(hits).toHaveLength(1)
+    expect(hits[0]!.id).toBe('')
+    const body = ruleForSelector(PRESENTED_FILE).body.replace(/\s+/g, ' ')
+    expect(body).toContain('background-color: var(--dsw-specific-input-major)')
+    expect(body).toContain('backdrop-filter: blur(var(--bg-glass-blur')
+    // The module repaints the fill from the other static neutral on hover, so
+    // the hover rule has to restate the fill.
+    expect(ruleForSelector(PRESENTED_FILE_HOVER).body).toContain('color-mix(')
+  })
+})
+
+describe('account notice card', () => {
+  it('adds the missing filter to the portaled notice without refilling it', () => {
+    mountFixture()
+    const hits = matchSelector(ACCOUNT_NOTICE)
+    expect(hits).toHaveLength(1)
+    expect(hits[0]!.tagName).toBe('ASIDE')
+    // The notice already paints an overridden token, so the rule adds the
+    // sheen and the exposure chain and nothing else.
+    const body = ruleForSelector(ACCOUNT_NOTICE).body.replace(/\s+/g, ' ')
+    expect(body).toContain('backdrop-filter: blur(var(--bg-glass-blur')
+    expect(body).not.toContain('background-color')
+  })
+})
+
+describe('Platform overlay ground', () => {
+  it('keeps the isolated native view opaque, and only that surface', () => {
+    mountFixture()
+    const hits = matchSelector(PLATFORM_OVERLAY)
+    expect(hits.map(element => element.id)).toEqual(['platform-overlay'])
+    const body = ruleForSelector(PLATFORM_OVERLAY).body.replace(/\s+/g, ' ')
+    // The ground is the literal --dsw-alias-bg-base is defined with, per scheme.
+    expect(body).toContain('background-color: var(--dsw-static-neutral-bluish-00)')
+    // This anchor is the inverse of the glass sheet: it must not join it.
+    expect(body).not.toContain('backdrop-filter')
+    // A modal that has no Platform return bar keeps its official skin.
+    expect(document.getElementById('plain-modal')!.matches(PLATFORM_OVERLAY)).toBe(false)
+    expect(ruleForSelector(PLATFORM_OVERLAY_DARK).body.replace(/\s+/g, ' '))
+      .toContain('background-color: var(--dsw-static-neutral-bluish-950)')
   })
 })
 

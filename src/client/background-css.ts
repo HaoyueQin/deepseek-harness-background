@@ -343,13 +343,41 @@ export const BACKGROUND_CSS = `
      static neutral), so the glass card underneath never shows through: hand
      that one surface back to the card by clearing its fill, and give the
      header's own hover/focus feedback the translucent interactive token the
-     card's rows already use. */
-  body[data-dsh-bg-glass] [data-changed-files] > :first-child {
+     card's rows already use. The anchor is the header ELEMENT, not the card's
+     first child: a single-file turn renders that same header through the
+     HoverCard primitive, which wraps its anchor in a span (ui-primitives
+     HoverCard.tsx), so a child-position anchor reached only that wrapper and
+     left the real header's fill in place — the whole card stayed opaque. */
+  body[data-dsh-bg-glass] [data-changed-files] button[class*="_header"] {
     background-color: transparent;
   }
-  body[data-dsh-bg-glass] [data-changed-files] > :first-child:hover:not(:disabled),
-  body[data-dsh-bg-glass] [data-changed-files] > :first-child:focus-visible {
+  body[data-dsh-bg-glass] [data-changed-files] button[class*="_header"]:hover:not(:disabled),
+  body[data-dsh-bg-glass] [data-changed-files] button[class*="_header"]:focus-visible {
     background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  /* ---- Delivered file cards ([data-presented-file]) ---------------------
+     The deliverable grid's file card paints --deliverable-fill, a static
+     neutral (--dsw-static-neutral-50, or 850 in dark) that no overridden token
+     reaches, so it stayed fully opaque over every wallpaper. It takes the same
+     explicit-fill recipe as the changed-files card, plus its own hover state:
+     the module's .file:hover repaints the fill with --deliverable-hover, the
+     other static neutral. This rule outranks it (two attributes + body against
+     one class + pseudo-class), so the fill and the sheen both survive hover.
+     The card's inner tile and icon already paint with translucent color-mix
+     fills and need nothing here. */
+  body[data-dsh-bg-glass] [data-presented-file] {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+      0 4px 14px rgba(0, 0, 0, 0.08);
+  }
+  body[data-dsh-bg-glass] [data-presented-file]:hover {
+    background-color: color-mix(in srgb, rgb(255 255 255) calc(var(--bg-glass-alpha-strong, 0.8) * 100%), transparent);
   }
 
   /* ---- Docked stat dialogs (turn time, session stats, token usage) -------
@@ -363,6 +391,21 @@ export const BACKGROUND_CSS = `
   body[data-dsh-bg-glass] [role="dialog"]:has([data-turn-usage-details]),
   body[data-dsh-bg-glass] [role="dialog"]:has([data-session-stats-details]),
   body[data-dsh-bg-glass] [role="dialog"]:has([data-session-stats-usage]) {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+  }
+
+  /* ---- Sidebar bonus notice (the account notice card) -------------------
+     The account notice portals an aside straight onto document.body and paints
+     --dsw-specific-input-major — a token the painter DOES turn translucent —
+     but its own module adds no backdrop-filter, so over a wallpaper it reads as
+     flat transparency instead of frosted glass. Same shape as the dock family
+     above: token fill + the shared sheen and exposure chain. The anchor is that
+     aside with its own role="status" child (the notice copy); the host ships no
+     data attribute for the card, and the direct-child step keeps the rule on
+     the portaled body child rather than any nested status region. */
+  body[data-dsh-bg-glass] > aside:has(> [role="status"]) {
     background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
@@ -389,6 +432,25 @@ export const BACKGROUND_CSS = `
     background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
     -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
     backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+  }
+
+  /* ---- Platform overlay return bar (Account settings -> usage / top-up) --
+     The isolated native Platform view paints its whole surface with
+     --dsw-alias-bg-base, the very token the painter sets to transparent while a
+     wallpaper is active, so the 48px return bar went see-through even though
+     the native child below it is opaque. dsh itself calls this surface the
+     opaque native Platform page (ui-chat README), so the ground comes back
+     here, from the two literals --dsw-alias-bg-base is defined with in
+     ui-theme, one per scheme. The anchor is the overlay's own aria-modal dialog
+     with the Platform return bar as a direct child: no other dialog carries
+     data-window-drag. Gated on data-dsh-bg (a wallpaper is active), NOT on the
+     glass gate — a fully opaque panel setting must not hand this surface back
+     to transparency. */
+  body[data-dsh-bg] [role="dialog"][aria-modal="true"]:has(> header[data-window-drag]) {
+    background-color: var(--dsw-static-neutral-bluish-00);
+  }
+  body[data-ds-dark-theme][data-dsh-bg] [role="dialog"][aria-modal="true"]:has(> header[data-window-drag]) {
+    background-color: var(--dsw-static-neutral-bluish-950);
   }
 `
 

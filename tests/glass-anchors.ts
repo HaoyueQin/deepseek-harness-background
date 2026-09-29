@@ -39,13 +39,54 @@ export const CHANGED_FILES = `${GATE} [data-changed-files]`
  *
  * Its official fill is the opaque `--changes-fill` static neutral, which hid
  * the glass card behind it; clearing that one fill hands the surface back to
- * the card. The child step is what keeps the rows (transparent already, and
- * hoverable on their own) out of the rule.
+ * the card. The anchor is the header ELEMENT, not the card's child position: a
+ * multi-file card renders the header as its first child, but a single-file
+ * card renders that same header through the HoverCard primitive, which wraps
+ * its anchor in a span — so a child-position anchor reached only the wrapper
+ * and left the real header's fill in place.
  */
-export const CHANGED_FILES_HEADER = `${GATE} [data-changed-files] > :first-child`
+export const CHANGED_FILES_HEADER = `${GATE} [data-changed-files] button[class*="_header"]`
 
 /** The header's own hover/focus feedback, on the rows' translucent token. */
 export const CHANGED_FILES_HEADER_HOVER = `${CHANGED_FILES_HEADER}:hover:not(:disabled)`
+
+/**
+ * The deliverable grid's file card (`[data-presented-file]`).
+ *
+ * It paints `--deliverable-fill`, a static neutral that no overridden token
+ * reaches, so it needs the explicit fill — and its own hover restates that
+ * fill from the other static neutral, which is why the hover anchor exists.
+ */
+export const PRESENTED_FILE = `${GATE} [data-presented-file]`
+
+/** The delivered file card's hover fill. */
+export const PRESENTED_FILE_HOVER = `${PRESENTED_FILE}:hover`
+
+/**
+ * The sidebar account notice (the bonus card), portaled onto `document.body`.
+ *
+ * It already paints an overridden token (`--dsw-specific-input-major`) but
+ * ships no filter of its own, so the rule adds only the shared sheen and
+ * exposure chain. The host has no data attribute for it: the `aside` plus its
+ * own `role="status"` copy is the anchor, and the direct-child step keeps the
+ * rule on the portaled body child rather than a nested status region.
+ */
+export const ACCOUNT_NOTICE = `${GATE} > aside:has(> [role="status"])`
+
+/**
+ * The Platform overlay's ground in the Account settings (usage / top-up).
+ *
+ * This anchor is the INVERSE of every other one: it exists to keep a surface
+ * OPAQUE. The isolated native Platform view paints with `--dsw-alias-bg-base`,
+ * the token the painter sets to `transparent`, so its 48px return bar went
+ * see-through while the native child below it stayed opaque. Gated on
+ * `data-dsh-bg`, not on the glass gate: a fully opaque panel setting must not
+ * hand this surface back to transparency.
+ */
+export const PLATFORM_OVERLAY = 'body[data-dsh-bg] [role="dialog"][aria-modal="true"]:has(> header[data-window-drag])'
+
+/** The same ground in the dark scheme. */
+export const PLATFORM_OVERLAY_DARK = 'body[data-ds-dark-theme][data-dsh-bg] [role="dialog"][aria-modal="true"]:has(> header[data-window-drag])'
 
 /**
  * The composer card.
@@ -105,6 +146,8 @@ export const GLASS_ANCHORS: readonly { readonly name: string, readonly selector:
   { name: 'markdown inline code', selector: MARKDOWN_INLINE_CODE },
   { name: 'changed files card', selector: CHANGED_FILES },
   { name: 'changed files header', selector: CHANGED_FILES_HEADER },
+  { name: 'presented file card', selector: PRESENTED_FILE },
+  { name: 'account notice', selector: ACCOUNT_NOTICE },
   { name: 'composer card', selector: COMPOSER_CARD },
   { name: 'composer card filter', selector: COMPOSER_CARD_FILTER },
   ...STAT_DIALOGS.map(entry => ({ name: entry.name, selector: entry.selector })),
