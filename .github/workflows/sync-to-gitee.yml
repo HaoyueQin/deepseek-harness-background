@@ -11,6 +11,11 @@ on:
   release:
     types: [published, edited]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to sync as well (empty = code mirror only)'
+        required: false
+        default: ''
 
 jobs:
   mirror-code:
@@ -34,7 +39,11 @@ jobs:
           GITEE_PRIVATE_TOKEN: ${{ secrets.GITEE_PRIVATE_TOKEN }}
 
   sync-release:
-    if: github.event_name == 'release'
+    # A release event runs this workflow AS OF THE TAGGED COMMIT, so a fix
+    # landed after the tag can never reach that release's own sync; a release
+    # created with GITHUB_TOKEN does not re-trigger workflows at all. Passing
+    # release_tag re-runs this job on the default branch instead.
+    if: github.event_name == 'release' || inputs.release_tag != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +107,7 @@ jobs:
           GITEE_PRIVATE_TOKEN: ${{ secrets.GITEE_PRIVATE_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           OWNER_REPO: ${{ github.repository }}
-          REL_TAG: ${{ github.event.release.tag_name }}
+          REL_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
           REL_NAME: ${{ github.event.release.name }}
           REL_BODY: ${{ github.event.release.body }}
           REL_PRE: ${{ github.event.release.prerelease }}
