@@ -490,6 +490,49 @@ export const BACKGROUND_CSS = `
   body[data-ds-dark-theme][data-dsh-bg] [role="dialog"][aria-modal="true"]:has(> header[data-window-drag]) {
     background-color: var(--dsw-static-neutral-bluish-950);
   }
+
+  /* ---- Other surfaces that lean on the base token for their ground ------
+     The same mechanism as the Platform overlay above, in three more places.
+     dsh paints each of these with --dsw-alias-bg-base and leans on that fill:
+     - a Reasoning row's pinned disclosure header masks the thinking prose
+       scrolling under it (the sheet's own selector is
+       .root[data-expanded] [data-open] [data-disclosure-row]);
+     - the compaction marker's pinned toggle masks the summary prose under it
+       (its sheet says so out loud: the fill is what masks the prose);
+     - the inspect buttons of the tool rows and of the skill row are quiet
+       in-flow affordances that deliberately take the base ground instead of
+       the heavier overlay token.
+     With the base token transparent they lose that ground and the prose they
+     are supposed to mask shows through. The literals below are the token's own
+     two definitions, one per scheme; the anchors are ReasoningRow's own
+     data-variant mark, the compaction icon the marker ships, and the class
+     suffix those inspect buttons share across three packages. */
+  body[data-dsh-bg] [data-variant="think"][data-expanded] [data-open] [data-disclosure-row],
+  body[data-dsh-bg] [class*="_compactionButton"]:has([data-compaction-icon="context"]),
+  body[data-dsh-bg] [class*="_inspectButton"] {
+    background-color: var(--dsw-static-neutral-bluish-00);
+  }
+  body[data-ds-dark-theme][data-dsh-bg] [data-variant="think"][data-expanded] [data-open] [data-disclosure-row],
+  body[data-ds-dark-theme][data-dsh-bg] [class*="_compactionButton"]:has([data-compaction-icon="context"]),
+  body[data-ds-dark-theme][data-dsh-bg] [class*="_inspectButton"] {
+    background-color: var(--dsw-static-neutral-bluish-950);
+  }
+
+  /* ---- The ask-user transcript card -------------------------------------
+     A message-flow card like the changed-files one, but its ground is
+     --dsw-alias-bg-base rather than an opaque-token family the painter never
+     overrides — so with the base transparent the card had no ground at all and
+     its question/answer text sat straight on the wallpaper. It takes the
+     shared frosted recipe. The anchor is the tool row's own mark plus the card
+     class, because the card element itself carries no data attribute; the
+     class is matched by SUFFIX, so a sibling class such as _cardBody can never
+     be swept in. */
+  body[data-dsh-bg-glass] [data-tool="ask_user_question"] [class$="_card"] {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+  }
 `
 
 /**

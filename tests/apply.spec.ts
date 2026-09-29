@@ -12,7 +12,9 @@ import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { apply, inject } from '../src/client/index.ts'
 import { paintBackgroundKnob, paintPreviewSurface } from '../src/client/backdrop.ts'
 import { settingsClient } from '../src/client/settings-client.ts'
-import { GLASS_ANCHORS, PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK } from './glass-anchors.ts'
+import {
+  BASE_GROUND_SURFACES, BASE_GROUND_SURFACES_DARK, GLASS_ANCHORS, PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK,
+} from './glass-anchors.ts'
 import type { BackgroundSettings } from '../src/settings.ts'
 
 const SECTION: BackgroundSettings = {
@@ -402,6 +404,11 @@ describe('deepseek-harness-background apply', () => {
     // transparent, and it keys on data-dsh-bg rather than on the glass gate.
     expect(cssText).toContain(PLATFORM_OVERLAY)
     expect(cssText).toContain(PLATFORM_OVERLAY_DARK)
+    // The other inverse anchors: surfaces whose own base ground is the mask
+    // over the prose scrolling under them, in both schemes.
+    for (const { name, selector } of [...BASE_GROUND_SURFACES, ...BASE_GROUND_SURFACES_DARK]) {
+      expect(cssText, name).toContain(selector)
+    }
     // Empty-state hero glow no longer exists upstream (its rule is gone too).
     expect(cssText).not.toContain('_heroGlow')
     // Rollback: no blanket anchors for menus/dialogs/panels/cards/toasts/

@@ -28,9 +28,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { BACKGROUND_CSS } from '../src/client/background-css.ts'
 import {
-  ACCOUNT_NOTICE, CHANGED_FILES_HEADER, CHANGED_FILES_HEADER_HOVER, COMPOSER_CARD, COMPOSER_CARD_FILTER,
-  PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK, PRESENTED_FILE, PRESENTED_FILE_HOVER, PRESENT_OUTPUT,
-  SCHEDULE_CREATE_CARD, SCHEDULE_CREATE_HOVER, STAT_DIALOGS, TURN_TRIGGER, TURN_TRIGGER_HOVER,
+  ACCOUNT_NOTICE, ASK_QUESTION_CARD, BASE_GROUND, BASE_GROUND_DARK, BASE_GROUND_SURFACES,
+  BASE_GROUND_SURFACES_DARK, CHANGED_FILES_HEADER, CHANGED_FILES_HEADER_HOVER, COMPOSER_CARD,
+  COMPOSER_CARD_FILTER, PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK, PRESENTED_FILE, PRESENTED_FILE_HOVER,
+  PRESENT_OUTPUT, SCHEDULE_CREATE_CARD, SCHEDULE_CREATE_HOVER, STAT_DIALOGS, TURN_TRIGGER, TURN_TRIGGER_HOVER,
 } from './glass-anchors.ts'
 
 /** One parsed rule: its comma-separated selector parts and its body. */
@@ -227,6 +228,24 @@ function mountFixture(): void {
     <section class="Fg9pLx_root" data-turn-trigger="">
       <button type="button" class="Fg9pLx_header">由定时任务触发</button>
     </section>
+
+    <!-- the ask-user card, and the surfaces whose own fill masks prose -->
+    <div class="Yk2mQa_root" data-tool="ask_user_question" data-state="ok">
+      <div class="Yk2mQa_bodyWrap">
+        <div class="bQ3kTa_card" id="ask-question-card"><p class="bQ3kTa_verdict">已跳过</p></div>
+      </div>
+    </div>
+    <div class="Hn5vQw_root" data-variant="think" data-state="ok" data-expanded="">
+      <div data-open="">
+        <div data-disclosure-row="" id="reasoning-pinned-header"></div>
+      </div>
+    </div>
+    <div class="Mn8wRt_compactionRow">
+      <button type="button" class="Mn8wRt_compactionButton" id="compaction-toggle">
+        <span data-compaction-icon="context"></span>
+      </button>
+    </div>
+    <button type="button" class="Yk2mQa_inspectButton" id="inspect-button"></button>
 
     <!-- reading surfaces that must NOT be glassed -->
     <div class="nArs4W_paneCard">文件</div>
@@ -453,6 +472,39 @@ describe('transcript tool cards the whitelist missed', () => {
     // module's own static neutral / interactive token.
     for (const selector of [SCHEDULE_CREATE_HOVER, TURN_TRIGGER_HOVER]) {
       expect(ruleForSelector(selector).body, selector).toContain('color-mix(')
+    }
+  })
+})
+
+describe('surfaces that lean on the base ground', () => {
+  it('glasses the ask-user card like the other message-flow card', () => {
+    mountFixture()
+    const hits = matchSelector(ASK_QUESTION_CARD)
+    expect(hits.map(element => element.id)).toEqual(['ask-question-card'])
+    const body = ruleForSelector(ASK_QUESTION_CARD).body.replace(/\s+/g, ' ')
+    expect(body).toContain('background-color: var(--dsw-specific-input-major)')
+    expect(body).toContain('backdrop-filter: blur(var(--bg-glass-blur')
+  })
+
+  it('hands the opaque ground back to the surfaces that mask prose', () => {
+    mountFixture()
+    const ids: Record<string, string> = {
+      'reasoning pinned header': 'reasoning-pinned-header',
+      'compaction pinned toggle': 'compaction-toggle',
+      'inspect button': 'inspect-button',
+    }
+    for (const { name, selector } of BASE_GROUND_SURFACES) {
+      const hits = matchSelector(selector)
+      expect(hits.map(element => element.id), name).toEqual([ids[name]])
+      // Inverse anchors: an opaque ground, never a filter.
+      const body = ruleForSelector(selector).body.replace(/\s+/g, ' ')
+      expect(body, name).toContain(`background-color: ${BASE_GROUND}`)
+      expect(body, name).not.toContain('backdrop-filter')
+    }
+    // The base token has one literal per scheme, and the dark rule restates it.
+    for (const { name, selector } of BASE_GROUND_SURFACES_DARK) {
+      expect(ruleForSelector(selector).body.replace(/\s+/g, ' '), name)
+        .toContain(`background-color: ${BASE_GROUND_DARK}`)
     }
   })
 })

@@ -89,6 +89,49 @@ export const PLATFORM_OVERLAY = 'body[data-dsh-bg] [role="dialog"][aria-modal="t
 export const PLATFORM_OVERLAY_DARK = 'body[data-ds-dark-theme][data-dsh-bg] [role="dialog"][aria-modal="true"]:has(> header[data-window-drag])'
 
 /**
+ * The ask-user transcript card.
+ *
+ * A message-flow card like the changed-files one, but its ground is
+ * `--dsw-alias-bg-base` rather than an opaque-token family, so the painter's
+ * transparent base left it with no ground at all. The card element carries no
+ * data attribute of its own: the anchor is the tool row's mark plus the card
+ * class.
+ */
+export const ASK_QUESTION_CARD = `${GATE} [data-tool="ask_user_question"] [class$="_card"]`
+
+/** The literal `--dsw-alias-bg-base` is defined with in the light scheme. */
+export const BASE_GROUND = 'var(--dsw-static-neutral-bluish-00)'
+
+/** The same literal in the dark scheme. */
+export const BASE_GROUND_DARK = 'var(--dsw-static-neutral-bluish-950)'
+
+/**
+ * Surfaces that need the base ground handed BACK, because their own fill is
+ * what masks the prose scrolling under them.
+ *
+ * The inverse of a glass anchor, like the Platform overlay: the rule restores
+ * an opaque ground instead of frosting one.
+ */
+export const BASE_GROUND_SURFACES: readonly { readonly name: string, readonly selector: string }[] = [
+  {
+    name: 'reasoning pinned header',
+    selector: 'body[data-dsh-bg] [data-variant="think"][data-expanded] [data-open] [data-disclosure-row]',
+  },
+  {
+    name: 'compaction pinned toggle',
+    selector: 'body[data-dsh-bg] [class*="_compactionButton"]:has([data-compaction-icon="context"])',
+  },
+  { name: 'inspect button', selector: 'body[data-dsh-bg] [class*="_inspectButton"]' },
+]
+
+/** The same selectors gated on the dark scheme. */
+export const BASE_GROUND_SURFACES_DARK: readonly { readonly name: string, readonly selector: string }[] =
+  BASE_GROUND_SURFACES.map(entry => ({
+    name: entry.name,
+    selector: entry.selector.replace('body[data-dsh-bg]', 'body[data-ds-dark-theme][data-dsh-bg]'),
+  }))
+
+/**
  * The present tool's result box.
  *
  * It paints `--dsw-alias-bg-layer-1`, the token the painter keeps opaque on
@@ -177,6 +220,7 @@ export const GLASS_ANCHORS: readonly { readonly name: string, readonly selector:
   { name: 'changed files header', selector: CHANGED_FILES_HEADER },
   { name: 'presented file card', selector: PRESENTED_FILE },
   { name: 'present output', selector: PRESENT_OUTPUT },
+  { name: 'ask-user card', selector: ASK_QUESTION_CARD },
   { name: 'schedule_create card', selector: SCHEDULE_CREATE_CARD },
   { name: 'turn trigger card', selector: TURN_TRIGGER },
   { name: 'account notice', selector: ACCOUNT_NOTICE },
