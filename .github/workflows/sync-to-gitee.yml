@@ -64,6 +64,12 @@ jobs:
       - name: Sync release to Gitee (create or update)
         run: |
           API="https://gitee.com/api/v5/repos/${OWNER_REPO}"
+          # A dispatched run carries no release payload, and Gitee rejects an
+          # empty body with 400: read the body back from this repository's own
+          # release before posting it.
+          if [ -z "$REL_BODY" ]; then
+            REL_BODY="$(gh release view "$REL_TAG" --repo "$OWNER_REPO" --json body --jq .body)"
+          fi
           [ -z "$REL_NAME" ] && REL_NAME="$REL_TAG"
           [ "$REL_PRE" = "true" ] || REL_PRE="false"
           NOTES_FILE="$(mktemp)"
