@@ -24,7 +24,12 @@ jobs:
         run: |
           git remote add gitee "https://oauth2:${GITEE_PRIVATE_TOKEN}@gitee.com/${{ github.repository }}.git"
           git push gitee --all
-          git push gitee --tags
+          # Gitee is a read-only mirror, so the local tag is authoritative:
+          # without --force a tag the mirror already carries (pushed by an
+          # earlier mirror run, or by the tag event that precedes this one)
+          # rejects the push and aborts the job before the release-body sync
+          # below ever runs.
+          git push gitee --tags --force
         env:
           GITEE_PRIVATE_TOKEN: ${{ secrets.GITEE_PRIVATE_TOKEN }}
 
@@ -39,7 +44,12 @@ jobs:
         run: |
           git remote add gitee "https://oauth2:${GITEE_PRIVATE_TOKEN}@gitee.com/${{ github.repository }}.git"
           git push gitee --all
-          git push gitee --tags
+          # Gitee is a read-only mirror, so the local tag is authoritative:
+          # without --force a tag the mirror already carries (pushed by an
+          # earlier mirror run, or by the tag event that precedes this one)
+          # rejects the push and aborts the job before the release-body sync
+          # below ever runs.
+          git push gitee --tags --force
         env:
           GITEE_PRIVATE_TOKEN: ${{ secrets.GITEE_PRIVATE_TOKEN }}
       - name: Sync release to Gitee (create or update)
