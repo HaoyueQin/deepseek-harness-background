@@ -31,7 +31,8 @@ export const GLASS_ATTR = 'data-dsh-bg-glass'
  * as small cards/buttons over the wallpaper are glassed — composer card,
  * message bubbles, code surfaces (blocks, inline code, tool IO cards,
  * skill/MCP call cards), the three chrome buttons (new session, composer +
- * button, scroll-to-bottom), the load-earlier history button, the composer
+ * button, scroll-to-bottom), the plugin manager page's Installed/Discover
+ * segmented switcher, the load-earlier history button, the composer
  * dock family (agent task strips: TodoPanel / GoalBar / QueueDock) and its
  * takeover panels (approval, question, plan review), the subagent lineage
  * popover, the home hero "preview" badge, the sidebar build badge, the turn
@@ -241,6 +242,41 @@ export const BACKGROUND_CSS = `
     background-color: transparent;
     background-image: none;
     box-shadow: none;
+  }
+
+  /* ---- Plugin manager page: Installed / Discover segmented switcher ----
+     This control floats on the wallpaper as a chrome capsule, like the three
+     buttons above. Its TRACK paints --dsw-alias-bg-module-platform and its
+     sliding selection INDICATOR paints --dsw-alias-bg-layer-3 — both static
+     opaque tokens the painter deliberately leaves alone (they also back the
+     settings UI and dialogs), so both stayed solid blocks. Join them to the
+     shared explicit-fill recipe. The tab buttons themselves are the
+     transparent hit area (SegmentedTabs' own .tab rule clears Pill's
+     --dsw-alias-bg-layer-2 fill) and the indicator is what actually draws the
+     selection, so the pills are pinned transparent instead of being filled
+     too: frosting the pill as well would stack a second near-opaque square
+     over the indicator and hide the border that marks the active tab.
+     The anchor is the page's caller-owned '_pageTabList' class. A bare
+     '_tabs' / '_indicator' / '_pill' suffix would sweep in every segmented
+     control and chip in the app (settings, model pickers, stats pills). */
+  body[data-dsh-bg-glass] [class*="_pageTabList"] {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+      0 4px 14px rgba(0, 0, 0, 0.08);
+  }
+  body[data-dsh-bg-glass] [class*="_pageTabList"] [class*="_indicator"] {
+    background-color: var(--dsw-specific-input-major);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--bg-glass-sheen, 0.07)), rgba(255, 255, 255, var(--bg-glass-sheen-mid, 0.02)) 38%, rgba(255, 255, 255, 0.01));
+    -webkit-backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+    backdrop-filter: blur(var(--bg-glass-blur, 16px)) saturate(var(--bg-glass-saturate, 1.42)) brightness(var(--bg-glass-brightness, 1)) contrast(1.01);
+  }
+  body[data-dsh-bg-glass] [class*="_pageTabList"] [class*="_pill"] {
+    background-color: transparent;
   }
 
   /* ---- Subagent lineage popover (title-bar expanded list) --------------
@@ -497,23 +533,28 @@ export const BACKGROUND_CSS = `
      - a Reasoning row's pinned disclosure header masks the thinking prose
        scrolling under it (the sheet's own selector is
        .root[data-expanded] [data-open] [data-disclosure-row]);
-     - the compaction marker's pinned toggle masks the summary prose under it
-       (its sheet says so out loud: the fill is what masks the prose);
+     - the compaction marker's OPEN toggle masks the summary prose under it
+        (its sheet says so out loud: the fill is what masks the prose). Only
+        an expanded marker renders the body below the toggle, and the host's
+        own rule keys the fill on '.compactionRow:has(.compactionBody)';
+        mirroring that condition keeps the restoration from painting an
+        opaque bar on every collapsed marker at rest, where the official
+        design has no fill at all;
      - the inspect buttons of the tool rows and of the skill row are quiet
        in-flow affordances that deliberately take the base ground instead of
        the heavier overlay token.
      With the base token transparent they lose that ground and the prose they
      are supposed to mask shows through. The literals below are the token's own
      two definitions, one per scheme; the anchors are ReasoningRow's own
-     data-variant mark, the compaction icon the marker ships, and the class
+     data-variant mark, the compaction row's open body, and the class
      suffix those inspect buttons share across three packages. */
   body[data-dsh-bg] [data-variant="think"][data-expanded] [data-open] [data-disclosure-row],
-  body[data-dsh-bg] [class*="_compactionButton"]:has([data-compaction-icon="context"]),
+  body[data-dsh-bg] [class*="_compactionRow"]:has([class*="_compactionBody"]) [class*="_compactionButton"],
   body[data-dsh-bg] [class*="_inspectButton"] {
     background-color: var(--dsw-static-neutral-bluish-00);
   }
   body[data-ds-dark-theme][data-dsh-bg] [data-variant="think"][data-expanded] [data-open] [data-disclosure-row],
-  body[data-ds-dark-theme][data-dsh-bg] [class*="_compactionButton"]:has([data-compaction-icon="context"]),
+  body[data-ds-dark-theme][data-dsh-bg] [class*="_compactionRow"]:has([class*="_compactionBody"]) [class*="_compactionButton"],
   body[data-ds-dark-theme][data-dsh-bg] [class*="_inspectButton"] {
     background-color: var(--dsw-static-neutral-bluish-950);
   }
