@@ -28,6 +28,29 @@ export const TO_BOTTOM = `${GATE} [class*="_toBottom"]:not([class*="Slot"])`
 /** The "load earlier" history button (trajectory view) keeps the same recipe. */
 export const HISTORY_LOAD = `${GATE} [class*="_older"] button`
 
+/**
+ * The plugin manager page's Installed / Discover segmented switcher.
+ *
+ * The track (`--dsw-alias-bg-module-platform`) and the sliding selection
+ * indicator (`--dsw-alias-bg-layer-3`) both paint static opaque tokens the
+ * painter never overrides, so both take the explicit glass fill. The pill
+ * buttons are the transparent hit area — SegmentedTabs' own `.tab` rule clears
+ * Pill's `--dsw-alias-bg-layer-2` fill — and the indicator is the layer that
+ * actually draws the selection, so the pills are pinned transparent instead
+ * of being frosted too.
+ *
+ * The anchor is the page's caller-owned `pageTabList` class: a bare `_tabs` /
+ * `_indicator` / `_pill` suffix would sweep in every segmented control and
+ * chip in the app (settings, model pickers, stats pills).
+ */
+export const PAGE_TAB_LIST = `${GATE} [class*="_pageTabList"]`
+
+/** The sliding selection indicator inside that track. */
+export const PAGE_TAB_INDICATOR = `${PAGE_TAB_LIST} [class*="_indicator"]`
+
+/** The transparent tab-hit pills inside that track. */
+export const PAGE_TAB_PILL = `${PAGE_TAB_LIST} [class*="_pill"]`
+
 /** Inline code inside the markdown host: a compound, never a descendant step. */
 export const MARKDOWN_INLINE_CODE = `${GATE} [class*="_markdown"]:not(pre) > code`
 
@@ -110,7 +133,10 @@ export const BASE_GROUND_DARK = 'var(--dsw-static-neutral-bluish-950)'
  * what masks the prose scrolling under them.
  *
  * The inverse of a glass anchor, like the Platform overlay: the rule restores
- * an opaque ground instead of frosting one.
+ * an opaque ground instead of frosting one. Each anchor is scoped to the
+ * state whose fill does the masking — the compaction entry keys on the OPEN
+ * body, because the host paints no fill on a collapsed marker and inventing
+ * one there turns an inline line into an opaque bar over the wallpaper.
  */
 export const BASE_GROUND_SURFACES: readonly { readonly name: string, readonly selector: string }[] = [
   {
@@ -119,7 +145,7 @@ export const BASE_GROUND_SURFACES: readonly { readonly name: string, readonly se
   },
   {
     name: 'compaction pinned toggle',
-    selector: 'body[data-dsh-bg] [class*="_compactionButton"]:has([data-compaction-icon="context"])',
+    selector: 'body[data-dsh-bg] [class*="_compactionRow"]:has([class*="_compactionBody"]) [class*="_compactionButton"]',
   },
   { name: 'inspect button', selector: 'body[data-dsh-bg] [class*="_inspectButton"]' },
 ]
@@ -215,6 +241,9 @@ export const GLASS_ANCHORS: readonly { readonly name: string, readonly selector:
   { name: 'new session (collapsed rail)', selector: NEW_SESSION_COLLAPSED },
   { name: 'scroll to bottom', selector: TO_BOTTOM },
   { name: 'load earlier', selector: HISTORY_LOAD },
+  { name: 'plugin page tabs', selector: PAGE_TAB_LIST },
+  { name: 'plugin page tab indicator', selector: PAGE_TAB_INDICATOR },
+  { name: 'plugin page tab pill (transparent hit area)', selector: PAGE_TAB_PILL },
   { name: 'markdown inline code', selector: MARKDOWN_INLINE_CODE },
   { name: 'changed files card', selector: CHANGED_FILES },
   { name: 'changed files header', selector: CHANGED_FILES_HEADER },
