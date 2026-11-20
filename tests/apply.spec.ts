@@ -21,6 +21,8 @@ const SECTION: BackgroundSettings = {
   enabled: true,
   uploadId: 'up-abc',
   url: '',
+  darkUploadId: '',
+  darkUrl: '',
   opacity: 1,
   scrim: 0.25,
   panelOpacity: 0.15,
@@ -209,6 +211,57 @@ describe('deepseek-harness-background apply', () => {
     })
     // Blur is disabled with the glass.
     expect(document.body.style.getPropertyValue('--bg-glass-blur')).toBe('0px')
+  })
+
+  it('swaps to the dark image when the scheme flips (and back)', async () => {
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/light.jpg', darkUrl: 'https://example.com/dark.jpg' }
+    mockFetch()
+    await mount()
+    expect(img()?.getAttribute('src')).toBe('https://example.com/light.jpg')
+    // Dark scheme → the dark art replaces the light one in place.
+    document.body.dataset.dsDarkTheme = ''
+    await vi.waitFor(() => {
+      expect(img()?.getAttribute('src')).toBe('https://example.com/dark.jpg')
+    })
+    // Back to light → the light art returns.
+    delete document.body.dataset.dsDarkTheme
+    await vi.waitFor(() => {
+      expect(img()?.getAttribute('src')).toBe('https://example.com/light.jpg')
+    })
+  })
+
+  it('paints the dark art in light mode when only the dark slot is set', async () => {
+    // Symmetric fallback: a dark-only section must never hand the shell a
+    // transparent frame over a bare page.
+    section = { ...SECTION, uploadId: '', url: '', darkUploadId: '', darkUrl: 'https://example.com/dark-only.jpg' }
+    mockFetch()
+    await mount()
+    expect(img()?.getAttribute('src')).toBe('https://example.com/dark-only.jpg')
+    expect(document.body.getAttribute('data-dsh-bg')).toBe('on')
+  })
+
+  it('keeps the light image in dark mode when no dark art is set', async () => {
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/only.jpg', darkUploadId: '', darkUrl: '' }
+    mockFetch()
+    await mount()
+    document.body.dataset.dsDarkTheme = ''
+    await vi.waitFor(() => {
+      expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).not.toBe('')
+    })
+    // The fallback is the same url, so the <img> never reloads.
+    expect(img()?.getAttribute('src')).toBe('https://example.com/only.jpg')
+    expect(document.body.getAttribute('data-dsh-bg')).toBe('on')
+  })
+
+  it('paints from the dark pair when the app starts in the dark scheme', async () => {
+    document.body.dataset.dsDarkTheme = ''
+    section = {
+      ...SECTION, uploadId: '', url: 'https://example.com/light.jpg',
+      darkUploadId: 'up-dark', darkUrl: '',
+    }
+    mockFetch()
+    await mount()
+    expect(img()?.getAttribute('src')).toContain('/api/bg-wallpaper/image/up-dark')
   })
 
   it('renders a URL source directly when no upload is selected', async () => {

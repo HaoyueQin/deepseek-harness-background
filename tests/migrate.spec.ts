@@ -59,6 +59,8 @@ describe('readLegacyBackgroundSection', () => {
       enabled: true,
       uploadId: 'up-468ddc69ecb171facd87c60e',
       url: '',
+      darkUploadId: '',
+      darkUrl: '',
       opacity: 0.2,
       scrim: 0.05,
       panelOpacity: 0.4,
@@ -101,7 +103,7 @@ describe('readLegacyBackgroundSection', () => {
       'settings.yaml': [
         'ui-background:',
         '  lightUrl: https://old/light.png',   // legacy field, gone from the schema
-        '  darkUrl: https://old/dark.png',     // legacy field, gone from the schema
+        '  darkImageUrl: https://old/dark.png', // never a schema field
         '  enabled: true',
         '  opacity: 99',                       // out of range -> schema default
         '  fit: stretch',                      // not an accepted mode -> default
@@ -114,6 +116,8 @@ describe('readLegacyBackgroundSection', () => {
       enabled: true,
       uploadId: 'up-1',
       url: '',
+      darkUploadId: '',
+      darkUrl: '',
       opacity: 1,
       scrim: 0.25,
       panelOpacity: 0.15,

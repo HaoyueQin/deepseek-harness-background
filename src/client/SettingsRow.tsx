@@ -15,6 +15,12 @@
  *    debounced — one POST per gesture, never per tick.
  *  - A `lastSavedRef` distinguishes our own saves from external changes, so
  *    the snapshot sync can never clobber a draft the user is still editing.
+ *
+ * Light/dark art: the section carries two source slots. A slot chip above the
+ * source controls picks WHICH slot the upload/url inputs (and the preview
+ * card's art) target, defaulting to the scheme the app is currently in. The
+ * shared knobs — opacity, scrim, glass, fit, framing — are one set for both
+ * schemes, exactly as they are for the live backdrop.
  */
 
 import {
@@ -29,9 +35,12 @@ import {
   DEFAULT_OFFSET, DEFAULT_OPACITY, DEFAULT_PANEL_OPACITY, DEFAULT_SCRIM, DEFAULT_TIMELINE,
   DEFAULT_WALLPAPER_BLUR, FIT_MODES, OFFSET_MAX, OFFSET_MIN, OPACITY_MAX, OPACITY_MIN,
   PANEL_OPACITY_MAX, PANEL_OPACITY_MIN, SCRIM_MAX, SCRIM_MIN, WALLPAPER_BLUR_MAX,
-  type BackgroundFit, type BackgroundSettings,
+  backgroundSourceUrl, hasAnySource, hasOwnSource,
+  type BackgroundFit, type BackgroundScheme, type BackgroundSettings,
 } from '../settings.ts'
-import { clearPreviewSurface, paintBackground, paintBackgroundKnob, paintPreviewSurface } from './backdrop.ts'
+import {
+  activeScheme, clearPreviewSurface, paintBackground, paintBackgroundKnob, paintPreviewSurface,
+} from './backdrop.ts'
 import { settingsClient, type SettingsSnapshot } from './settings-client.ts'
 import css from './SettingsRow.module.css'
 
@@ -44,6 +53,8 @@ const DEFAULTS: BackgroundSettings = {
   enabled: false,
   uploadId: '',
   url: '',
+  darkUploadId: '',
+  darkUrl: '',
   opacity: DEFAULT_OPACITY,
   scrim: DEFAULT_SCRIM,
   panelOpacity: DEFAULT_PANEL_OPACITY,
@@ -73,6 +84,42 @@ const SLIDER_SPEC: Record<NumField, { min: number; max: number; step: number; un
 function stripId(url: string): string {
   const prefix = `${BACKGROUND_API_PREFIX}/image/`
   return url.startsWith(prefix) ? url.slice(prefix.length) : ''
+}
+
+/**
+ * Write one scheme's source into a section. The other scheme's slot and every
+ * shared knob stay untouched, so editing the dark art never disturbs the light
+ * one and vice versa.
+ * @param section - the section to derive from.
+ * @param slot - which slot the new source belongs to.
+ * @param uploadId - the upload id (empty when the source is a url).
+ * @param url - the remote url (empty when the source is an upload).
+ * @returns the next section, with the background enabled.
+ */
+function withSlotSource(
+  section: BackgroundSettings,
+  slot: BackgroundScheme,
+  uploadId: string,
+  url: string,
+): BackgroundSettings {
+  return slot === 'dark'
+    ? { ...section, darkUploadId: uploadId, darkUrl: url, enabled: true }
+    : { ...section, uploadId, url, enabled: true }
+}
+
+/**
+ * Drop one scheme's source. The background stays enabled while the OTHER slot
+ * still has art (each scheme falls back to the other); with both slots empty
+ * the section is disabled, exactly like a cleared background.
+ * @param section - the section to derive from.
+ * @param slot - which slot to clear.
+ * @returns the next section.
+ */
+function withoutSlotSource(section: BackgroundSettings, slot: BackgroundScheme): BackgroundSettings {
+  const next = slot === 'dark'
+    ? { ...section, darkUploadId: '', darkUrl: '' }
+    : { ...section, uploadId: '', url: '' }
+  return { ...next, enabled: hasAnySource(next) }
 }
 
 /** The one axis a `cover` crop can pan over. A cover crop overflows on at most
@@ -105,6 +152,7 @@ function readSnapshot(): SettingsSnapshot {
 /** Field-wise equality for distinguishing our own saves from external changes. */
 function sameSettings(a: BackgroundSettings, b: BackgroundSettings): boolean {
   return a.enabled === b.enabled && a.uploadId === b.uploadId && a.url === b.url
+    && a.darkUploadId === b.darkUploadId && a.darkUrl === b.darkUrl
     && a.opacity === b.opacity && a.scrim === b.scrim && a.panelOpacity === b.panelOpacity
     && a.blur === b.blur && a.wallpaperBlur === b.wallpaperBlur && a.fit === b.fit
     && a.offsetX === b.offsetX && a.offsetY === b.offsetY
@@ -212,6 +260,15 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   const timelineHintKey = 'background.timelineEnhanceNarrowHint'
   const [draft, setDraft] = useState<BackgroundSettings>(DEFAULTS)
   const [uploading, setUploading] = useState(false)
+  // Which source slot the upload/url inputs and the preview art target. It
+  // starts on the scheme the app is in, and follows a live scheme flip only
+  // while the user has not picked a slot by hand.
+  const [slot, setSlot] = useState<BackgroundScheme>(() => activeScheme())
+  const [slotPinned, setSlotPinned] = useState(false)
+  const slotRef = useRef<BackgroundScheme>(slot)
+  slotRef.current = slot
+  // The url box mirrors the SELECTED slot's remote source; it is re-seeded on
+  // every slot switch so two slots' links never leak into each other.
   const [urlText, setUrlText] = useState('')
   const [error, setError] = useState('')
   // The host reports the adopted pre-0.1.7 section on the read that migrated
@@ -245,7 +302,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
   /** Repaint the live backdrop + preview card from one draft (no React state). */
   const paintLive = useCallback((next: BackgroundSettings): void => {
     paintBackground(next)
-    if (previewRef.current) paintPreviewSurface(previewRef.current, next)
+    if (previewRef.current) paintPreviewSurface(previewRef.current, next, slotRef.current)
   }, [])
 
   /** Mark the row as being edited; clears after a quiet 600ms window. */
@@ -265,7 +322,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     // too — it repaints only the glass surface tokens instead of re-running
     // the full apply.
     paintBackgroundKnob(key, value)
-    if (previewRef.current) paintPreviewSurface(previewRef.current, next)
+    if (previewRef.current) paintPreviewSurface(previewRef.current, next, slotRef.current)
   }, [markEditing])
 
   /** Persist one section through the host route and adopt it on success. */
@@ -354,10 +411,34 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
       lastSavedRef.current = snapshot.value
       draftRef.current = snapshot.value
       setDraft(snapshot.value)
-      setUrlText(snapshot.value.uploadId ? '' : snapshot.value.url)
-      if (previewRef.current) paintPreviewSurface(previewRef.current, snapshot.value)
+      setUrlText(slotRef.current === 'dark'
+        ? (snapshot.value.darkUploadId !== '' ? '' : snapshot.value.darkUrl)
+        : (snapshot.value.uploadId !== '' ? '' : snapshot.value.url))
+      if (previewRef.current) paintPreviewSurface(previewRef.current, snapshot.value, slotRef.current)
     }
   }, [snapshot])
+
+  // Follow a live scheme flip while the user has neither picked a slot by hand
+  // nor typed into the url box (a flip must never overwrite a half-typed link
+  // — the row is a settings form, not a readout).
+  const urlTouchedRef = useRef(false)
+  useEffect(() => {
+    if (slotPinned) return
+    const observer = new MutationObserver(() => {
+      const live = activeScheme()
+      if (live === slotRef.current) return
+      slotRef.current = live
+      setSlot(live)
+      if (!urlTouchedRef.current) {
+        setUrlText(live === 'dark'
+          ? (draftRef.current.darkUploadId !== '' ? '' : draftRef.current.darkUrl)
+          : (draftRef.current.uploadId !== '' ? '' : draftRef.current.url))
+      }
+      if (previewRef.current) paintPreviewSurface(previewRef.current, draftRef.current, live)
+    })
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
+    return () => observer.disconnect()
+  }, [slotPinned])
 
   // Teardown: a pending debounced commit must not die with the row. If the
   // timer is still armed, fire the save NOW (the timer callback would never
@@ -389,7 +470,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
         setError(t('background.uploadFailed'))
         return
       }
-      const next: BackgroundSettings = { ...draftRef.current, uploadId: stripId(url), url: '', enabled: true }
+      const next = withSlotSource(draftRef.current, slotRef.current, stripId(url), '')
       draftRef.current = next
       setDraft(next)
       setUrlText('')
@@ -407,21 +488,58 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
       return
     }
     markEditing()
-    const next: BackgroundSettings = { ...draftRef.current, uploadId: '', url, enabled: true }
+    const next = withSlotSource(draftRef.current, slotRef.current, '', url)
     draftRef.current = next
     setDraft(next)
     paintLive(next)
     void saveNow(next)
   }
 
+  /** Clear the CURRENT slot's art (the other slot is untouched). */
   const handleClear = (): void => {
-    const next: BackgroundSettings = { ...draftRef.current, uploadId: '', url: '', enabled: false }
+    const next = withoutSlotSource(draftRef.current, slotRef.current)
+    draftRef.current = next
+    setDraft(next)
+    setUrlText('')
+    if (previewRef.current) {
+      // Keep the card alive on the other slot's art; only a section that no
+      // longer paints anything clears the preview surface entirely.
+      if (next.enabled) paintPreviewSurface(previewRef.current, next, slotRef.current)
+      else clearPreviewSurface(previewRef.current)
+    }
+    paintBackground(next)
+    void saveNow(next)
+  }
+
+  /** Clear both slots and turn the background off. */
+  const handleClearAll = (): void => {
+    const next: BackgroundSettings = {
+      ...draftRef.current, uploadId: '', url: '', darkUploadId: '', darkUrl: '', enabled: false,
+    }
     draftRef.current = next
     setDraft(next)
     setUrlText('')
     if (previewRef.current) clearPreviewSurface(previewRef.current)
     paintBackground(next)
     void saveNow(next)
+  }
+
+  /** Pick the slot the file/url inputs edit (and the preview art shows). */
+  const handleSelectSlot = (next: BackgroundScheme): void => {
+    if (next === slotRef.current) return
+    markEditing()
+    slotRef.current = next
+    setSlot(next)
+    setSlotPinned(true)
+    urlTouchedRef.current = false
+    setError('')
+    // Seed the url input with the slot's own remote source (an upload in the
+    // slot leaves it empty — the upload badge reports it instead).
+    setUrlText(next === 'dark'
+      ? (draftRef.current.darkUploadId !== '' ? '' : draftRef.current.darkUrl)
+      : (draftRef.current.uploadId !== '' ? '' : draftRef.current.url))
+    // The card previews the newly selected slot immediately.
+    if (previewRef.current) paintPreviewSurface(previewRef.current, draftRef.current, next)
   }
 
   const handleFit = (mode: BackgroundFit): void => {
@@ -485,7 +603,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     const next = { ...draftRef.current, [key]: value }
     draftRef.current = next
     paintBackgroundKnob(key, value)
-    if (previewRef.current) paintPreviewSurface(previewRef.current, next)
+    if (previewRef.current) paintPreviewSurface(previewRef.current, next, slotRef.current)
   }
 
   const handlePanDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
@@ -557,8 +675,17 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
     void saveNow(next)
   }
 
-  const sourceUrl = draft.uploadId ? `${BACKGROUND_API_PREFIX}/image/${draft.uploadId}` : draft.url
+  // The card previews the SELECTED slot; the dark slot falls back to the light
+  // art, so an untouched dark slot still shows the image the app would paint.
+  const sourceUrl = backgroundSourceUrl(draft, BACKGROUND_API_PREFIX, slot)
   const hasImage = sourceUrl !== ''
+  const slotHasOwn = hasOwnSource(draft, slot)
+  /** True when `mode` has no art of its own and borrows the OTHER slot's. */
+  const followsOther = (mode: BackgroundScheme): boolean =>
+    !hasOwnSource(draft, mode) && hasOwnSource(draft, mode === 'dark' ? 'light' : 'dark')
+  // The chip advertises the fallback when this slot has no art of its own but
+  // the section still paints something, i.e. the other slot supplies it.
+  const slotFollowsOther = followsOther(slot)
 
   // A source swap invalidates the measured natural size until the new image
   // loads; an error leaves it null (which disables the pan).
@@ -569,9 +696,9 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
       <div className={css.header}>
         <div className={css.titleRow}>
           <div className={css.title}>{t('background.title')}</div>
-          {hasImage && (
+          {slotHasOwn && (
             <button type="button" className={clsx(css.btn, css.btnDanger, css.clearBtn)} onClick={handleClear}>
-              {t('background.clear')}
+              {t(slot === 'dark' ? 'background.clearSlotDark' : 'background.clearSlotLight')}
             </button>
           )}
         </div>
@@ -596,6 +723,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
         <div
           className={css.preview}
           ref={previewRef}
+          data-scheme={slot}
           data-pan={panAxis ?? undefined}
           style={cardHeight > 0 ? { width: `${cardWidth}px`, height: `${cardHeight}px` } : undefined}
           tabIndex={panAxis === null ? undefined : 0}
@@ -641,9 +769,30 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
         </div>
       </div>
 
-      {/* Image source: upload or paste an http(s) link. */}
+      {/* Image source: pick the slot (light / dark art), then upload or paste
+          an http(s) link for it. The shared effect knobs below apply to both. */}
       <div className={css.section}>
         <div className={css.sectionLabel}>{t('background.source')}</div>
+        <div className={css.segGroup} role="group" aria-label={t('background.schemeLabel')}>
+          {(['light', 'dark'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className={clsx(css.segBtn, slot === mode && css.segActive)}
+              aria-pressed={slot === mode}
+              onClick={() => handleSelectSlot(mode)}
+            >
+              {t(mode === 'light' ? 'background.schemeLight' : 'background.schemeDark')}
+              {followsOther(mode)
+                && ` · ${t(mode === 'dark' ? 'background.schemeFollowLight' : 'background.schemeFollowDark')}`}
+            </button>
+          ))}
+        </div>
+        <div className={css.hint}>
+          {slotFollowsOther
+            ? t(slot === 'dark' ? 'background.schemeFallsBackToLight' : 'background.schemeFallsBackToDark')
+            : t(slot === 'dark' ? 'background.schemeDarkHint' : 'background.schemeLightHint')}
+        </div>
         <div className={css.sourceRow}>
           <input
             type="file"
@@ -664,7 +813,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
             {uploading ? t('background.uploading') : t('background.upload')}
           </button>
           <span className={css.hint}>{t('background.uploadMediaTypes')}</span>
-          {draft.uploadId && <span className={css.enabledBadge}>✓ {t('background.enabled')}</span>}
+          {slotHasOwn && <span className={css.enabledBadge}>✓ {t('background.enabled')}</span>}
         </div>
         <div className={css.urlRow}>
           <input
@@ -672,7 +821,7 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
             value={urlText}
             placeholder={t('background.urlPlaceholder')}
             onKeyDown={(e) => { if (e.key === 'Enter') handleUrlSubmit() }}
-            onChange={(e) => setUrlText(e.currentTarget.value)}
+            onChange={(e) => { urlTouchedRef.current = e.currentTarget.value !== ''; setUrlText(e.currentTarget.value) }}
           />
           <button
             type="button"
@@ -727,9 +876,9 @@ export function BackgroundSettingsRow({ t }: BackgroundRowProps) {
 
       {error && <div className={css.error} role="alert">{error}</div>}
 
-      {hasImage && (
+      {hasAnySource(draft) && (
         <div className={css.clearRow}>
-          <button type="button" className={clsx(css.btn, css.btnDanger)} onClick={handleClear}>
+          <button type="button" className={clsx(css.btn, css.btnDanger)} onClick={handleClearAll}>
             {t('background.clear')}
           </button>
         </div>

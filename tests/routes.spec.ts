@@ -145,6 +145,27 @@ describe('validateSectionBody', () => {
       .toBe('mutually-exclusive-source')
   })
 
+  it('accepts a light source and a dark source in the same section', () => {
+    const home = freshHome()
+    const dark = storeUpload(PNG_BYTES, 'image/png', home).id
+    expect(validateSectionBody({ uploadId: '', url: 'https://example.com/light.jpg', darkUploadId: dark, darkUrl: '' }, home))
+      .toBeNull()
+  })
+
+  it('rejects a malformed or missing dark source with dark-specific codes', () => {
+    expect(validateSectionBody({ darkUrl: 'file:///x.png' }, freshHome())).toBe('invalid-dark-url')
+    expect(validateSectionBody({ darkUrl: 42 }, freshHome())).toBe('invalid-dark-url')
+    expect(validateSectionBody({ darkUploadId: '../escape' }, freshHome())).toBe('invalid-dark-upload-id')
+    expect(validateSectionBody({ darkUploadId: 'up-' + 'a'.repeat(24) }, freshHome())).toBe('upload-not-found')
+  })
+
+  it('rejects a dark pair that sets both sources at once', () => {
+    const home = freshHome()
+    const { id } = storeUpload(PNG_BYTES, 'image/png', home)
+    expect(validateSectionBody({ darkUrl: 'https://example.com/d.jpg', darkUploadId: id }, home))
+      .toBe('mutually-exclusive-dark-source')
+  })
+
   it('rejects out-of-range numeric knobs before the schema layer', () => {
     expect(validateSectionBody({ scrim: 1.2 }, freshHome())).toBe('invalid-range')
     expect(validateSectionBody({ opacity: -0.1 }, freshHome())).toBe('invalid-range')
@@ -419,6 +440,36 @@ describe('upload pruning (swap / clear deletes the superseded file)', () => {
     })
   })
 
+  it('prunes when the dark slot is replaced and keeps the light upload', async () => {
+    await withServer(async (base, home) => {
+      const light = await postUpload(base, PNG_BYTES, 'image/png')
+      const darkFirst = await postUpload(base, PNG_BYTES, 'image/png')
+      const darkSecond = await postUpload(base, PNG_BYTES, 'image/png')
+      expect(await postSection(base, {
+        enabled: true, uploadId: light, url: '', darkUploadId: darkFirst, darkUrl: '',
+      })).toBe(200)
+      // Swapping ONLY the dark art must not touch the light upload.
+      expect(await postSection(base, { darkUploadId: darkSecond })).toBe(200)
+      expect(existsSync(pngPath(home, darkFirst))).toBe(false)
+      expect(existsSync(pngPath(home, darkSecond))).toBe(true)
+      expect(existsSync(pngPath(home, light))).toBe(true)
+    })
+  })
+
+  it('keeps an upload that moves from the light slot to the dark slot', async () => {
+    await withServer(async (base, home) => {
+      const id = await postUpload(base, PNG_BYTES, 'image/png')
+      expect(await postSection(base, { enabled: true, uploadId: id, url: '' })).toBe(200)
+      // The same bytes now paint only in the dark scheme: still referenced, so
+      // the prune must not delete the file the dark slot now serves.
+      expect(await postSection(base, { uploadId: '', url: '', darkUploadId: id, darkUrl: '' })).toBe(200)
+      expect(existsSync(pngPath(home, id))).toBe(true)
+      const after = await getSection(base)
+      expect(after.uploadId).toBe('')
+      expect(after.darkUploadId).toBe(id)
+    })
+  })
+
   it('does not prune when a section write fails validation', async () => {
     await withServer(async (base, home) => {
       const id = await postUpload(base, PNG_BYTES, 'image/png')
@@ -447,6 +498,18 @@ describe('merged-section source exclusivity (partial writes included)', () => {
     })
   })
 
+  it('rejects a partial write that would leave both DARK sources set after merging', async () => {
+    await withServer(async (base, home) => {
+      const id = await postUpload(base, PNG_BYTES, 'image/png')
+      expect(await postSection(base, { enabled: true, darkUploadId: id, darkUrl: '' })).toBe(200)
+      expect(await postSection(base, { darkUrl: 'https://example.com/d.jpg' })).toBe(400)
+      const after = await getSection(base)
+      expect(after.darkUploadId).toBe(id)
+      expect(after.darkUrl).toBe('')
+      expect(existsSync(pngPath(home, id))).toBe(true)
+    })
+  })
+
   it('still accepts full-section swaps that clear the other source', async () => {
     await withServer(async (base, home) => {
       const id = await postUpload(base, PNG_BYTES, 'image/png')
@@ -460,10 +523,12 @@ describe('merged-section source exclusivity (partial writes included)', () => {
 })
 
 describe('section write scrubs legacy unknown fields', () => {
-  /** A user document written by an older plugin version: carries lightUrl/darkUrl. */
+  /** A user document written by an older plugin version: carries fields the
+   *  current schema has no counterpart for (the old `lightUrl` pair; `darkUrl`
+   *  IS a live field now, so the second probe uses a name that never was). */
   const legacyInitial = {
     [BACKGROUND_SETTINGS_NAMESPACE]: {
-      enabled: true, lightUrl: '', darkUrl: '', opacity: 0.6,
+      enabled: true, lightUrl: '', darkSchemeUrl: '', opacity: 0.6,
       uploadId: '', url: '', scrim: 0.4, panelOpacity: 0.3,
       blur: 3, wallpaperBlur: 0, fit: 'cover',
     },
@@ -475,13 +540,13 @@ describe('section write scrubs legacy unknown fields', () => {
     await withServer(async (base) => {
       const before = await getSection(base)
       expect(before).toHaveProperty('lightUrl')
-      expect(before).toHaveProperty('darkUrl')
+      expect(before).toHaveProperty('darkSchemeUrl')
 
       expect(await postSection(base, { enabled: true, uploadId: '', url: '', opacity: 0.5 })).toBe(200)
 
       const after = await getSection(base)
       expect(after).not.toHaveProperty('lightUrl')
-      expect(after).not.toHaveProperty('darkUrl')
+      expect(after).not.toHaveProperty('darkSchemeUrl')
       expect(after.opacity).toBe(0.5)
     }, legacyInitial)
   })

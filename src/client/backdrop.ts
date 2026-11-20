@@ -11,7 +11,10 @@
  */
 
 import { ACTIVE_ATTR, GLASS_ATTR, injectBackgroundCss } from './background-css.ts'
-import { BACKGROUND_API_PREFIX, type BackgroundSettings } from '../settings.ts'
+import {
+  BACKGROUND_API_PREFIX, backgroundSourceUrl,
+  type BackgroundScheme, type BackgroundSettings,
+} from '../settings.ts'
 
 /** Class names the layer and scrim elements carry. */
 const LAYER_CLASS = 'dsh-bg-layer'
@@ -103,13 +106,26 @@ function glassSurfaceAlphas(panelOpacity: number, inDark: boolean): { major: str
 }
 
 /**
- * Resolve the effective background image url for a section.
- * @param settings - resolved background section.
- * @returns the image url, or '' when no source is set.
+ * The scheme the document is currently rendering.
+ * @returns 'dark' while the shell marks the body with its dark-scheme attribute.
  */
-export function backgroundImageUrl(settings: BackgroundSettings, uploadBase: string): string {
-  if (settings.uploadId) return `${uploadBase}/image/${settings.uploadId}`
-  return settings.url
+export function activeScheme(): BackgroundScheme {
+  return document.body.dataset.dsDarkTheme !== undefined ? 'dark' : 'light'
+}
+
+/**
+ * Resolve the effective background image url for a section in one scheme.
+ * @param settings - resolved background section.
+ * @param uploadBase - the API base used to turn an upload id into a url.
+ * @param scheme - the scheme whose art should paint (defaults to the live one).
+ * @returns the image url, or '' when neither the scheme nor its light fallback has a source.
+ */
+export function backgroundImageUrl(
+  settings: BackgroundSettings,
+  uploadBase: string,
+  scheme: BackgroundScheme = activeScheme(),
+): string {
+  return backgroundSourceUrl(settings, uploadBase, scheme)
 }
 
 /**
@@ -151,7 +167,7 @@ export class BackgroundPainter {
     }
     injectBackgroundCss()
 
-    const url = backgroundImageUrl(settings, uploadBase)
+    const url = backgroundImageUrl(settings, uploadBase, activeScheme())
     if (url === '') {
       // No source: the frame transparency is owned only while a wallpaper
       // paints — hand the base/sidebar fills back (a sourceless "enabled"
@@ -201,11 +217,7 @@ export class BackgroundPainter {
     // property, which resolves to an absolute URL and would make this check
     // always-true for relative urls. Same-value writes are no-ops in the DOM,
     // so this is a clarity fix, not a behavior fix.
-    if (this.img && this.img.getAttribute('src') !== url) {
-      delete this.img.dataset.failed
-      this.img.style.visibility = ''
-      this.img.src = url
-    }
+    this.swapImage(url)
 
     if (!this.scrim) {
       this.scrim = document.createElement('div')
@@ -240,9 +252,51 @@ export class BackgroundPainter {
     // flips (the surface translucency differs between schemes). Disconnects
     // on dispose.
     if (!this.observer) {
-      this.observer = new MutationObserver(() => this.applySurfaceGlass(this.settings, false))
+      // A scheme flip both re-tints the glass (the alpha curve is per scheme)
+      // and — when the section carries its own dark art — swaps the wallpaper.
+      this.observer = new MutationObserver(() => {
+        this.applySurfaceGlass(this.settings, false)
+        this.applySchemeArt()
+      })
       this.observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
     }
+  }
+
+  /**
+   * Swap the wallpaper to the section's art for the CURRENT scheme. Each
+   * scheme falls back to the other's art, so a single-image section resolves
+   * to the same url in both schemes: the swap is then a no-op and the image
+   * never reloads (no flash on a theme flip). When a flip leaves BOTH schemes
+   * sourceless the painter retracts like a disabled section.
+   * Called from the theme observer and from the settings row's live preview.
+   */
+  applySchemeArt(): void {
+    const settings = this.settings
+    if (settings === undefined || !settings.enabled) return
+    const url = backgroundImageUrl(settings, BACKGROUND_API_PREFIX, activeScheme())
+    if (url === '') {
+      // Nothing to paint in this scheme (possible only if the section was
+      // emptied elsewhere while a flip was in flight).
+      this.apply(settings, BACKGROUND_API_PREFIX)
+      return
+    }
+    if (!this.hasSource) {
+      this.apply(settings, BACKGROUND_API_PREFIX)
+      return
+    }
+    this.swapImage(url)
+  }
+
+  /**
+   * Point the wallpaper <img> at one url, clearing any previous failure state.
+   * A same-url call is a no-op (the DOM never re-fetches it).
+   * @param url - the resolved image url to render.
+   */
+  private swapImage(url: string): void {
+    if (this.img === null || this.img.getAttribute('src') === url) return
+    delete this.img.dataset.failed
+    this.img.style.visibility = ''
+    this.img.src = url
   }
 
   /** Write one owned CSS variable onto body. */
@@ -390,6 +444,7 @@ export class BackgroundPainter {
     this.savedVars.clear()
     this.active = false
     this.settings = undefined
+    this.hasSource = false
   }
 
   /** @returns whether a wallpaper is currently rendered. */
@@ -440,8 +495,16 @@ const PREVIEW_VARS = [
  * @param el - the preview element.
  * @param settings - the draft settings to render (may be unsaved).
  */
-export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSettings): void {
+export function paintPreviewSurface(
+  el: HTMLElement,
+  settings: BackgroundSettings,
+  scheme: BackgroundScheme = activeScheme(),
+): void {
   const s = el.style
+  // Preview the scheme the card is showing, not necessarily the live one:
+  // while the user edits the dark slot in light mode the card must still show
+  // the art that slot will paint.
+  const inDark = scheme === 'dark'
   s.setProperty('--bg-object-fit', settings.fit)
   s.setProperty('--bg-offset-x', String(settings.offsetX))
   s.setProperty('--bg-offset-y', String(settings.offsetY))
@@ -454,7 +517,6 @@ export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSetting
   // panel-opacity slider is visible in the preview); at 1 the official opaque
   // surface returns — the bubble turns opaque and the blur switches off, just
   // like applySurfaceGlass does on the real backdrop.
-  const inDark = document.body.dataset.dsDarkTheme !== undefined
   if (settings.panelOpacity >= 1) {
     s.setProperty('--bg-glass-blur', '0px')
     s.setProperty('--bg-glass-brightness', '1')

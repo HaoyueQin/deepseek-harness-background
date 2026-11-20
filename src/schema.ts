@@ -27,6 +27,10 @@ const BackgroundSettingsFields = {
   uploadId: z.string().default(''),
   /** Image URL or empty (mutually exclusive with uploadId at runtime). */
   url: z.string().default(''),
+  /** Dark-scheme upload id; empty follows the light image. */
+  darkUploadId: z.string().default(''),
+  /** Dark-scheme image URL; empty follows the light image. */
+  darkUrl: z.string().default(''),
   opacity: z.number().min(OPACITY_MIN).max(OPACITY_MAX).default(DEFAULT_OPACITY),
   scrim: z.number().min(SCRIM_MIN).max(SCRIM_MAX).default(DEFAULT_SCRIM),
   panelOpacity: z.number().min(PANEL_OPACITY_MIN).max(PANEL_OPACITY_MAX).default(DEFAULT_PANEL_OPACITY),
@@ -41,9 +45,10 @@ const BackgroundSettingsFields = {
 /**
  * Durable background section; also the wire envelope the browser scope
  * validates against and the namespace schema registered on dsh 0.1.5/0.1.6.
- * `uploadId` and `url` name the two exclusive sources; the schema stays
- * structural (no trim/transform — a function callback would break the
- * schema's toJSON wire serialization).
+ * Within each scheme `uploadId` and `url` name the two exclusive sources (the
+ * light pair is the base, the dark pair overrides it in the dark scheme); the
+ * schema stays structural (no trim/transform — a function callback would
+ * break the schema's toJSON wire serialization).
  */
 export const BackgroundSettingsSchema: z<BackgroundSettings> = z.object(BackgroundSettingsFields)
 

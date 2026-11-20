@@ -40,6 +40,7 @@ The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels d
 
 ## Features
 
+- **A separate wallpaper for light and dark mode** — the image is split into a light-mode slot and a dark-mode slot, each with its own upload or URL. Switching the app to dark mode swaps the wallpaper to the dark image automatically, and switching back restores the light one; until the new image decodes, the old one stays on screen instead of flashing. With only one image set, both modes share it (existing single-image setups keep working after the upgrade — the dark slot is purely opt-in), so a section is never left with an empty frame.
 - **Local upload** — pick a JPG / PNG / WebP / GIF from your computer; the plugin stores it under the harness home and serves it over a same-origin route (admitted only when the declared MIME, detected signature and extension all agree).
 - **Paste a URL** — drop an `http(s)` image link and press Enter.
 - **In-panel live preview** — a preview surface at the top of the row renders the image + scrim + a frosted glass bubble; dragging any slider repaints it instantly. The card's box tracks the live window ratio, so the crop it shows is the crop the backdrop paints.
@@ -58,7 +59,8 @@ The look (fixed wallpaper layer + theme-aware scrim + translucent glass panels d
 
 | Plugin release | Supported dsh versions |
 | --- | --- |
-| **0.6.1** | **dsh 0.1.2-rc.1 and 0.1.3-alpha.x (verified on alpha.2), plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 (verified on rc.2), 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1/alpha.2/rc.1/rc.2 (verified on rc.2), 0.2.0-rc.1 (verified on rc.1) and 0.2.0-rc.2 (verified on rc.2)** |
+| **0.7.0** | **dsh 0.1.2-rc.1 and 0.1.3-alpha.x (verified on alpha.2), plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 (verified on rc.2), 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1/alpha.2/rc.1/rc.2 (verified on rc.2), 0.2.0-rc.1 (verified on rc.1) and 0.2.0-rc.2 (verified on rc.2)** |
+| 0.6.1 | dsh 0.1.2-rc.1 and 0.1.3-alpha.x, plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 and 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1/alpha.2/rc.1/rc.2 and 0.2.0-rc.1/rc.2 |
 | 0.6.0 | dsh 0.1.2-rc.1 and 0.1.3-alpha.x, plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 and 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1/alpha.2/rc.1/rc.2 and 0.2.0-rc.1 |
 | 0.5.6 | dsh 0.1.2-rc.1 and 0.1.3-alpha.x, plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 and 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1/alpha.2/rc.1/rc.2 |
 | 0.5.5 | dsh 0.1.2-rc.1 and 0.1.3-alpha.x, plus 0.1.5-alpha.1/alpha.2/rc.1/rc.2 and 0.1.6-alpha.1/alpha.2, 0.1.7-alpha.1 |
@@ -105,8 +107,8 @@ dsh --profile web
 
 1. Start the Web UI (`dsh --profile web`) and open it in a browser.
 2. Open **Settings** (bottom-left) → **General** → the **Custom Background** row (in the same area as the Appearance row).
-3. **Upload** an image or **paste a URL** — the background applies immediately and the preview surface above updates in sync.
-4. Tune the controls — sliders snap in steps and **commit on release**:
+3. In the **Image** section, pick the **Light mode** or **Dark mode** slot with the segmented control, then **upload** an image or **paste a URL** — that scheme's background applies immediately and the preview surface above updates in sync. The two slots are independent; a slot marked *follows light / follows dark* has no image of its own yet and borrows the other one.
+4. Tune the controls — the effects are **shared by both schemes**; sliders snap in steps and **commit on release**:
 
 | Control | Meaning |
 | --- | --- |
@@ -118,7 +120,7 @@ dsh --profile web
 | 填充方式 / Fit | `cover` (fill, crop) or `contain` (whole image); under `cover` the preview drags the image along the crop's slack axis (arrow keys nudge, double-click or the recenter chip recenters). |
 | 会话时间线 / Timeline | on/off switch for the conversation timeline (default on). On dsh ≥ 0.1.2-rc.1 the row is labelled 会话时间线增强 / *enhancement*: the official rail stays and this only improves its behaviour (smooth jumps for loaded turns); turning it off restores stock behaviour. |
 
-5. **清除背景** removes the background and restores the stock look.
+5. **Clear light image / Clear dark image** clears only the selected slot (the other image stays); the bottom **Clear all backgrounds** removes both and restores the stock look.
 
 ## How it works
 
