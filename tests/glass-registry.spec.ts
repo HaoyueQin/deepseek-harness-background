@@ -20,6 +20,8 @@ const SECTION: BackgroundSettings = {
   enabled: true,
   uploadId: 'up-abc',
   url: '',
+  darkUploadId: '',
+  darkUrl: '',
   opacity: 1,
   scrim: 0.25,
   panelOpacity: 0.15,

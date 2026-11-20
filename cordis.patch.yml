@@ -1,7 +1,8 @@
 # deepseek-harness-background bundle patch: inserts its dshClient row into
 # the web plugin roster. The bundle is the official dsh plugin shape — install
 # it with `dsh plugin --profile <name> add <path-or-git-url>` (or `pnpm dsh ...`
-# from a fresh source checkout).
+# from a fresh source checkout). The row id doubles as the settings entry id on
+# dsh 0.1.7+, so it must stay stable across upgrades.
 - insert:
     - id: deepseek-harness-background
       name: 'deepseek-harness-background'

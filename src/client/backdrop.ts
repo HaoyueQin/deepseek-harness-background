@@ -10,12 +10,18 @@
  * the `data-ds-dark-theme` observer is disconnected.
  */
 
-import { ACTIVE_ATTR, GLASS_ATTR, injectBackgroundCss } from './background-css.ts'
-import { BACKGROUND_API_PREFIX, type BackgroundSettings } from '../settings.ts'
+import { ACTIVE_ATTR, DARK_READY_ATTR, GLASS_ATTR, injectBackgroundCss } from './background-css.ts'
+import {
+  BACKGROUND_API_PREFIX, backgroundSourceUrl,
+  type BackgroundScheme, type BackgroundSettings,
+} from '../settings.ts'
 
 /** Class names the layer and scrim elements carry. */
 const LAYER_CLASS = 'dsh-bg-layer'
 const IMAGE_CLASS = 'dsh-bg-image'
+
+/** The two schemes a wallpaper layer is mounted for, in document order. */
+const SCHEMES = ['light', 'dark'] as const
 const SCRIM_CLASS = 'dsh-bg-scrim'
 
 /** Body style properties the painter owns while a wallpaper paints: the app
@@ -103,13 +109,26 @@ function glassSurfaceAlphas(panelOpacity: number, inDark: boolean): { major: str
 }
 
 /**
- * Resolve the effective background image url for a section.
- * @param settings - resolved background section.
- * @returns the image url, or '' when no source is set.
+ * The scheme the document is currently rendering.
+ * @returns 'dark' while the shell marks the body with its dark-scheme attribute.
  */
-export function backgroundImageUrl(settings: BackgroundSettings, uploadBase: string): string {
-  if (settings.uploadId) return `${uploadBase}/image/${settings.uploadId}`
-  return settings.url
+export function activeScheme(): BackgroundScheme {
+  return document.body.dataset.dsDarkTheme !== undefined ? 'dark' : 'light'
+}
+
+/**
+ * Resolve the effective background image url for a section in one scheme.
+ * @param settings - resolved background section.
+ * @param uploadBase - the API base used to turn an upload id into a url.
+ * @param scheme - the scheme whose art should paint (defaults to the live one).
+ * @returns the image url, or '' when neither the scheme nor its light fallback has a source.
+ */
+export function backgroundImageUrl(
+  settings: BackgroundSettings,
+  uploadBase: string,
+  scheme: BackgroundScheme = activeScheme(),
+): string {
+  return backgroundSourceUrl(settings, uploadBase, scheme)
 }
 
 /**
@@ -117,11 +136,16 @@ export function backgroundImageUrl(settings: BackgroundSettings, uploadBase: str
  */
 export class BackgroundPainter {
   private layer: HTMLDivElement | null = null
-  private img: HTMLImageElement | null = null
+  /** One wallpaper element per scheme: both stay mounted and decoded so the
+   * theme flip is a pure CSS visibility swap (see BACKGROUND_CSS). */
+  private readonly images: Partial<Record<BackgroundScheme, HTMLImageElement>> = {}
   private scrim: HTMLDivElement | null = null
   private observer: MutationObserver | undefined
   private active = false
   private settings: BackgroundSettings | undefined
+  /** The exact object last passed to apply(), used to drop a stale async
+   *  readiness callback that belongs to a superseded section. */
+  private paintedSettings: BackgroundSettings | undefined
   /** Whether the current section resolves to an actual image source. */
   private hasSource = false
   private readonly savedTokens = new Map<string, string>()
@@ -145,13 +169,14 @@ export class BackgroundPainter {
    */
   apply(settings: BackgroundSettings, uploadBase: string): void {
     this.settings = settings
+    this.paintedSettings = settings
     if (!settings.enabled) {
       this.dispose()
       return
     }
     injectBackgroundCss()
 
-    const url = backgroundImageUrl(settings, uploadBase)
+    const url = backgroundImageUrl(settings, uploadBase, activeScheme())
     if (url === '') {
       // No source: the frame transparency is owned only while a wallpaper
       // paints — hand the base/sidebar fills back (a sourceless "enabled"
@@ -166,6 +191,7 @@ export class BackgroundPainter {
       this.hasSource = false
       this.removeLayers()
       document.body.removeAttribute(ACTIVE_ATTR)
+      document.body.removeAttribute(DARK_READY_ATTR)
       return
     }
 
@@ -175,37 +201,52 @@ export class BackgroundPainter {
       document.body.style.setProperty(prop, 'transparent')
     }
 
-    // Wallpaper layer + scrim.
+    // Wallpaper layer + one element per scheme. Both are kept mounted so a
+    // theme flip never has to create, fetch or decode anything.
     if (!this.layer) {
       this.layer = document.createElement('div')
       this.layer.className = LAYER_CLASS
-      this.img = document.createElement('img')
-      this.img.className = IMAGE_CLASS
-      this.img.alt = ''
-      // Remote-url sources must not leak the local origin via Referer.
-      this.img.referrerPolicy = 'no-referrer'
-      // A dead source (404 / network error / revoked upload) must not leave a
-      // blank frozen backdrop: hide the broken image once (the scrim and
-      // glass still paint) and say so once on the console. Switching to a
-      // different URL below clears the failure state and retries.
-      this.img.onerror = () => {
-        if (this.img === null || this.img.dataset.failed === '1') return
-        this.img.dataset.failed = '1'
-        this.img.style.visibility = 'hidden'
-        console.warn('[deepseek-harness-background] wallpaper image failed to load:', this.img.getAttribute('src'))
+      for (const scheme of SCHEMES) {
+        const el = document.createElement('img')
+        el.className = IMAGE_CLASS
+        el.alt = ''
+        el.dataset.scheme = scheme
+        // Remote-url sources must not leak the local origin via Referer.
+        el.referrerPolicy = 'no-referrer'
+        // A dead source (404 / network error / revoked upload) must not leave
+        // a blank frozen backdrop: hide the broken layer and say so once on
+        // the console. Pointing it at a different URL clears the failure.
+        el.onerror = () => {
+          if (el.dataset.failed === '1') return
+          el.dataset.failed = '1'
+          el.style.visibility = 'hidden'
+          console.warn('[deepseek-harness-background] wallpaper image failed to load:', el.getAttribute('src'))
+        }
+        // A DARK layer that finishes loading must unlock the dark pairing
+        // immediately, without waiting for some unrelated re-apply. This is the
+        // engine-independent belt to decode()'s braces: `load` fires once the
+        // bytes AND the decoded frame are available.
+        if (scheme === 'dark') {
+          el.onload = () => {
+            const current = this.settings
+            // Ignore a load that belongs to a section already superseded, and
+            // one that lands for a url this layer no longer holds.
+            if (current === undefined || current !== this.paintedSettings) return
+            if (el.getAttribute('src') !== backgroundImageUrl(current, BACKGROUND_API_PREFIX, 'dark')) return
+            document.body.setAttribute(DARK_READY_ATTR, 'on')
+          }
+        }
+        this.images[scheme] = el
+        this.layer.appendChild(el)
       }
-      this.layer.appendChild(this.img)
       document.body.appendChild(this.layer)
     }
-    // Compare the *attribute* (the raw value we set) rather than the .src
-    // property, which resolves to an absolute URL and would make this check
-    // always-true for relative urls. Same-value writes are no-ops in the DOM,
-    // so this is a clarity fix, not a behavior fix.
-    if (this.img && this.img.getAttribute('src') !== url) {
-      delete this.img.dataset.failed
-      this.img.style.visibility = ''
-      this.img.src = url
-    }
+    // Point BOTH layers at the art their scheme resolves to (each scheme falls
+    // back to the other's art, so a single-image section yields the same url
+    // twice). Every layer holds a decoded frame before the flip can happen:
+    // the visible one is already painted, and the hidden one is preloaded and
+    // decoded below.
+    this.syncLayers(settings, uploadBase)
 
     if (!this.scrim) {
       this.scrim = document.createElement('div')
@@ -236,12 +277,103 @@ export class BackgroundPainter {
     // the official opaque surfaces and disables the blur).
     this.applySurfaceGlass(settings, false)
 
-    // Theme observer: repaint the glass tokens when the light/dark scheme
-    // flips (the surface translucency differs between schemes). Disconnects
-    // on dispose.
+    // Theme observer: the WALLPAPER swap needs no observer at all (the layers
+    // and the scrim are keyed on the body attribute in CSS, which is what
+    // makes the flip atomic and instant). Only the frosted-glass alphas are
+    // written from JS, because they are computed per scheme.
     if (!this.observer) {
-      this.observer = new MutationObserver(() => this.applySurfaceGlass(this.settings, false))
+      this.observer = new MutationObserver(() => {
+        this.applySurfaceGlass(this.settings, false)
+      })
       this.observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
+    }
+  }
+
+  /**
+   * Point each scheme layer at the art that scheme resolves to, then make the
+   * hidden one ready before any flip can happen.
+   *
+   * The swap itself is CSS (`.dsh-bg-image[data-scheme]` + the scrim, both
+   * keyed on `data-ds-dark-theme`), so it costs one style recalculation and is
+   * atomic with the veil. This method only keeps the two layers' `src`
+   * attributes correct and pre-decodes the one that is not painted yet.
+   * @param settings - the section being painted.
+   * @param uploadBase - the API base used to resolve upload ids.
+   */
+  private syncLayers(settings: BackgroundSettings, uploadBase: string): void {
+    for (const scheme of SCHEMES) {
+      const el = this.images[scheme]
+      if (el === undefined) continue
+      const url = backgroundImageUrl(settings, uploadBase, scheme)
+      // Compare the *attribute* (the raw value we set) rather than the .src
+      // property, which resolves to an absolute URL and would make this check
+      // always-true for relative urls. Same-value writes are no-ops in the DOM.
+      if (el.getAttribute('src') === url) continue
+      delete el.dataset.failed
+      el.style.visibility = ''
+      el.src = url
+    }
+    this.markDarkReadyWhenDecoded()
+  }
+
+  /**
+   * Publish whether the DARK layer is decoded, which is what lets the dark
+   * pairing (black veil + dark art) take over at all.
+   *
+   * Why this exists: the veil is pure CSS, so it flips the instant the theme
+   * attribute changes, while the art behind it can still be arriving over the
+   * network (a 4K PNG is seconds). Without this gate the app showed a BLACK
+   * veil over the LIGHT picture and then swapped the picture in — the "it just
+   * got darker for a moment" the user reported. While the flag is absent the
+   * whole dark pairing stays off, so the light veil and the light art remain
+   * paired; the moment the dark frame is decoded the flag lands and the pair
+   * swaps together.
+   *
+   * The flag is only ever REMOVED when the dark layer has an own source that is
+   * not ready yet. A section whose dark slot merely falls back to the light art
+   * is ready by definition (same url, same decoded frame), and a section with
+   * no dark pairing at all (single-image) never shows the black veil on a
+   * different picture, so it is ready too.
+   */
+  private markDarkReadyWhenDecoded(): void {
+    const el = this.images.dark
+    const dark = this.settings === undefined
+      ? ''
+      : backgroundImageUrl(this.settings, BACKGROUND_API_PREFIX, 'dark')
+    if (el === undefined || dark === '') {
+      document.body.removeAttribute(DARK_READY_ATTR)
+      return
+    }
+    const light = this.settings === undefined
+      ? ''
+      : backgroundImageUrl(this.settings, BACKGROUND_API_PREFIX, 'light')
+    // Falling back to the light art: the two layers are the same picture, so
+    // the pairing is visually identical whether or not the flag is set.
+    if (dark === light) {
+      document.body.setAttribute(DARK_READY_ATTR, 'on')
+      return
+    }
+    // `complete` covers both "already decoded in this document" and "cached";
+    // naturalWidth > 0 rules out the broken-image state (complete is true for
+    // a 404 too, and that must not enable the dark pairing).
+    const decodedNow = el.complete && el.naturalWidth > 0
+    if (decodedNow) document.body.setAttribute(DARK_READY_ATTR, 'on')
+    else document.body.removeAttribute(DARK_READY_ATTR)
+
+    // Older engines and non-browser environments (jsdom) have no decode().
+    if (typeof el.decode !== 'function') return
+    // decode() rejects with EncodingError on a source that never loads; it
+    // resolves once the frame is cached. Only a resolution may enable the flag,
+    // and only while this is still the section being painted.
+    try {
+      void el.decode().then(() => {
+        if (this.settings !== this.paintedSettings) return
+        if (this.images.dark?.getAttribute('src') !== dark) return
+        document.body.setAttribute(DARK_READY_ATTR, 'on')
+      }).catch(() => {})
+    } catch {
+      // A synchronous throw (detached element) means no warm-up; the flag then
+      // simply flips on the next apply once the image is complete.
     }
   }
 
@@ -372,7 +504,8 @@ export class BackgroundPainter {
 
   /** Remove the wallpaper + scrim layers and clear the active attribute. */
   private removeLayers(): void {
-    if (this.layer) { this.layer.remove(); this.layer = null; this.img = null }
+    if (this.layer) { this.layer.remove(); this.layer = null }
+    for (const scheme of SCHEMES) delete this.images[scheme]
     if (this.scrim) { this.scrim.remove(); this.scrim = null }
   }
 
@@ -384,12 +517,14 @@ export class BackgroundPainter {
     const s = document.body.style
     document.body.removeAttribute(ACTIVE_ATTR)
     document.body.removeAttribute(GLASS_ATTR)
+    document.body.removeAttribute(DARK_READY_ATTR)
     for (const [prop, value] of this.savedTokens) s.setProperty(prop, value)
     for (const [prop, value] of this.savedVars) s.setProperty(prop, value)
     this.savedTokens.clear()
     this.savedVars.clear()
     this.active = false
     this.settings = undefined
+    this.hasSource = false
   }
 
   /** @returns whether a wallpaper is currently rendered. */
@@ -440,8 +575,16 @@ const PREVIEW_VARS = [
  * @param el - the preview element.
  * @param settings - the draft settings to render (may be unsaved).
  */
-export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSettings): void {
+export function paintPreviewSurface(
+  el: HTMLElement,
+  settings: BackgroundSettings,
+  scheme: BackgroundScheme = activeScheme(),
+): void {
   const s = el.style
+  // Preview the scheme the card is showing, not necessarily the live one:
+  // while the user edits the dark slot in light mode the card must still show
+  // the art that slot will paint.
+  const inDark = scheme === 'dark'
   s.setProperty('--bg-object-fit', settings.fit)
   s.setProperty('--bg-offset-x', String(settings.offsetX))
   s.setProperty('--bg-offset-y', String(settings.offsetY))
@@ -454,7 +597,6 @@ export function paintPreviewSurface(el: HTMLElement, settings: BackgroundSetting
   // panel-opacity slider is visible in the preview); at 1 the official opaque
   // surface returns — the bubble turns opaque and the blur switches off, just
   // like applySurfaceGlass does on the real backdrop.
-  const inDark = document.body.dataset.dsDarkTheme !== undefined
   if (settings.panelOpacity >= 1) {
     s.setProperty('--bg-glass-blur', '0px')
     s.setProperty('--bg-glass-brightness', '1')

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Custom Background",
-    "description": "Upload a picture or paste an image URL, then tune opacity, scrim and frosted-glass panels."
+    "description": "Upload a picture or paste a link to wallpaper the whole interface — with a separate light-mode and dark-mode image that swaps automatically when the theme changes, plus opacity, scrim and frosted-glass controls."
   }
 }

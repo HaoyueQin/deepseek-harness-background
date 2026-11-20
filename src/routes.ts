@@ -43,6 +43,8 @@ const DEFAULTS: BackgroundSettings = {
   enabled: false,
   uploadId: '',
   url: '',
+  darkUploadId: '',
+  darkUrl: '',
   opacity: DEFAULT_OPACITY,
   scrim: DEFAULT_SCRIM,
   panelOpacity: DEFAULT_PANEL_OPACITY,
@@ -258,6 +260,39 @@ function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 }
 
 /**
+ * Validate one (url, uploadId) source pair.
+ * @param url - the posted url (undefined = not part of this write).
+ * @param uploadId - the posted upload id (undefined = not part of this write).
+ * @param home - plugin home used to check that an upload exists.
+ * @param errors - the calling convention's error codes.
+ * @returns the first error code, or null when the pair is acceptable.
+ */
+function validateSourcePair(
+  url: unknown,
+  uploadId: unknown,
+  home: string | undefined,
+  errors: { url: string; uploadId: string; exclusive: string; missing: string },
+): string | null {
+  if (url !== undefined) {
+    if (typeof url !== 'string' || url.length > 4096 || (url !== '' && !/^https?:\/\//i.test(url))) {
+      return errors.url
+    }
+  }
+  if (uploadId !== undefined) {
+    if (typeof uploadId !== 'string' || (uploadId !== '' && !isUploadId(uploadId))) {
+      return errors.uploadId
+    }
+    if (uploadId !== '' && typeof url === 'string' && url !== '') {
+      return errors.exclusive
+    }
+    if (uploadId !== '' && uploadPath(uploadId, home) === '') {
+      return errors.missing
+    }
+  }
+  return null
+}
+
+/**
  * Validate a client-posted section body. Returns an error code when the body
  * must be rejected, or null when it may be written. Beyond shape checks this
  * enforces the section's exclusivity contract (`uploadId` and `url` are
@@ -268,24 +303,24 @@ function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
  * @returns an error code, or null when the body is acceptable.
  */
 export function validateSectionBody(body: Record<string, unknown>, home?: string): string | null {
-  const url = body.url
-  const uploadId = body.uploadId
-  if (url !== undefined) {
-    if (typeof url !== 'string' || url.length > 4096 || (url !== '' && !/^https?:\/\//i.test(url))) {
-      return 'invalid-url'
-    }
-  }
-  if (uploadId !== undefined) {
-    if (typeof uploadId !== 'string' || (uploadId !== '' && !isUploadId(uploadId))) {
-      return 'invalid-upload-id'
-    }
-    if (uploadId !== '' && typeof url === 'string' && url !== '') {
-      return 'mutually-exclusive-source'
-    }
-    if (uploadId !== '' && uploadPath(uploadId, home) === '') {
-      return 'upload-not-found'
-    }
-  }
+  // Both source pairs obey the same rules: a bounded http(s) url, a
+  // well-formed upload id that exists on disk, and exclusivity WITHIN the
+  // pair. The light pair and the dark pair are independent — the dark pair
+  // deliberately reuses the light art when it is empty (see settings.ts).
+  const sourceError = validateSourcePair(body.url, body.uploadId, home, {
+    url: 'invalid-url',
+    uploadId: 'invalid-upload-id',
+    exclusive: 'mutually-exclusive-source',
+    missing: 'upload-not-found',
+  })
+  if (sourceError !== null) return sourceError
+  const darkSourceError = validateSourcePair(body.darkUrl, body.darkUploadId, home, {
+    url: 'invalid-dark-url',
+    uploadId: 'invalid-dark-upload-id',
+    exclusive: 'mutually-exclusive-dark-source',
+    missing: 'upload-not-found',
+  })
+  if (darkSourceError !== null) return darkSourceError
   // Numeric knobs must be finite numbers inside their schema bounds (see
   // NUM_BOUNDS). Rejecting here keeps string coercion — `"2"` becoming `2` —
   // from silently bypassing the schema's range check.
@@ -467,24 +502,34 @@ export function makeBackgroundRoutes(
             // layer (merge of the current known fields + the posted ones)
             // rather than merging blindly: the settings layer keeps unknown
             // keys in the document, so a merge-only write would let legacy
-            // fields (e.g. the old lightUrl/darkUrl pair) linger forever.
+            // fields (e.g. the pre-0.5 `lightUrl`) linger forever.
             const merged = { ...pickKnown(readSection()), ...pickKnown(body) }
             // Exclusivity is a property of the MERGED section, not of the
             // posted body alone: a partial write ({ url } only) over a stored
             // uploadId would otherwise leave both sources set — the browser
             // resolves uploads first, so the fresh url could never paint.
+            // Each scheme's pair is checked independently.
             if (merged.uploadId !== '' && merged.url !== '') {
               json(res, 400, { ok: false, error: 'mutually-exclusive-source' })
+              return
+            }
+            if (merged.darkUploadId !== '' && merged.darkUrl !== '') {
+              json(res, 400, { ok: false, error: 'mutually-exclusive-dark-source' })
               return
             }
             await settings.replace(namespace, merged)
             const after = readSection()
             // Prune the replaced upload: switching images (or clearing) must
-            // not leave the old file on disk forever. Only the *previous*
-            // upload id is ever removed — new ids are content-addressed and
-            // unique, so a concurrent upload can never be a prune victim.
-            if (before.uploadId !== '' && before.uploadId !== after.uploadId) {
-              deleteUploadFile(before.uploadId, opts.home)
+            // not leave the old file on disk forever. Only a *previous* upload
+            // id that the new section no longer references is removed — new
+            // ids are content-addressed and unique, so a concurrent upload can
+            // never be a prune victim. Both schemes are covered, and an id that
+            // merely migrated from the light slot to the dark one survives.
+            const stillUsed = new Set([after.uploadId, after.darkUploadId])
+            for (const previous of [before.uploadId, before.darkUploadId]) {
+              if (previous !== '' && !stillUsed.has(previous)) {
+                deleteUploadFile(previous, opts.home)
+              }
             }
             json(res, 200, { ok: true, value: after })
           } catch (error) {

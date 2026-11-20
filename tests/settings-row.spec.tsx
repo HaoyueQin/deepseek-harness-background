@@ -17,6 +17,8 @@ const SECTION: BackgroundSettings = {
   enabled: true,
   uploadId: 'up-abc',
   url: '',
+  darkUploadId: '',
+  darkUrl: '',
   opacity: 1,
   scrim: 0.25,
   panelOpacity: 0.15,
@@ -176,6 +178,63 @@ describe('BackgroundSettingsRow', () => {
     fireEvent.input(panel, { target: { value: '1' } })
     expect(preview?.style.getPropertyValue('--bg-preview-glass')).toBe('var(--dsw-alias-bg-layer-1)')
     expect(preview?.style.getPropertyValue('--bg-glass-blur')).toBe('0px')
+  })
+
+  it('edits the dark slot independently and persists it next to the light one', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    renderRow()
+    await screen.findByText('background.opacity')
+    // The dark slot starts empty and says it follows the light art.
+    const darkChip = screen.getByRole('button', { name: /background\.schemeDark/ })
+    expect(darkChip.textContent).toContain('background.schemeFollowLight')
+    fireEvent.click(darkChip)
+    // With no dark art yet the card and hint say the light image stands in.
+    await screen.findByText('background.schemeFallsBackToLight')
+    const input = byLocalAny('urlInput') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'https://example.com/dark.jpg' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(persisted.darkUrl).toBe('https://example.com/dark.jpg')
+    })
+    // The light slot is untouched by the dark edit.
+    expect(persisted.uploadId).toBe('up-abc')
+    expect(persisted.url).toBe('')
+    // The chip stops advertising the light fallback once dark art exists.
+    expect(screen.getByRole('button', { name: /background\.schemeDark/ }).textContent)
+      .not.toContain('background.schemeFollowLight')
+  })
+
+  it('clears only the selected slot', async () => {
+    persisted = { ...SECTION, darkUploadId: 'up-dark' }
+    await settingsClient.load()
+    renderRow()
+    await screen.findByText('background.opacity')
+    fireEvent.click(screen.getByRole('button', { name: /background\.schemeDark/ }))
+    await screen.findByText('background.schemeDarkHint')
+    expect(screen.queryByText('background.schemeFallsBackToLight')).toBeNull()
+    // Two "clear dark image" affordances (title-row chip + bottom row).
+    const clear = screen.getAllByText('background.clearSlotDark')[0] as HTMLElement
+    fireEvent.click(clear)
+    await waitFor(() => {
+      expect(persisted.darkUploadId).toBe('')
+    })
+    // The light art survives the dark-slot clear.
+    expect(persisted.uploadId).toBe('up-abc')
+  })
+
+  it('never overwrites a half-typed url when the scheme flips', async () => {
+    paintBackground({ ...persisted, enabled: true })
+    renderRow()
+    await screen.findByText('background.opacity')
+    const input = byLocalAny('urlInput') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'https://exa' } })
+    // The app flips to dark while the user is still typing.
+    document.body.dataset.dsDarkTheme = ''
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /background\.schemeDark/ }).getAttribute('aria-pressed')).toBe('true')
+    })
+    expect((byLocalAny('urlInput') as HTMLInputElement).value).toBe('https://exa')
+    delete document.body.dataset.dsDarkTheme
   })
 
   it('rejects a non-http(s) url with an error and saves nothing', async () => {
