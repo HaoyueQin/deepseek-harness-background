@@ -30,8 +30,9 @@ import { BACKGROUND_CSS } from '../src/client/background-css.ts'
 import {
   ACCOUNT_NOTICE, ASK_QUESTION_CARD, BASE_GROUND, BASE_GROUND_DARK, BASE_GROUND_SURFACES,
   BASE_GROUND_SURFACES_DARK, CHANGED_FILES_HEADER, CHANGED_FILES_HEADER_HOVER, COMPOSER_CARD,
-  COMPOSER_CARD_FILTER, PLATFORM_OVERLAY, PLATFORM_OVERLAY_DARK, PRESENTED_FILE, PRESENTED_FILE_HOVER,
-  PRESENT_OUTPUT, SCHEDULE_CREATE_CARD, SCHEDULE_CREATE_HOVER, STAT_DIALOGS, TURN_TRIGGER, TURN_TRIGGER_HOVER,
+  COMPOSER_CARD_FILTER, PAGE_TAB_INDICATOR, PAGE_TAB_LIST, PAGE_TAB_PILL, PLATFORM_OVERLAY,
+  PLATFORM_OVERLAY_DARK, PRESENTED_FILE, PRESENTED_FILE_HOVER, PRESENT_OUTPUT, SCHEDULE_CREATE_CARD,
+  SCHEDULE_CREATE_HOVER, STAT_DIALOGS, TURN_TRIGGER, TURN_TRIGGER_HOVER,
 } from './glass-anchors.ts'
 
 /** One parsed rule: its comma-separated selector parts and its body. */
@@ -229,6 +230,22 @@ function mountFixture(): void {
       <button type="button" class="Fg9pLx_header">由定时任务触发</button>
     </section>
 
+    <!-- the plugin manager page: the Installed / Discover segmented switcher.
+         The track and the sliding indicator are the opaque paints; the pills
+         are transparent hit areas. The settings SegmentedControl below is a
+         different control and must keep its official paint. -->
+    <div class="fO69Vq_pageTabs">
+      <div role="tablist" aria-label="插件列表" class="_tabs_1p79o_1 fO69Vq_pageTabList">
+        <span class="_indicator_1p79o_9" aria-hidden="true"></span>
+        <button type="button" role="tab" aria-selected="true" class="_pill_1bqmh_1 _interactive_1bqmh_16 _tab_1p79o_1">已安装</button>
+        <button type="button" role="tab" aria-selected="false" class="_pill_1bqmh_1 _interactive_1bqmh_16 _tab_1p79o_1">发现</button>
+      </div>
+    </div>
+    <div class="_control_d62eq_11" id="settings-segmented">
+      <span class="_indicator_d62eq_22"></span>
+      <button type="button" class="_tab_d62eq_37">浅色</button>
+    </div>
+
     <!-- the ask-user card, and the surfaces whose own fill masks prose -->
     <div class="Yk2mQa_root" data-tool="ask_user_question" data-state="ok">
       <div class="Yk2mQa_bodyWrap">
@@ -240,10 +257,16 @@ function mountFixture(): void {
         <div data-disclosure-row="" id="reasoning-pinned-header"></div>
       </div>
     </div>
-    <div class="Mn8wRt_compactionRow">
-      <button type="button" class="Mn8wRt_compactionButton" id="compaction-toggle">
+    <div class="Mn8wRt_compactionRow" id="compaction-row-collapsed">
+      <button type="button" class="Mn8wRt_compactionButton" id="compaction-toggle-collapsed" aria-expanded="false">
         <span data-compaction-icon="context"></span>
       </button>
+    </div>
+    <div class="Mn8wRt_compactionRow" id="compaction-row-open">
+      <button type="button" class="Mn8wRt_compactionButton" id="compaction-toggle" aria-expanded="true">
+        <span data-compaction-icon="context"></span>
+      </button>
+      <div class="Mn8wRt_compactionBody"></div>
     </div>
     <button type="button" class="Yk2mQa_inspectButton" id="inspect-button"></button>
 
@@ -295,6 +318,46 @@ describe('chrome buttons', () => {
     expect(matchSelector(collapsed)).toHaveLength(5)
     const body = ruleForSelector(collapsed).body.replace(/\s+/g, ' ')
     expect(body).toContain('background-color: transparent')
+  })
+})
+
+describe('plugin page segmented switcher', () => {
+  it('frosts the track and the selection indicator, and only those', () => {
+    mountFixture()
+    const track = matchSelector(PAGE_TAB_LIST)
+    expect(track.map(element => element.getAttribute('role'))).toEqual(['tablist'])
+    const trackBody = ruleForSelector(PAGE_TAB_LIST).body.replace(/\s+/g, ' ')
+    // The track paints --dsw-alias-bg-module-platform (opaque), so the rule has
+    // to take the fill and add the shared exposure chain.
+    expect(trackBody).toContain('background-color: var(--dsw-specific-input-major)')
+    expect(trackBody).toContain('backdrop-filter: blur(var(--bg-glass-blur')
+
+    // The indicator is the layer that actually draws the selected segment, so
+    // it needs its own fill: frosting only the track would leave a solid
+    // rectangle sliding under the labels.
+    const indicator = matchSelector(PAGE_TAB_INDICATOR)
+    expect(indicator).toHaveLength(1)
+    expect(indicator[0]!.classList.contains('_indicator_1p79o_9')).toBe(true)
+    const indicatorBody = ruleForSelector(PAGE_TAB_INDICATOR).body.replace(/\s+/g, ' ')
+    expect(indicatorBody).toContain('background-color: var(--dsw-specific-input-major)')
+    expect(indicatorBody).toContain('backdrop-filter: blur(var(--bg-glass-blur')
+
+    // The pills are transparent hit areas in the host sheet; pinning them
+    // transparent keeps the indicator visible instead of stacking a second
+    // fill over it.
+    const pills = matchSelector(PAGE_TAB_PILL)
+    expect(pills).toHaveLength(2)
+    expect(pills.every(pill => pill.tagName === 'BUTTON')).toBe(true)
+    const pillBody = ruleForSelector(PAGE_TAB_PILL).body.replace(/\s+/g, ' ')
+    expect(pillBody).toContain('background-color: transparent')
+    expect(pillBody).not.toContain('backdrop-filter')
+
+    // The anchor is the page's own class: another segmented control keeps its
+    // official paint.
+    const settingsControl = document.getElementById('settings-segmented')!
+    for (const selector of [PAGE_TAB_LIST, PAGE_TAB_INDICATOR, PAGE_TAB_PILL]) {
+      expect(settingsControl.matches(selector), selector).toBe(false)
+    }
   })
 })
 
@@ -501,6 +564,12 @@ describe('surfaces that lean on the base ground', () => {
       expect(body, name).toContain(`background-color: ${BASE_GROUND}`)
       expect(body, name).not.toContain('backdrop-filter')
     }
+    // The compaction fill exists only while the row is open (the host's own
+    // rule keys on .compactionRow:has(.compactionBody)). A collapsed marker has
+    // no official fill, and restoring one turned the inline line into an
+    // opaque bar floating over the wallpaper — the reported regression.
+    const compaction = BASE_GROUND_SURFACES.find(entry => entry.name === 'compaction pinned toggle')!
+    expect(document.getElementById('compaction-toggle-collapsed')!.matches(compaction.selector)).toBe(false)
     // The base token has one literal per scheme, and the dark rule restates it.
     for (const { name, selector } of BASE_GROUND_SURFACES_DARK) {
       expect(ruleForSelector(selector).body.replace(/\s+/g, ' '), name)
