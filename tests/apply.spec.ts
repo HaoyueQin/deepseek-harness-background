@@ -77,14 +77,68 @@ function scrim(): HTMLDivElement | null {
   return document.querySelector('.dsh-bg-scrim') as HTMLDivElement | null
 }
 
+/** One scheme's wallpaper element (the painter keeps both mounted). */
+function layerImg(scheme: 'light' | 'dark'): HTMLImageElement | null {
+  return document.querySelector(`.dsh-bg-layer img[data-scheme="${scheme}"]`) as HTMLImageElement | null
+}
+
+/**
+ * The url the CURRENT scheme actually paints. Both layers stay mounted and the
+ * swap is pure CSS (visibility keyed on `data-ds-dark-theme`), so a test must
+ * ask which layer the stylesheet reveals rather than which one changed src.
+ * jsdom applies the injected stylesheet, so getComputedStyle is authoritative
+ * here — the same signal the browser uses.
+ */
+function paintedUrl(): string | null {
+  for (const scheme of ['light', 'dark'] as const) {
+    const el = layerImg(scheme)
+    if (el === null) continue
+    if (window.getComputedStyle(el).visibility !== 'hidden') return el.getAttribute('src')
+  }
+  return null
+}
+
+/** The single layer element the old single-image design exposed (kept as the
+ *  "the wallpaper exists" probe used by the teardown assertions). */
 function img(): HTMLImageElement | null {
   return document.querySelector('.dsh-bg-layer img') as HTMLImageElement | null
+}
+
+/**
+ * Make jsdom report every wallpaper layer as DECODED.
+ *
+ * jsdom never loads an image, so `complete` is false and `naturalWidth` is 0.
+ * The painter gates the dark pairing on real decode readiness (that gate is
+ * what stops a black veil sitting over the light picture while a large dark
+ * image is still arriving), so a test that wants the pairing must simulate the
+ * state a browser reaches after the image has arrived.
+ */
+function simulateDecodedImages(): void {
+  Object.defineProperty(HTMLImageElement.prototype, 'complete', {
+    configurable: true,
+    get(): boolean { return (this.getAttribute('src') ?? '') !== '' },
+  })
+  Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', {
+    configurable: true,
+    get(): number { return (this.getAttribute('src') ?? '') === '' ? 0 : 1920 },
+  })
+}
+
+/** Pin the readiness attribute the way a completed decode would. */
+async function markDarkReady(): Promise<void> {
+  await settingsClient.load()
+  await vi.waitFor(() => {
+    expect(document.body.getAttribute('data-dsh-bg-darkready')).toBe('on')
+  })
 }
 
 afterEach(async () => {
   await fiber?.dispose()
   fiber = undefined
   document.body.removeAttribute('data-dsh-bg')
+  document.body.removeAttribute('data-dsh-bg-darkready')
+  delete (HTMLImageElement.prototype as unknown as { complete?: unknown }).complete
+  delete (HTMLImageElement.prototype as unknown as { naturalWidth?: unknown }).naturalWidth
   delete document.body.dataset.dsDarkTheme
   document.body.style.cssText = ''
   vi.unstubAllGlobals()
@@ -147,7 +201,10 @@ describe('deepseek-harness-background apply', () => {
     const cssTag = document.querySelector('style[data-plugin-css="deepseek-harness-background/styles"]')
     const cssText = cssTag?.textContent ?? ''
     expect(cssText).toContain('rgba(255, 255, 255, var(--bg-scrim')
-    expect(cssText).toContain('body[data-ds-dark-theme] .dsh-bg-scrim')
+    // The black veil is gated on the SAME condition as the dark art, so the two
+    // can never disagree — that shared predicate is the whole fix for "the
+    // light photo just went darker".
+    expect(cssText).toContain('body[data-ds-dark-theme][data-dsh-bg-darkready] .dsh-bg-scrim')
     expect(cssText).toContain('rgba(0, 0, 0, var(--bg-scrim')
   })
 
@@ -178,6 +235,120 @@ describe('deepseek-harness-background apply', () => {
     for (const name of ['.dsh-bg-layer', '.dsh-bg-scrim']) {
       expect(optOuts.some(entry => entry.selector.includes(name)), name).toBe(true)
     }
+  })
+
+  it('warms the decoder for the hidden layer so the next flip paints instantly', async () => {
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/light.jpg', darkUrl: 'https://example.com/dark.jpg' }
+    const decoded: string[] = []
+    // jsdom has no HTMLImageElement.decode; recording the calls is the only
+    // observable side of the warm-up.
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: function decode(this: HTMLImageElement) {
+        decoded.push(this.getAttribute('src') ?? '')
+        return Promise.resolve()
+      },
+    })
+    mockFetch()
+    await mount()
+    // Light scheme paints the light layer, so the DARK one is warmed.
+    expect(decoded).toContain('https://example.com/dark.jpg')
+    expect(decoded).not.toContain('https://example.com/light.jpg')
+    delete (HTMLImageElement.prototype as unknown as { decode?: unknown }).decode
+  })
+
+  it('keeps the LIGHT pairing while the dark art is still arriving', async () => {
+    // The reported bug: flipping the theme before the dark image had finished
+    // decoding showed a black veil over the light picture, which read as "the
+    // light photo just got darker" and only later became a real swap. The
+    // readiness gate must hold the whole light pairing until the dark frame is
+    // actually there.
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/light.jpg', darkUrl: 'https://example.com/dark.jpg' }
+    mockFetch()
+    await mount()
+    // No simulated decode: jsdom reports complete=false/naturalWidth=0, which is
+    // exactly the "still downloading" state a real browser is in for a big PNG.
+    expect(document.body.getAttribute('data-dsh-bg-darkready')).toBeNull()
+    document.body.dataset.dsDarkTheme = ''
+    // Still the light art under the white veil — no half-swapped state.
+    expect(paintedUrl()).toBe('https://example.com/light.jpg')
+    expect(document.body.getAttribute('data-dsh-bg-darkready')).toBeNull()
+
+    // Once the frame lands, the pairing flips — still with no src change.
+    simulateDecodedImages()
+    await markDarkReady()
+    expect(paintedUrl()).toBe('https://example.com/dark.jpg')
+  })
+
+  it('unlocks the dark pairing from the dark layer\'s own load event', async () => {
+    // Belt to decode()'s braces: on an engine where decode() is unavailable or
+    // was requested too early, the img's own `load` must still unlock the
+    // dark pairing the moment the frame exists.
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/light.jpg', darkUrl: 'https://example.com/dark.jpg' }
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true, value: () => Promise.reject(new Error('too early')),
+    })
+    // No simulateDecodedImages(): the engine reports "not loaded yet", which is
+    // the state in which decode() rejects too.
+    mockFetch()
+    await mount()
+    expect(document.body.getAttribute('data-dsh-bg-darkready')).toBeNull()
+    // The frame arrives: `load` fires on the real element.
+    simulateDecodedImages()
+    layerImg('dark')?.dispatchEvent(new Event('load'))
+    expect(document.body.getAttribute('data-dsh-bg-darkready')).toBe('on')
+    document.body.dataset.dsDarkTheme = ''
+    expect(paintedUrl()).toBe('https://example.com/dark.jpg')
+    delete (HTMLImageElement.prototype as unknown as { decode?: unknown }).decode
+  })
+
+  it('ignores a stale load event from a superseded section', async () => {
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/light.jpg', darkUrl: 'https://example.com/dark.jpg' }
+    simulateDecodedImages()
+    mockFetch()
+    await mount()
+    // The section is swapped to a DIFFERENT dark source; the old element's
+    // pending load must not unlock the pairing for the new art.
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/light2.jpg', darkUrl: 'https://example.com/dark2.jpg' }
+    await settingsClient.load()
+    await vi.waitFor(() => {
+      expect(layerImg('dark')?.getAttribute('src')).toBe('https://example.com/dark2.jpg')
+    })
+    const staleReady = document.body.getAttribute('data-dsh-bg-darkready')
+    expect(['on', null]).toContain(staleReady)
+    // Whatever the state, the painted art must match the painted veil pairing
+    // for the CURRENT section — never the previous one's picture.
+    document.body.dataset.dsDarkTheme = ''
+    const painted = paintedUrl()
+    expect([null, 'https://example.com/dark2.jpg', 'https://example.com/light2.jpg']).toContain(painted)
+  })
+
+  it('treats a single-image section as ready (same art in both schemes)', async () => {
+    // No dark art of its own: both layers resolve to the light url, so the dark
+    // pairing paints the identical picture and is safe to enable immediately.
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/only.jpg' }
+    mockFetch()
+    await mount()
+    expect(document.body.getAttribute('data-dsh-bg-darkready')).toBe('on')
+    document.body.dataset.dsDarkTheme = ''
+    expect(paintedUrl()).toBe('https://example.com/only.jpg')
+  })
+
+  it('keeps the wallpaper swap out of the JS observer path', async () => {
+    // A regression guard: the swap must be decidable by CSS alone. If a future
+    // change re-introduces an observer-driven repaint of the art, the veil can
+    // once again turn dark while the light picture is still on screen.
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/light.jpg', darkUrl: 'https://example.com/dark.jpg' }
+    simulateDecodedImages()
+    mockFetch()
+    await mount()
+    await markDarkReady()
+    const before = layerImg('dark')?.getAttribute('src')
+    // Flipping the attribute is the whole trigger.
+    document.body.dataset.dsDarkTheme = ''
+    expect(paintedUrl()).toBe('https://example.com/dark.jpg')
+    // Nothing about the DOM changed underneath the flip.
+    expect(layerImg('dark')?.getAttribute('src')).toBe(before)
   })
 
   it('repaints the glass tokens when the theme flips (observer)', async () => {
@@ -213,21 +384,48 @@ describe('deepseek-harness-background apply', () => {
     expect(document.body.style.getPropertyValue('--bg-glass-blur')).toBe('0px')
   })
 
-  it('swaps to the dark image when the scheme flips (and back)', async () => {
+  it('paints the dark art on a scheme flip, with no JS in the swap path', async () => {
     section = { ...SECTION, uploadId: '', url: 'https://example.com/light.jpg', darkUrl: 'https://example.com/dark.jpg' }
+    simulateDecodedImages()
     mockFetch()
     await mount()
-    expect(img()?.getAttribute('src')).toBe('https://example.com/light.jpg')
-    // Dark scheme → the dark art replaces the light one in place.
+    await markDarkReady()
+    // BOTH layers are already mounted with their art: nothing has to be
+    // fetched, decoded or created when the theme flips.
+    expect(layerImg('light')?.getAttribute('src')).toBe('https://example.com/light.jpg')
+    expect(layerImg('dark')?.getAttribute('src')).toBe('https://example.com/dark.jpg')
+    expect(paintedUrl()).toBe('https://example.com/light.jpg')
+
+    // Dark scheme → the CSS gate reveals the dark layer in the same style pass
+    // that re-tints the scrim. Asserted on computed visibility (what the
+    // browser paints), NOT on a src mutation, because the swap must not depend
+    // on any observer callback.
     document.body.dataset.dsDarkTheme = ''
-    await vi.waitFor(() => {
-      expect(img()?.getAttribute('src')).toBe('https://example.com/dark.jpg')
-    })
-    // Back to light → the light art returns.
+    expect(paintedUrl()).toBe('https://example.com/dark.jpg')
+
+    // Back to light → the light layer returns, still without touching src.
     delete document.body.dataset.dsDarkTheme
-    await vi.waitFor(() => {
-      expect(img()?.getAttribute('src')).toBe('https://example.com/light.jpg')
-    })
+    expect(paintedUrl()).toBe('https://example.com/light.jpg')
+  })
+
+  it('swaps the veil and the art together (never a dark veil over light art)', async () => {
+    section = { ...SECTION, uploadId: '', url: 'https://example.com/light.jpg', darkUrl: 'https://example.com/dark.jpg' }
+    simulateDecodedImages()
+    mockFetch()
+    await mount()
+    await markDarkReady()
+    const css = document.querySelector('style[data-plugin-css="deepseek-harness-background/styles"]')?.textContent ?? ''
+    // Both the veil colour and the layer visibility must be keyed on the SAME
+    // attribute in the SAME stylesheet — that is what makes the flip atomic.
+    // A JS-driven swap (observer + fetch) is what used to let the veil turn
+    // dark while the light art was still on screen.
+    expect(css).toMatch(/body\[data-ds-dark-theme\]\[data-dsh-bg-darkready\] \.dsh-bg-scrim/)
+    expect(css).toMatch(/body\[data-ds-dark-theme\]\[data-dsh-bg-darkready\] \.dsh-bg-layer \.dsh-bg-image\[data-scheme="dark"\]/)
+    expect(css).toMatch(/body\[data-ds-dark-theme\]\[data-dsh-bg-darkready\] \.dsh-bg-layer \.dsh-bg-image\[data-scheme="light"\]/)
+    // And no observer-driven repaint is registered for the art: flipping the
+    // attribute alone must be enough.
+    document.body.dataset.dsDarkTheme = ''
+    expect(paintedUrl()).toBe('https://example.com/dark.jpg')
   })
 
   it('paints the dark art in light mode when only the dark slot is set', async () => {
@@ -236,7 +434,8 @@ describe('deepseek-harness-background apply', () => {
     section = { ...SECTION, uploadId: '', url: '', darkUploadId: '', darkUrl: 'https://example.com/dark-only.jpg' }
     mockFetch()
     await mount()
-    expect(img()?.getAttribute('src')).toBe('https://example.com/dark-only.jpg')
+    // Both layers point at the one picture, so either scheme paints it.
+    expect(paintedUrl()).toBe('https://example.com/dark-only.jpg')
     expect(document.body.getAttribute('data-dsh-bg')).toBe('on')
   })
 
@@ -248,8 +447,11 @@ describe('deepseek-harness-background apply', () => {
     await vi.waitFor(() => {
       expect(document.body.style.getPropertyValue('--dsw-specific-input-major')).not.toBe('')
     })
-    // The fallback is the same url, so the <img> never reloads.
-    expect(img()?.getAttribute('src')).toBe('https://example.com/only.jpg')
+    // The fallback resolves both layers to the same url, so the flip paints
+    // the identical picture: invisible regardless of the stylesheet.
+    expect(layerImg('light')?.getAttribute('src')).toBe('https://example.com/only.jpg')
+    expect(layerImg('dark')?.getAttribute('src')).toBe('https://example.com/only.jpg')
+    expect(paintedUrl()).toBe('https://example.com/only.jpg')
     expect(document.body.getAttribute('data-dsh-bg')).toBe('on')
   })
 
@@ -259,16 +461,19 @@ describe('deepseek-harness-background apply', () => {
       ...SECTION, uploadId: '', url: 'https://example.com/light.jpg',
       darkUploadId: 'up-dark', darkUrl: '',
     }
+    simulateDecodedImages()
     mockFetch()
     await mount()
-    expect(img()?.getAttribute('src')).toContain('/api/bg-wallpaper/image/up-dark')
+    await markDarkReady()
+    expect(layerImg('dark')?.getAttribute('src')).toContain('/api/bg-wallpaper/image/up-dark')
+    expect(paintedUrl()).toContain('/api/bg-wallpaper/image/up-dark')
   })
 
   it('renders a URL source directly when no upload is selected', async () => {
     section = { ...SECTION, uploadId: '', url: 'https://example.com/a.jpg' }
     mockFetch()
     await mount()
-    expect(img()?.src).toBe('https://example.com/a.jpg')
+    expect(layerImg('light')?.getAttribute('src')).toBe('https://example.com/a.jpg')
   })
 
   it('releases the frame tokens when enabled without any wallpaper source', async () => {

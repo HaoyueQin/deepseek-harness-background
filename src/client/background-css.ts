@@ -23,6 +23,16 @@ export const ACTIVE_ATTR = 'data-dsh-bg'
 export const GLASS_ATTR = 'data-dsh-bg-glass'
 
 /**
+ * Body attribute the painter sets once the DARK layer's own frame is decoded.
+ * The whole dark pairing (black veil + dark art) is gated on it together with
+ * `data-ds-dark-theme`, so a theme flip can never show a dark veil over the
+ * light picture while a large dark image is still arriving — before this gate
+ * existed, the veil flipped instantly (pure CSS) while the art waited on the
+ * network, which read as "the light photo just got darker".
+ */
+export const DARK_READY_ATTR = 'data-dsh-bg-darkready'
+
+/**
  * The backdrop CSS. The wallpaper is a fixed `z-index:-2` element (below the
  * scrim at `-1`, below the UI). While active, the app frame + sidebar fills
  * turn transparent so all columns share one backdrop.
@@ -73,7 +83,23 @@ export const BACKGROUND_CSS = `
   .dsh-bg-layer {
     position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none;
   }
+  /* THE SWAP IS ONE CSS FRAME, NOT A JS RACE.
+     Both schemes' art are separate <img> elements kept in the DOM: one painted,
+     one decoded and waiting. The scheme attribute on <body> decides which one
+     paints, so a theme flip hides one layer and shows the other in the SAME
+     style recalculation that re-tints the scrim below. No observer callback, no
+     download and no decode sits between "the veil changed" and "the picture
+     changed", which is what makes the pair atomic.
+     Before this, the veil was pure CSS while the picture needed a JS observer
+     plus a network fetch, so a flip showed a dark veil over the light photo for
+     as long as the dark image took to arrive — the reported "it just got a bit
+     darker first".
+     A scheme whose art equals the other scheme's art (single-image sections,
+     and either slot falling back to the other) points both layers at the same
+     url, so the flip paints identical pixels and is invisible. */
   .dsh-bg-layer .dsh-bg-image {
+    position: absolute;
+    inset: 0;
     width: 100%; height: 100%; display: block; border: 0; background: transparent;
     object-fit: var(--bg-object-fit, cover);
     /* Normalized crop framing: percent object-position is the position of the
@@ -87,14 +113,43 @@ export const BACKGROUND_CSS = `
     transform: scale(var(--bg-wallpaper-scale, 1));
     transform-origin: center;
   }
-  /* Scrim is theme-aware: a WHITE veil in the light scheme (it lifts the art
+  /* Exactly one scheme layer paints. The hidden layer keeps its slot in the
+     render tree (visibility, NOT display) so the browser holds its decoded
+     frame while it waits. display:none would drop the image out of the render
+     tree and let the decoder evict it, which is precisely the delay this
+     design exists to remove.
+     Default pairing is LIGHT: light art under a white veil. The dark pairing
+     takes over only under the ONE predicate that drives everything below —
+     "dark theme AND the dark art is decoded" — so the veil and the picture can
+     never disagree, not even in the seconds before a large dark image has
+     finished arriving. */
+  .dsh-bg-layer .dsh-bg-image[data-scheme="light"] {
+    visibility: visible;
+  }
+  .dsh-bg-layer .dsh-bg-image[data-scheme="dark"] {
+    visibility: hidden;
+  }
+  /* THE DARK PAIRING, in one place. data-dsh-bg-darkready is set by the
+     painter when the dark layer's own frame is decoded (not merely requested);
+     the theme flip itself stays a pure CSS state change, because once that
+     flag is present nothing about it changes on a flip. */
+  body[data-ds-dark-theme][data-dsh-bg-darkready] .dsh-bg-layer .dsh-bg-image[data-scheme="light"] {
+    visibility: hidden;
+  }
+  body[data-ds-dark-theme][data-dsh-bg-darkready] .dsh-bg-layer .dsh-bg-image[data-scheme="dark"] {
+    visibility: visible;
+  }
+  /* Scrim is theme-aware: a WHITE veil over the light art (it lifts the picture
      toward the near-white surface so dark text keeps contrast) and a BLACK veil
-     in the dark scheme (it dims the art so light text keeps contrast). */
+     over the dark art (it dims the picture so light text keeps contrast). It is
+     keyed on the SAME two attributes as the layers above, in the same
+     stylesheet, so the veil is always the one that belongs to the picture
+     actually on screen. */
   .dsh-bg-scrim {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
     background: rgba(255, 255, 255, var(--bg-scrim, 0.25));
   }
-  body[data-ds-dark-theme] .dsh-bg-scrim {
+  body[data-ds-dark-theme][data-dsh-bg-darkready] .dsh-bg-scrim {
     background: rgba(0, 0, 0, var(--bg-scrim, 0.25));
   }
   /* Desktop window drag: the shell marks a chrome row \`data-window-drag\` and
